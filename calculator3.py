@@ -23,7 +23,23 @@ with st.expander("1. 项目基本信息", expanded=True):
     # 建设期年份：用生成的年份列表，默认值不变
     build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
     # 运营期年份：同样用生成的年份列表，默认值不变
-    operate_years = st.multiselect("运营期年份", options=year_options, default=[2027, 2028, 2029])
+    
+ st.subheader("运营期年份（区间选择）")
+# 用columns实现起始年+结束年界面上一行展示
+col1, col2 = st.columns(2)
+# 运营期起始年：参数全部一行排版，界面放在第一列
+with col1:
+    operate_start = st.number_input("运营期起始年", min_value=START_YEAR, max_value=END_YEAR, value=2027, step=1, key="operate_start")
+# 运营期结束年：参数全部一行排版，界面放在第二列
+with col2:
+    operate_end = st.number_input("运营期结束年", min_value=operate_start, max_value=END_YEAR, value=2029, step=1, key="operate_end")
+# 自动生成运营期年份列表（一行代码）
+operate_years = list(range(operate_start, operate_end + 1))
+# 生成的年份列表一行展示（界面上一行）
+st.info(f"✅ 已自动生成运营期年份：{operate_years}")
+# 合法性校验一行展示（代码+界面都一行）
+if build_years and operate_start < max(build_years):
+    st.warning(f"⚠️ 运营期起始年({operate_start})早于建设期最后一年({max(build_years)})，请检查！")
 
 # 2. 收入计算参数
 with st.expander("2. 收入计算参数", expanded=True):
@@ -115,3 +131,4 @@ if calc_button:
         use_container_width=True
 
     )
+
