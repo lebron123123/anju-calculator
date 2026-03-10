@@ -12,11 +12,18 @@ st.markdown("---")
 # ===================== 输入区（优化：手机上更易操作）=====================
 st.header("📝 请输入项目数据")
 
+# 定义年份范围（方便后续调整，可选但推荐）
+START_YEAR = 2025
+END_YEAR = 2200
+year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2025~2200的年份列表
+
 # 1. 项目基本信息
 with st.expander("1. 项目基本信息", expanded=True):
-    project_name = st.text_input("项目名称", value="安居创景苑（测试）")
-    build_years = st.multiselect("建设期年份", options=[2025, 2026, 2027, 2028, 2029], default=[2025, 2026])
-    operate_years = st.multiselect("运营期年份", options=[2027, 2028, 2029, 2030, 2031], default=[2027, 2028, 2029])
+    project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
+    # 建设期年份：用生成的年份列表，默认值不变
+    build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
+    # 运营期年份：同样用生成的年份列表，默认值不变
+    operate_years = st.multiselect("运营期年份", options=year_options, default=[2027, 2028, 2029])
 
 # 2. 收入计算参数
 with st.expander("2. 收入计算参数", expanded=True):
@@ -106,4 +113,5 @@ if calc_button:
         file_name=excel_file_name,
         mime="text/csv",
         use_container_width=True
+
     )
