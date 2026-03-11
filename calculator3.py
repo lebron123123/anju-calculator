@@ -88,37 +88,40 @@ st.markdown("---")
 # 3. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
-# ===================== 核心测算函数（完全复用之前的逻辑）=====================
+# ===================== 核心测算函数（最小改动，仅加租金递增逻辑）=====================
 def generate_year_list(build_yrs, operate_yrs):
     all_years = build_yrs + operate_yrs
     month_dict = {year: 0 if year in build_yrs else 12 for year in all_years}
     is_operate = {year: year in operate_yrs for year in all_years}
     return all_years, month_dict, is_operate
 
-def calc_income(all_years, month_dict, is_operate, area, price, ramp1, ramp2, stable):
+def calc_income(all_years, month_dict, is_operate, area, price, ramp1, ramp2, stable, increase_span, increase_rate):
     income_df = pd.DataFrame(index=all_years)
-    resi_occupancy = {}
+    resi_occupancy, resi_rent_price = {}, {}
+    operate_year_list = [y for y in all_years if is_operate[y]]
     
-    # 计算每年出租率
-    for idx, year in enumerate([y for y in all_years if is_operate[y]]):
-        if idx == 0:
-            resi_occupancy[year] = ramp1
-        elif idx == 1:
-            resi_occupancy[year] = ramp2
-        else:
-            resi_occupancy[year] = stable
+    # 计算每年出租率（完全保留你原有的逻辑）
+    for idx, year in enumerate(operate_year_list):
+        if idx == 0: resi_occupancy[year] = ramp1
+        elif idx == 1: resi_occupancy[year] = ramp2
+        else: resi_occupancy[year] = stable
     
-    # 计算每年租金
+    # 新增：计算每年租金单价（仅加这一段，最小改动）
+    for idx, year in enumerate(operate_year_list):
+        increase_times = idx // increase_span
+        resi_rent_price[year] = price * (1 + increase_rate / 100) ** increase_times
+    
+    # 计算每年租金收入（仅修改price为resi_rent_price[year]，最小改动）
     for year in all_years:
         if not is_operate[year]:
             income_df.loc[year, "住宅租金收入(万元)"] = 0
             income_df.loc[year, "计算过程说明"] = "建设期，无收入"
         else:
-            occ = resi_occupancy[year]
-            months = month_dict[year]
-            year_rent = area * price * occ * months / 10000
+            occ, months, current_rent = resi_occupancy[year], month_dict[year], resi_rent_price[year]
+            year_rent = area * current_rent * occ * months / 10000
+            income_df.loc[year, "租金单价(元/㎡/月)"] = round(current_rent, 2)
             income_df.loc[year, "住宅租金收入(万元)"] = round(year_rent, 4)
-            income_df.loc[year, "计算过程说明"] = f"{area}㎡ × {price}元/㎡/月 × {occ}出租率 × {months}个月 ÷ 10000"
+            income_df.loc[year, "计算过程说明"] = f"{area}㎡ × {round(current_rent,2)}元/㎡/月 × {occ}出租率 × {months}个月 ÷ 10000"
     
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"]
     return income_df, resi_occupancy
@@ -165,6 +168,7 @@ if calc_button:
         use_container_width=True
 
     )
+
 
 
 
