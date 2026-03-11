@@ -3,12 +3,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
-
 # ===================== 页面配置（优化：更适合手机）=====================
 st.set_page_config(page_title="安居房财务测算", page_icon="🏠", layout="centered")
 st.title("🏠 安居房财务测算计算器")
 st.markdown("---")
-
 # ===================== 输入区（优化：手机上更易操作）=====================
 st.header("📝 请输入项目数据")
 
@@ -82,36 +80,39 @@ with st.expander("2. 收入计算参数", expanded=True):
         occupancy_stable = col_stable3.number_input("稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
     else:
         st.warning("⚠️ 请先在「1. 项目基本信息」中设置运营期年份！")
+        # 给变量赋默认值，避免NameError
+        occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0
 
 st.markdown("---")
 
 # 3. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
-# ===================== 核心测算函数（最小改动，仅加租金递增逻辑）=====================
+# ===================== 核心测算函数（修复适配新参数，无报错）=====================
 def generate_year_list(build_yrs, operate_yrs):
     all_years = build_yrs + operate_yrs
     month_dict = {year: 0 if year in build_yrs else 12 for year in all_years}
     is_operate = {year: year in operate_yrs for year in all_years}
     return all_years, month_dict, is_operate
 
-def calc_income(all_years, month_dict, is_operate, area, price, ramp1, ramp2, stable, increase_span, increase_rate):
+# 修复：适配新的爬坡期字典+稳定期参数，删掉不存在的ramp1、ramp2
+def calc_income(all_years, month_dict, is_operate, area, price, increase_span, increase_rate, occupancy_ramp_dict, stable_start, stable_end, stable_occ):
     income_df = pd.DataFrame(index=all_years)
     resi_occupancy, resi_rent_price = {}, {}
     operate_year_list = [y for y in all_years if is_operate[y]]
     
-    # 计算每年出租率（完全保留你原有的逻辑）
-    for idx, year in enumerate(operate_year_list):
-        if idx == 0: resi_occupancy[year] = ramp1
-        elif idx == 1: resi_occupancy[year] = ramp2
-        else: resi_occupancy[year] = stable
+    # 修复：按用户选的爬坡期年份+稳定期区间计算出租率，不再硬编码第1、2年
+    for year in operate_year_list:
+        if year in occupancy_ramp_dict: resi_occupancy[year] = occupancy_ramp_dict[year]
+        elif stable_start <= year <= stable_end: resi_occupancy[year] = stable_occ
+        else: resi_occupancy[year] = 0.0
     
-    # 新增：计算每年租金单价（仅加这一段，最小改动）
+    # 租金递增逻辑保留不变
     for idx, year in enumerate(operate_year_list):
         increase_times = idx // increase_span
         resi_rent_price[year] = price * (1 + increase_rate / 100) ** increase_times
     
-    # 计算每年租金收入（仅修改price为resi_rent_price[year]，最小改动）
+    # 计算每年租金收入
     for year in all_years:
         if not is_operate[year]:
             income_df.loc[year, "住宅租金收入(万元)"] = 0
@@ -120,20 +121,27 @@ def calc_income(all_years, month_dict, is_operate, area, price, ramp1, ramp2, st
             occ, months, current_rent = resi_occupancy[year], month_dict[year], resi_rent_price[year]
             year_rent = area * current_rent * occ * months / 10000
             income_df.loc[year, "租金单价(元/㎡/月)"] = round(current_rent, 2)
+            income_df.loc[year, "出租率"] = round(occ, 4)
             income_df.loc[year, "住宅租金收入(万元)"] = round(year_rent, 4)
-            income_df.loc[year, "计算过程说明"] = f"{area}㎡ × {round(current_rent,2)}元/㎡/月 × {occ}出租率 × {months}个月 ÷ 10000"
+            income_df.loc[year, "计算过程说明"] = f"{area}㎡ × {round(current_rent,2)}元/㎡/月 × {round(occ,4)}出租率 × {months}个月 ÷ 10000"
     
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"]
     return income_df, resi_occupancy
 
-# ===================== 结果展示区（优化：手机上更易查看）=====================
+# ===================== 结果展示区（修复传参错误）=====================
 if calc_button:
-    # 1. 后台执行测算
+    # 前置校验，避免参数缺失报错
+    if not operate_years: st.error("❌ 请先在「1. 项目基本信息」中设置运营期年份！"); st.stop()
+    if not occupancy_ramp_dict: st.error("❌ 请先设置爬坡期年份及对应出租率！"); st.stop()
+    if stable_start > stable_end: st.error("❌ 稳定期起始年不能晚于结束年！"); st.stop()
+
+    # 1. 后台执行测算（修复：传正确的参数，删掉不存在的变量）
     all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
     income_df, resi_occupancy = calc_income(
         all_years, month_dict, is_operate,
         residential_area, rent_start_price,
-        occupancy_ramp1, occupancy_ramp2, occupancy_stable
+        rent_increase_span, rent_increase_rate,
+        occupancy_ramp_dict, stable_start, stable_end, occupancy_stable
     )
     
     # 2. 计算最终核心指标
@@ -166,10 +174,4 @@ if calc_button:
         file_name=excel_file_name,
         mime="text/csv",
         use_container_width=True
-
     )
-
-
-
-
-
