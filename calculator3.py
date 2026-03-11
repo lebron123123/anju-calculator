@@ -47,11 +47,41 @@ with st.expander("1. 项目基本信息", expanded=True):
 
 # 2. 收入计算参数
 with st.expander("2. 收入计算参数", expanded=True):
+    # 基础参数（一行排版）
     residential_area = st.number_input("住宅面积（㎡）", value=34330, min_value=0)
     rent_start_price = st.number_input("起始租金单价（元/㎡/月）", value=19.2, min_value=0.0, step=0.1)
-    occupancy_ramp1 = st.number_input("运营第1年出租率", value=0.7, min_value=0.0, max_value=1.0, step=0.01)
-    occupancy_ramp2 = st.number_input("运营第2年出租率", value=0.8, min_value=0.0, max_value=1.0, step=0.01)
-    occupancy_stable = st.number_input("稳定期出租率", value=0.9, min_value=0.0, max_value=1.0, step=0.01)
+    
+    # ---------------------- 新增需求①：租金每X年递增Y% ----------------------
+    st.subheader("📈 租金递增设置")
+    col_rent1, col_rent2 = st.columns(2)
+    rent_increase_span = col_rent1.number_input("租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
+    rent_increase_rate = col_rent2.number_input("租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
+    
+    # ---------------------- 新增需求②：出租率爬坡期+稳定期 ----------------------
+    st.subheader("🏢 出租率设置（爬坡期+稳定期）")
+    # 先获取运营期年份作为可选范围（联动之前的operate_years）
+    if 'operate_years' in locals() and operate_years:
+        # 1. 爬坡期设置：让用户选年份，动态生成输入框
+        ramp_years = st.multiselect("请选择爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
+        # 动态生成爬坡期每年的出租率输入框（一行排版）
+        occupancy_ramp_dict = {}
+        if ramp_years:
+            col_ramp = st.columns(len(ramp_years))
+            for idx, year in enumerate(ramp_years):
+                occupancy_ramp_dict[year] = col_ramp[idx].number_input(f"{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
+        
+        # 2. 稳定期设置：区间选择+固定出租率
+        st.markdown("---")
+        col_stable1, col_stable2, col_stable3 = st.columns(3)
+        # 稳定期起始年默认是爬坡期最后一年+1，且≥运营期起始年
+        default_stable_start = max(ramp_years) + 1 if ramp_years else operate_years[0]
+        stable_start = col_stable1.number_input("稳定期起始年", min_value=operate_years[0], max_value=operate_years[-1], value=default_stable_start, step=1)
+        # 稳定期结束年默认用运营期结束年，且≥起始年
+        stable_end = col_stable2.number_input("稳定期结束年", min_value=stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
+        # 稳定期固定出租率
+        occupancy_stable = col_stable3.number_input("稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
+    else:
+        st.warning("⚠️ 请先在「1. 项目基本信息」中设置运营期年份！")
 
 st.markdown("---")
 
@@ -135,6 +165,7 @@ if calc_button:
         use_container_width=True
 
     )
+
 
 
 
