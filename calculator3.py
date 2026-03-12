@@ -83,18 +83,18 @@ with st.expander("2. 收入计算参数", expanded=True):
         # 给变量赋默认值，避免NameError
         occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0
 
-        # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
-        st.markdown("---")
-        st.subheader("🚗 车位收入设置")
-        col_park1, col_park2, col_park3 = st.columns(3)
-        park_count = col_park1.number_input("车位个数", min_value=0, value=500, step=1)
-        park_rent_start_price = col_park2.number_input("车位起始租金单价（元/个/月）", min_value=0.0, value=300.0, step=10.0)
-        park_income_ratio = col_park3.number_input("车位实际收入系数", min_value=0.0, max_value=1.0, value=0.5, step=0.01, help="比如50%填0.5")
+    # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
+    st.markdown("---")
+    st.subheader("🚗 车位收入设置")
+    col_park1, col_park2, col_park3 = st.columns(3)
+    park_count = col_park1.number_input("车位个数", min_value=0, value=500, step=1)
+    park_rent_start_price = col_park2.number_input("车位起始租金单价（元/个/月）", min_value=0.0, value=300.0, step=10.0)
+    park_income_ratio = col_park3.number_input("车位实际收入系数", min_value=0.0, max_value=1.0, value=0.5, step=0.01, help="比如50%填0.5")
         
-        # ---------------------- 新增：其他收入（仅总额）----------------------
-        st.markdown("---")
-        st.subheader("📦 其他收入设置")
-        other_income_total = st.number_input("其他收入总额（万元）", min_value=0.0, value=0.0, step=10.0, help="项目全周期其他收入总和")
+    # ---------------------- 新增：其他收入（仅总额）----------------------
+    st.markdown("---")
+    st.subheader("📦 其他收入设置")
+    other_income_total = st.number_input("其他收入总额（万元）", min_value=0.0, value=0.0, step=10.0, help="项目全周期其他收入总和")
 
 st.markdown("---")
 
@@ -198,4 +198,5 @@ if calc_button:
         mime="text/csv",
         use_container_width=True
     )
+
 
