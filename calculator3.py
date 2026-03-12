@@ -129,6 +129,12 @@ st.markdown("---")
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
+def generate_year_list(build_yrs, operate_yrs):
+    all_years = sorted(list(set(build_yrs + operate_yrs)))
+    month_dict = {year: 0 if year in build_yrs else 12 for year in all_years}
+    is_operate = {year: year in operate_yrs for year in all_years}
+    return all_years, month_dict, is_operate
+
 def calc_income(all_years, month_dict, is_operate, area, price, increase_span, increase_rate, occupancy_ramp_dict, stable_start, stable_end, stable_occ, park_count, park_price, park_ratio, park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_stable_occ, other_total):
     income_df = pd.DataFrame(index=all_years)
     resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = {}, {}, {}, {}
@@ -233,6 +239,7 @@ if calc_button:
         mime="text/csv",
         use_container_width=True
     )
+
 
 
 
