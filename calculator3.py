@@ -127,7 +127,16 @@ with st.expander("2. 收入计算参数", expanded=True):
 
 st.markdown("---")
 
-# 3. 一键测算按钮
+# 3. 总经营费用参数
+with st.expander("3. 总经营费用参数", expanded=True):
+    st.subheader("💰 经营费用核心参数")
+    col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
+    manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=1.92, step=0.01, help="1.92×区域系数")
+    total_build_area = col_cost2.number_input("总建筑面积（㎡）", min_value=0, value=50000, step=100)
+    residential_decoration_cost = col_cost3.number_input("住宅精装修工程费（万元）", min_value=0.0, value=5000.0, step=100.0)
+    total_investment = col_cost4.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
+    
+# 4. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
@@ -194,6 +203,63 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     # 总收入汇总
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
     return income_df, resi_occupancy
+  
+    # ===================== 新增：经营费用测算函数（严格按给定公式）=====================
+def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, total_investment, operate_year_list):
+    cost_df = pd.DataFrame(index=all_years)
+    operate_years_count = len(operate_year_list)
+    
+    for year in all_years:
+        if not is_operate[year]:
+            # 建设期无经营费用
+            cost_df.loc[year, "管理费用(住房)(万元)"] = 0
+            cost_df.loc[year, "管理费用(停车位)(万元)"] = 0
+            cost_df.loc[year, "保险费(万元)"] = 0
+            cost_df.loc[year, "维修费用(万元)"] = 0
+            cost_df.loc[year, "日常物业维修基金(万元)"] = 0
+            cost_df.loc[year, "空置期物业管理费(万元)"] = 0
+            cost_df.loc[year, "装修重置费(万元)"] = 0
+            cost_df.loc[year, "折旧摊销(万元)"] = 0
+            cost_df.loc[year, "总经营费用(万元)"] = 0
+        else:
+            # 运营期按公式计算
+            occ = resi_occupancy.get(year, 0)
+            months = month_dict[year]
+            resi_rent = resi_rent_price.get(year, 0)
+            park_income = park_income_list.get(year, 0)
+            
+            # 1. 管理费用（住房）
+            manage_house = resi_area * occ * 12 * manage_coeff / 10000
+            # 2. 管理费用（停车位）
+            manage_park = park_income * 0.4
+            # 3. 保险费
+            insurance = total_build_area * 0.3 / 10000
+            # 4. 维修费用
+            repair = (resi_area * resi_rent * occ * months / 10000) * 0.02
+            # 5. 日常物业维修基金
+            fund = resi_area * occ * months * 0.25 / 10000
+            # 6. 空置期物业管理费
+            vacancy = resi_area * (1 - occ) * months * 3.9 / 10000
+            # 7. 装修重置费（运营期第一年不重置）
+            if year == operate_year_list[0]:
+                decoration_reset = 0
+            else:
+                decoration_reset = decoration_cost * 0.7 / operate_years_count if operate_years_count > 0 else 0
+            # 8. 折旧摊销（严格50年）
+            depreciation = total_investment * (1 - 0.2) / 50
+            
+            # 填入表格
+            cost_df.loc[year, "管理费用(住房)(万元)"] = round(manage_house, 4)
+            cost_df.loc[year, "管理费用(停车位)(万元)"] = round(manage_park, 4)
+            cost_df.loc[year, "保险费(万元)"] = round(insurance, 4)
+            cost_df.loc[year, "维修费用(万元)"] = round(repair, 4)
+            cost_df.loc[year, "日常物业维修基金(万元)"] = round(fund, 4)
+            cost_df.loc[year, "空置期物业管理费(万元)"] = round(vacancy, 4)
+            cost_df.loc[year, "装修重置费(万元)"] = round(decoration_reset, 4)
+            cost_df.loc[year, "折旧摊销(万元)"] = round(depreciation, 4)
+            cost_df.loc[year, "总经营费用(万元)"] = round(manage_house + manage_park + insurance + repair + fund + vacancy + decoration_reset + depreciation, 4)
+    
+    return cost_df
 
 # ===================== 结果展示区（修复传参错误）=====================
 if calc_button:
@@ -213,29 +279,46 @@ if calc_button:
         park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable,
         other_income_name, other_income_total
     )
+
+    park_income_dict = income_df["车位收入(万元)"].to_dict()
+    cost_df = calc_cost(
+        all_years, month_dict, is_operate,
+        residential_area, resi_occupancy, resi_rent_price,
+        park_income_dict, total_build_area, manage_coeff,
+        residential_decoration_cost, total_investment, operate_years
+    )
     
-    # 2. 计算最终核心指标
+    # 3. 计算最终核心指标（新增总成本、净利润）
     total_income = round(income_df["总收入(万元)"].sum(), 2)
+    total_cost = round(cost_df["总经营费用(万元)"].sum(), 2)
+    net_profit = round(total_income - total_cost, 2)
     
-    # 3. 展示结果
+    # 4. 展示结果（新增经营费用表格）
     st.header("📊 测算结果")
     st.markdown("---")
     
-    # --- 第一个区域：最终财务结果（优化：手机上更醒目）---
     st.subheader("🎯 最终财务结果汇总")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("项目全周期总收入", f"{total_income} 万元")
-    with col2:
-        st.metric("项目运营年限", f"{len(operate_years)} 年")
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
+    with col2: st.metric("项目全周期总经营费用", f"{total_cost} 万元")
+    with col3: st.metric("项目全周期净利润", f"{net_profit} 万元")
     
     st.markdown("---")
     
-    # --- 第二个区域：每一步具体计算过程明细（转置版：年份在列，指标在行）---
-    st.subheader("📋 每一步具体计算过程明细")
+    st.subheader("📋 收入明细")
     st.dataframe(income_df.T, use_container_width=True)
     
-    # 4. 一键下载Excel（优化：微信里也能正常下载）
+    st.markdown("---")
+    
+    st.subheader("💸 经营费用明细")
+    st.dataframe(cost_df.T, use_container_width=True)
+    # ======================================
+    # 【粘贴到这里结束】
+    # ======================================
+    
+    # 【重要】：把你原来这里后面的「st.header("📊 测算结果")」到「st.download_button」之间的旧代码删掉，避免重复展示
+    
+    # 5. 一键下载Excel（保留你原有的下载代码，仅放在最后即可）
     st.markdown("---")
     excel_file_name = f"{project_name}_财务测算结果_{datetime.now().strftime('%Y%m%d')}.csv"
     st.download_button(
@@ -246,6 +329,7 @@ if calc_button:
         use_container_width=True
     )
 
+    
 
 
 
