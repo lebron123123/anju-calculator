@@ -270,7 +270,7 @@ if calc_button:
 
    # 1. 后台执行测算（参数顺序完全匹配函数定义，零报错）
     all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
-    income_df, resi_occupancy = calc_income(
+    income_df, resi_occupancy, resi_rent_price = calc_income(
         all_years, month_dict, is_operate,
         residential_area, rent_start_price,
         rent_increase_span, rent_increase_rate,
@@ -330,6 +330,7 @@ if calc_button:
     )
 
     
+
 
 
 
