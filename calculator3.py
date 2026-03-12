@@ -15,33 +15,37 @@ START_YEAR = 2025
 END_YEAR = 2200
 year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2025~2200的年份列表
 
-# 1. 项目基本信息
+# 1. 项目基本信息（完整正确版，确保build_years、operate_years全局可访问）
 with st.expander("1. 项目基本信息", expanded=True):
     project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
     # 建设期年份：用生成的年份列表，默认值不变
     build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
     
-    # ---------------------- 运营期年份：改为区间选择（核心优化）----------------------
+    # ---------------------- 运营期年份区间选择（修复警告+缩进正确版）----------------------
     st.subheader("运营期年份（区间选择）")
-    # 初始化session_state+回调函数（修复报错核心，一行排版）
-    if "operate_start" not in st.session_state: st.session_state.operate_start = 2027
-    if "operate_end" not in st.session_state: st.session_state.operate_end = 2029
+    # 初始化session_state（仅第一次运行设置默认值）
+    if "operate_start" not in st.session_state: st.session_state["operate_start"] = 2027
+    if "operate_end" not in st.session_state: st.session_state["operate_end"] = 2029
+    
+    # 回调函数：起始年变化时自动修正结束年，防错
     def sync_operate_end():
-        if st.session_state.operate_end < st.session_state.operate_start: st.session_state.operate_end = st.session_state.operate_start
+        if st.session_state["operate_end"] < st.session_state["operate_start"]:
+            st.session_state["operate_end"] = st.session_state["operate_start"]
     
-    # 界面一行展示：起始年+结束年（两列等分）
+    # 输入框一行展示
     col1, col2 = st.columns(2)
-    operate_start = col1.number_input("运营期起始年", min_value=START_YEAR, max_value=END_YEAR, value=st.session_state.operate_start, step=1, key="operate_start", on_change=sync_operate_end)
-    operate_end = col2.number_input("运营期结束年", min_value=operate_start, max_value=END_YEAR, value=st.session_state.operate_end, step=1, key="operate_end")
+    col1.number_input("运营期起始年", min_value=START_YEAR, max_value=END_YEAR, step=1, key="operate_start", on_change=sync_operate_end)
+    col2.number_input("运营期结束年", min_value=st.session_state["operate_start"], max_value=END_YEAR, step=1, key="operate_end")
     
-    # 自动生成运营期年份列表（一行）
+    # 【关键】这里的缩进和上面的代码同级，确保operate_years在with块内被定义，外面能访问到
+    operate_start = st.session_state["operate_start"]
+    operate_end = st.session_state["operate_end"]
     operate_years = list(range(operate_start, operate_end + 1))
     
-    # 展示生成结果（一行）
+    # 提示和校验，缩进同级
     st.info(f"✅ 已自动生成运营期年份：{operate_years}")
-    
-    # 合法性校验（一行）
-    if build_years and operate_start < max(build_years): st.warning(f"⚠️ 运营期起始年({operate_start})早于建设期最后一年({max(build_years)})，请检查！")
+    if build_years and operate_start < max(build_years):
+        st.warning(f"⚠️ 运营期起始年({operate_start})早于建设期最后一年({max(build_years)})，请检查！")
 
 # 2. 收入计算参数
 with st.expander("2. 收入计算参数", expanded=True):
@@ -229,6 +233,7 @@ if calc_button:
         mime="text/csv",
         use_container_width=True
     )
+
 
 
 
