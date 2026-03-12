@@ -202,7 +202,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     
     # 总收入汇总
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
-    return income_df, resi_occupancy
+    return income_df, resi_occupancy, resi_rent_price
   
     # ===================== 新增：经营费用测算函数（严格按给定公式）=====================
 def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, total_investment, operate_year_list):
@@ -330,6 +330,7 @@ if calc_button:
     )
 
     
+
 
 
 
