@@ -225,20 +225,21 @@ if calc_button:
     
     st.markdown("---")
     
-    # --- 第二个区域：每一步的具体计算过程表 ---
+    # --- 第二个区域：每一步具体计算过程明细（转置版：年份在列，指标在行）---
     st.subheader("📋 每一步具体计算过程明细")
-    st.dataframe(income_df, use_container_width=True)
+    st.dataframe(income_df.T, use_container_width=True)
     
     # 4. 一键下载Excel（优化：微信里也能正常下载）
     st.markdown("---")
     excel_file_name = f"{project_name}_财务测算结果_{datetime.now().strftime('%Y%m%d')}.csv"
     st.download_button(
         label="📥 下载完整测算表（含计算过程）",
-        data=income_df.to_csv().encode("utf-8-sig"),
+        data=income_df.T.to_csv().encode("utf-8-sig"),
         file_name=excel_file_name,
         mime="text/csv",
         use_container_width=True
     )
+
 
 
 
