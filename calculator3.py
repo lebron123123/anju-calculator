@@ -118,10 +118,12 @@ with st.expander("2. 收入计算参数", expanded=True):
         st.warning("⚠️ 请先在「1. 项目基本信息」中设置运营期年份！")
         park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable = {}, 0, 0, 0
     
-    # ---------------------- 新增：其他收入（仅总额）----------------------
+    # ---------------------- 新增：其他收入（可自定义名称+仅计入运营首年）----------------------
     st.markdown("---")
     st.subheader("📦 其他收入设置")
-    other_income_total = st.number_input("其他收入总额（万元）", min_value=0.0, value=0.0, step=10.0, help="项目全周期其他收入总和")
+    col_other1, col_other2 = st.columns(2)
+    other_income_name = col_other1.text_input("其他收入名称", value="其他收入")
+    other_income_total = col_other2.number_input(f"{other_income_name}总额（万元）", min_value=0.0, value=0.0, step=10.0)
 
 st.markdown("---")
 
@@ -153,18 +155,21 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
         elif park_stable_start <= year <= park_stable_end: park_occupancy[year] = park_stable_occ
         else: park_occupancy[year] = 0.0
     
-    # 2. 计算每年租金单价（住宅+车位共用同一套递增逻辑）
+    # 2. 计算每年租金单价
+    # 住宅租金：原有递增逻辑完全不变
     for idx, year in enumerate(operate_year_list):
         increase_times = idx // increase_span
         resi_rent_price[year] = price * (1 + increase_rate / 100) ** increase_times
-        park_rent_price[year] = park_price * (1 + increase_rate / 100) ** increase_times
+    # 车位租金：极简版，直接固定起始价，不递增
+    for year in operate_year_list:
+        park_rent_price[year] = park_price
     
     # 3. 计算每年收入（住宅+车位+其他）
     for year in all_years:
         if not is_operate[year]:
             income_df.loc[year, "住宅租金收入(万元)"] = 0
             income_df.loc[year, "车位收入(万元)"] = 0
-            income_df.loc[year, "其他收入(万元)"] = 0
+            income_df.loc[year, f"{other_name}(万元)"] = 0
             income_df.loc[year, "计算过程说明"] = "建设期，无收入"
         else:
             # 住宅收入
@@ -173,8 +178,8 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
             # 车位收入
             park_occ, park_months, park_rent = park_occupancy[year], month_dict[year], park_rent_price[year]
             park_year_rent = park_count * park_rent * park_occ * park_months * park_ratio / 10000
-            # 其他收入（按运营期平均分配）
-            other_year_rent = other_total / operate_years_count if operate_years_count > 0 else 0
+             # 其他收入：仅计入运营期第一年
+            other_year_rent = other_total if year == operate_year_list[0] else 0
             
             # 填入表格
             income_df.loc[year, "住宅租金单价(元/㎡/月)"] = round(resi_rent, 2)
@@ -183,10 +188,10 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
             income_df.loc[year, "车位租金单价(元/个/月)"] = round(park_rent, 2)
             income_df.loc[year, "车位出租率"] = round(park_occ, 4)
             income_df.loc[year, "车位收入(万元)"] = round(park_year_rent, 4)
-            income_df.loc[year, "其他收入(万元)"] = round(other_year_rent, 4)
+            income_df.loc[year, f"{other_name}(万元)"] = round(other_year_rent, 4)
             income_df.loc[year, "计算过程说明"] = f"住宅:{area}×{round(resi_rent,2)}×{round(resi_occ,4)}×{resi_months}/10000 + 车位:{park_count}×{round(park_rent,2)}×{round(park_occ,4)}×{park_months}×{park_ratio}/10000 + 其他:{round(other_year_rent,4)}"
     
-    income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df["其他收入(万元)"]
+    income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
     return income_df, resi_occupancy
 
 # ===================== 结果展示区（修复传参错误）=====================
@@ -205,7 +210,7 @@ if calc_button:
         occupancy_ramp_dict, stable_start, stable_end, occupancy_stable,
         park_count, park_rent_start_price, park_income_ratio,
         park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable,
-        other_income_total
+        other_income_name, other_income_total
     )
     
     # 2. 计算最终核心指标
@@ -239,6 +244,7 @@ if calc_button:
         mime="text/csv",
         use_container_width=True
     )
+
 
 
 
