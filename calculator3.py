@@ -125,17 +125,23 @@ st.markdown("---")
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
-def calc_income(all_years, month_dict, is_operate, area, price, increase_span, increase_rate, occupancy_ramp_dict, stable_start, stable_end, stable_occ, park_count, park_price, park_ratio, other_total):
+def calc_income(all_years, month_dict, is_operate, area, price, increase_span, increase_rate, occupancy_ramp_dict, stable_start, stable_end, stable_occ, park_count, park_price, park_ratio, park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_stable_occ, other_total):
     income_df = pd.DataFrame(index=all_years)
     resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = {}, {}, {}, {}
     operate_year_list = [y for y in all_years if is_operate[y]]
     operate_years_count = len(operate_year_list)
     
-    # 1. 计算每年出租率（住宅+车位共用同一套出租率逻辑）
+    # 1. 计算住宅每年出租率（原有逻辑完全保留，无改动）
     for year in operate_year_list:
-        if year in occupancy_ramp_dict: resi_occupancy[year] = park_occupancy[year] = occupancy_ramp_dict[year]
-        elif stable_start <= year <= stable_end: resi_occupancy[year] = park_occupancy[year] = stable_occ
-        else: resi_occupancy[year] = park_occupancy[year] = 0.0
+        if year in occupancy_ramp_dict: resi_occupancy[year] = occupancy_ramp_dict[year]
+        elif stable_start <= year <= stable_end: resi_occupancy[year] = stable_occ
+        else: resi_occupancy[year] = 0.0
+    
+    # 新增：计算车位每年出租率（独立逻辑，和住宅完全分开）
+    for year in operate_year_list:
+        if year in park_occupancy_ramp_dict: park_occupancy[year] = park_occupancy_ramp_dict[year]
+        elif park_stable_start <= year <= park_stable_end: park_occupancy[year] = park_stable_occ
+        else: park_occupancy[year] = 0.0
     
     # 2. 计算每年租金单价（住宅+车位共用同一套递增逻辑）
     for idx, year in enumerate(operate_year_list):
@@ -187,7 +193,9 @@ if calc_button:
         residential_area, rent_start_price,
         rent_increase_span, rent_increase_rate,
         occupancy_ramp_dict, stable_start, stable_end, occupancy_stable,
-        park_count, park_rent_start_price, park_income_ratio, other_income_total  # 仅加这4个新参数
+        park_count, park_rent_start_price, park_income_ratio,
+        park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable,
+        other_income_total
     )
     
     # 2. 计算最终核心指标
@@ -221,6 +229,7 @@ if calc_button:
         mime="text/csv",
         use_container_width=True
     )
+
 
 
 
