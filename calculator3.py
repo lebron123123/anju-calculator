@@ -407,7 +407,7 @@ if calc_button:
     build_year_set, operate_year_set = set(build_years), set(operate_years)
     total_cost_df["财务费用(建设期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in build_year_set else 0.0)
     total_cost_df["财务费用(运营期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in operate_year_set else 0.0)
-    total_cost_df["总成本费用"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
+    total_cost_df["总成本费用(不含建设期财务费用)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
     
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
@@ -421,7 +421,7 @@ if calc_button:
 
      # --- 总成本费用表处理 ---
     cost_df_T = total_cost_df.T
-    cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(万元)"]
+    cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(不含建设期财务费用)(万元)"]
     cost_df_T["全周期合计(万元)"] = cost_df_T.apply(lambda row: round(row.sum(), 4) if row.name in cost_sum_rows else "/", axis=1)
     cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
 
@@ -437,7 +437,7 @@ if calc_button:
 
     # 7. 计算最终核心指标
     total_income = round(income_df["总收入(万元)"].sum(), 2)
-    total_cost = round(total_cost_df["总成本费用(万元)"].sum(), 2)
+    total_cost = round(total_cost_df["总成本费用(不含建设期财务费用)(万元)"].sum(), 2)
     total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
     net_profit = round(total_income - total_cost, 2)
     
@@ -482,6 +482,7 @@ if calc_button:
         use_container_width=True
     )
     
+
 
 
 
