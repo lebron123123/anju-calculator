@@ -246,7 +246,10 @@ def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi
             else:
                 decoration_reset = decoration_cost * 0.7 / operate_years_count if operate_years_count > 0 else 0
             # 8. 折旧摊销（严格50年）
-            depreciation = total_investment * (1 - 0.2) / 50
+            if operate_year_index[year] <= 50:
+                depreciation = total_investment * (1 - 0.2) / 50
+            else:
+                depreciation = 0
             
             # 填入表格
             cost_df.loc[year, "管理费用(住房)(万元)"] = round(manage_house, 4)
@@ -330,6 +333,7 @@ if calc_button:
     )
 
     
+
 
 
 
