@@ -130,13 +130,32 @@ with st.expander("2. 收入计算参数", expanded=True):
 st.markdown("---")
 
 # 3. 总成本费用参数
-with st.expander("3. 总成本参数", expanded=True):
-    st.subheader("💰 总成本核心参数")
+with st.expander("3. 总成本费用参数", expanded=True):
+    st.subheader("💰 经营成本核心参数")
     col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
     manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=1.92, step=0.01, help="1.92×区域系数")
     total_build_area = col_cost2.number_input("总建筑面积（㎡）", min_value=0, value=50000, step=100)
     residential_decoration_cost = col_cost3.number_input("住宅精装修工程费（万元）", min_value=0.0, value=5000.0, step=100.0)
     total_investment = col_cost4.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
+
+    # ---------------------- 新增：银行借款与还本付息参数 ----------------------
+    st.markdown("---")
+    st.subheader("🏦 银行借款与还本付息参数")
+    # 基础参数
+    col_loan1, col_loan2, col_loan3 = st.columns(3)
+    loan_annual_rate = col_loan1.number_input("借款年利率（%）", min_value=0.0, max_value=20.0, value=3.0, step=0.1)
+    first_repay_ratio = col_loan2.number_input("首次还款比例（%）", min_value=0.0, max_value=100.0, value=3.0, step=0.1, help="运营期第一年还本额=借款总额×该比例")
+    repay_increase_rate = col_loan3.number_input("每年还款递增率（%）", min_value=0.0, max_value=50.0, value=4.5, step=0.1, help="每年还本额较上年的递增比例")
+
+    # 银行借款计划（动态输入，和出租率操作逻辑一致）
+    st.markdown("#### 银行借款计划")
+    loan_available_years = sorted(list(set(build_years + operate_years)))
+    loan_years = st.multiselect("请选择有借款的年份", options=loan_available_years, default=build_years if build_years else [])
+    loan_plan_dict = {}
+    if loan_years:
+        col_loan_year = st.columns(len(loan_years))
+        for idx, year in enumerate(loan_years):
+            loan_plan_dict[year] = col_loan_year[idx].number_input(f"{year}年借款额（万元）", min_value=0.0, value=0.0, step=100.0)
     
 # 4. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
@@ -206,96 +225,157 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
     return income_df, resi_occupancy, resi_rent_price
   
-# ===================== 总成本费用测算函数（装修重置费规则优化版）=====================
-def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, house_type, total_investment, operate_year_list):
-    cost_df = pd.DataFrame(index=all_years)
+# ===================== 经营成本测算函数（原calc_cost，适配新命名）=====================
+def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, house_type, total_investment, operate_year_list):
+    operating_cost_df = pd.DataFrame(index=all_years)
     operate_years_count = len(operate_year_list)
     # 运营年份序号：key=年份，value=运营第几年（1、2、3...）
     operate_year_index = {year: idx+1 for idx, year in enumerate(operate_year_list)}
     max_operate_year_num = max(operate_year_index.values())  # 运营期总年数
     
-    # ===================== 【核心新增】提前计算每年的装修重置费分摊额 =====================
-    # 单次装修重置总费用（和原有基数一致：精装修费×70%）
+    # 装修重置费计算（原有逻辑完全不变）
     single_reset_total = decoration_cost * 0.7
-    # 按房源类型确定重置周期
     reset_period = 20 if house_type == "公租房" else 10
-    # 生成所有重置节点（运营期第几年需要重置）
     reset_year_nums = list(range(reset_period, max_operate_year_num + 1, reset_period))
-    # 初始化：每个运营年份对应的装修重置费
     decoration_reset_dict = {year: 0 for year in operate_year_list}
 
-    # 遍历每个重置节点，计算分摊额
     for reset_year_num in reset_year_nums:
-        # 本次重置的起始分摊年份（运营第X年）
         start_share_num = reset_year_num
-        # 本次重置的结束分摊年份：最多分摊10年，不超过运营期最后一年
         end_share_num = min(reset_year_num + 9, max_operate_year_num)
-        # 实际分摊年数
         share_year_count = end_share_num - start_share_num + 1
-        # 每年分摊额
         year_share_amount = single_reset_total / share_year_count if share_year_count > 0 else 0
-        
-        # 把分摊额写入对应年份
         for year, year_num in operate_year_index.items():
             if start_share_num <= year_num <= end_share_num:
                 decoration_reset_dict[year] += year_share_amount
 
-    # ===================== 循环计算每年各项费用 =====================
+    # 循环计算每年各项经营成本
     for year in all_years:
         if not is_operate[year]:
-            # 建设期无成本费用，原有逻辑完全不动
-            cost_df.loc[year, "管理费用(住房)(万元)"] = 0
-            cost_df.loc[year, "管理费用(停车位)(万元)"] = 0
-            cost_df.loc[year, "保险费(万元)"] = 0
-            cost_df.loc[year, "维修费用(万元)"] = 0
-            cost_df.loc[year, "日常物业维修基金(万元)"] = 0
-            cost_df.loc[year, "空置期物业管理费(万元)"] = 0
-            cost_df.loc[year, "装修重置费(万元)"] = 0
-            cost_df.loc[year, "折旧摊销(万元)"] = 0
-            cost_df.loc[year, "总成本费用(万元)"] = 0
+            # 建设期无经营成本
+            operating_cost_df.loc[year, "管理费用(住房)(万元)"] = 0
+            operating_cost_df.loc[year, "管理费用(停车位)(万元)"] = 0
+            operating_cost_df.loc[year, "保险费(万元)"] = 0
+            operating_cost_df.loc[year, "维修费用(万元)"] = 0
+            operating_cost_df.loc[year, "日常物业维修基金(万元)"] = 0
+            operating_cost_df.loc[year, "空置期物业管理费(万元)"] = 0
+            operating_cost_df.loc[year, "装修重置费(万元)"] = 0
+            operating_cost_df.loc[year, "折旧摊销(万元)"] = 0
+            operating_cost_df.loc[year, "经营成本(万元)"] = 0
         else:
-            # 运营期基础参数，原有逻辑完全不动
+            # 运营期基础参数
             occ = resi_occupancy.get(year, 0)
             months = month_dict[year]
             resi_rent = resi_rent_price.get(year, 0)
             park_income = park_income_list.get(year, 0)
             
-            # 1-6项费用，原有逻辑完全不动
-            manage_house = resi_area * occ * 12 * manage_coeff / 10000  # 管理费用(住房)
-            manage_park = park_income * 0.4  # 管理费用(停车位)
-            insurance = total_build_area * 0.3 / 10000  # 保险费
-            repair = (resi_area * resi_rent * occ * months / 10000) * 0.02  # 维修费用
-            fund = resi_area * occ * months * 0.25 / 10000  # 日常物业维修基金
-            vacancy = resi_area * (1 - occ) * months * 3.9 / 10000  # 空置期物业管理费
-            
-            # 7. 装修重置费：直接用提前算好的分摊额
+            # 各项经营成本（原有逻辑完全不变）
+            manage_house = resi_area * occ * 12 * manage_coeff / 10000
+            manage_park = park_income * 0.4
+            insurance = total_build_area * 0.3 / 10000
+            repair = (resi_area * resi_rent * occ * months / 10000) * 0.02
+            fund = resi_area * occ * months * 0.25 / 10000
+            vacancy = resi_area * (1 - occ) * months * 3.9 / 10000
             decoration_reset = decoration_reset_dict[year]
-            
-            # 8. 折旧摊销（原有50年限定逻辑完全不动）
             depreciation = total_investment * (1 - 0.2) / 50 if operate_year_index[year] <= 50 else 0
             
-            # 填入表格，原有逻辑完全不动
-            cost_df.loc[year, "管理费用(住房)(万元)"] = round(manage_house, 4)
-            cost_df.loc[year, "管理费用(停车位)(万元)"] = round(manage_park, 4)
-            cost_df.loc[year, "保险费(万元)"] = round(insurance, 4)
-            cost_df.loc[year, "维修费用(万元)"] = round(repair, 4)
-            cost_df.loc[year, "日常物业维修基金(万元)"] = round(fund, 4)
-            cost_df.loc[year, "空置期物业管理费(万元)"] = round(vacancy, 4)
-            cost_df.loc[year, "装修重置费(万元)"] = round(decoration_reset, 4)
-            cost_df.loc[year, "折旧摊销(万元)"] = round(depreciation, 4)
-            cost_df.loc[year, "总成本费用(万元)"] = round(manage_house + manage_park + insurance + repair + fund + vacancy + decoration_reset + depreciation, 4)
+            # 填入表格
+            operating_cost_df.loc[year, "管理费用(住房)(万元)"] = round(manage_house, 4)
+            operating_cost_df.loc[year, "管理费用(停车位)(万元)"] = round(manage_park, 4)
+            operating_cost_df.loc[year, "保险费(万元)"] = round(insurance, 4)
+            operating_cost_df.loc[year, "维修费用(万元)"] = round(repair, 4)
+            operating_cost_df.loc[year, "日常物业维修基金(万元)"] = round(fund, 4)
+            operating_cost_df.loc[year, "空置期物业管理费(万元)"] = round(vacancy, 4)
+            operating_cost_df.loc[year, "装修重置费(万元)"] = round(decoration_reset, 4)
+            operating_cost_df.loc[year, "折旧摊销(万元)"] = round(depreciation, 4)
+            # 经营成本合计
+            total_operating_cost = manage_house + manage_park + insurance + repair + fund + vacancy + decoration_reset + depreciation
+            operating_cost_df.loc[year, "经营成本(万元)"] = round(total_operating_cost, 4)
     
-    return cost_df
+    return operating_cost_df
 
-# ===================== 结果展示区（修复传参错误）=====================
+# ===================== 新增：还本付息测算函数（严格匹配迭代规则）=====================
+def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_rate, first_repay_ratio, repay_increase_rate):
+    """
+    测算还本付息明细，返回：
+    1. loan_df：还本付息表完整明细
+    2. financial_cost_dict：每年的财务费用（本期付息额，用于总成本计算）
+    """
+    loan_df = pd.DataFrame(index=all_years)
+    rate = annual_rate / 100  # 转成小数计算
+    first_repay_rate = first_repay_ratio / 100
+    increase_rate = repay_increase_rate / 100
+    
+    total_loan = sum(loan_plan_dict.values())  # 借款总额
+    end_loan_last = 0  # 上一年期末借款余额，迭代初始值
+    last_repay_principal = 0  # 上一年的还本额，用于递增计算
+    is_operate_start = False  # 标记是否进入运营期
+    repay_principal_plan = {}  # 预计算每年的计划还本额
+
+    # 第一步：预计算每年的计划还本额（运营期开始按规则递增）
+    for year in all_years:
+        if year >= operate_start_year:
+            if not is_operate_start:
+                # 运营期第一年，首次还本=总借款×约定比例
+                repay_principal = total_loan * first_repay_rate
+                is_operate_start = True
+            else:
+                # 后续年份，按递增率计算还本额
+                repay_principal = last_repay_principal * (1 + increase_rate)
+            repay_principal_plan[year] = repay_principal
+            last_repay_principal = repay_principal
+        else:
+            # 建设期不还本
+            repay_principal_plan[year] = 0.0
+
+    # 第二步：迭代计算每年的还本付息数据（严格按你给的公式）
+    for year in all_years:
+        # 1. 期初借款本金 = 上一年期末借款累计
+        begin_loan = end_loan_last
+        # 2. 本期借款：用户输入的当年借款额
+        current_loan = loan_plan_dict.get(year, 0.0)
+        # 3. 本期计息 = (期初借款 + 本期借款/2) × 年利率
+        current_interest = (begin_loan + current_loan / 2) * rate
+        # 4. 本期付息 = 本期计息（利息当期全额偿还，不滚入本金）
+        repay_interest = current_interest
+        # 5. 本期还本：按计划还本，最多还清剩余本金，避免出现负数
+        plan_repay = repay_principal_plan.get(year, 0.0)
+        max_repayable = begin_loan + current_loan + current_interest - repay_interest
+        repay_principal = min(plan_repay, max_repayable)
+        # 6. 本期本息偿还合计
+        total_repay = repay_principal + repay_interest
+        # 7. 期末借款累计 = 期初 + 本期借款 + 本期计息 - 本期付息 - 本期还本
+        end_loan = begin_loan + current_loan + current_interest - repay_interest - repay_principal
+        end_loan = max(end_loan, 0.0)  # 余额不能为负
+
+        # 填入表格，完全匹配你给的表结构
+        loan_df.loc[year, "期初借款本金(万元)"] = round(begin_loan, 4)
+        loan_df.loc[year, "本期借款(万元)"] = round(current_loan, 4)
+        loan_df.loc[year, "本期计息(万元)"] = round(current_interest, 4)
+        loan_df.loc[year, "本期还本(万元)"] = round(repay_principal, 4)
+        loan_df.loc[year, "本期付息(万元)"] = round(repay_interest, 4)
+        loan_df.loc[year, "本期本息偿还合计(万元)"] = round(total_repay, 4)
+        loan_df.loc[year, "期末借款累计(万元)"] = round(end_loan, 4)
+
+        # 更新迭代变量
+        end_loan_last = end_loan
+
+    # 提取每年的财务费用（当年付息额，用于总成本计算）
+    financial_cost_dict = loan_df["本期付息(万元)"].to_dict()
+    return loan_df, financial_cost_dict
+
+# ===================== 结果展示区 =====================
 if calc_button:
     # 前置校验，避免参数缺失报错
     if not operate_years: st.error("❌ 请先在「1. 项目基本信息」中设置运营期年份！"); st.stop()
-    if not occupancy_ramp_dict: st.error("❌ 请先设置爬坡期年份及对应出租率！"); st.stop()
-    if stable_start > stable_end: st.error("❌ 稳定期起始年不能晚于结束年！"); st.stop()
-
-   # 1. 后台执行测算（参数顺序完全匹配函数定义，零报错）
+    if not occupancy_ramp_dict: st.error("❌ 请先设置住宅爬坡期年份及对应出租率！"); st.stop()
+    if stable_start > stable_end: st.error("❌ 住宅稳定期起始年不能晚于结束年！"); st.stop()
+    if not loan_plan_dict: st.warning("⚠️ 未设置银行借款计划，财务费用将为0")
+    
+    # 1. 基础年份数据生成
     all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
+    operate_start_year = operate_years[0]  # 运营期起始年，用于还款判断
+    
+    # 2. 收入测算（原有逻辑完全不变）
     income_df, resi_occupancy, resi_rent_price = calc_income(
         all_years, month_dict, is_operate,
         residential_area, rent_start_price,
@@ -305,68 +385,90 @@ if calc_button:
         park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable,
         other_income_name, other_income_total
     )
-
+    
+    # 3. 经营成本测算
     park_income_dict = income_df["车位收入(万元)"].to_dict()
-    cost_df = calc_cost(
+    operating_cost_df = calc_operating_cost(
         all_years, month_dict, is_operate,
         residential_area, resi_occupancy, resi_rent_price,
         park_income_dict, total_build_area, manage_coeff,
         residential_decoration_cost, house_type, total_investment, operate_years
     )
-
-    # ===================== 新增：给收入、费用表加全周期合计列（合计在项目名后第一列）=====================
-    # 1. 收入表处理（先转置，再加合计列，完全匹配展示的表格结构）
-    # 先转置：行=指标（项目名），列=年份
+    
+    # 4. 还本付息与财务费用测算
+    loan_df, financial_cost_dict = calc_loan_repayment(
+        all_years, operate_start_year,
+        loan_plan_dict, loan_annual_rate,
+        first_repay_ratio, repay_increase_rate
+    )
+    
+    # 5. 生成总成本费用表（经营成本+财务费用）
+    total_cost_df = operating_cost_df.copy()
+    total_cost_df["财务费用(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4))
+    total_cost_df["总成本费用(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(万元)"], 4)
+    
+    # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
+    # --- 收入表处理 ---
     income_df_T = income_df.T
-    # 定义需要求和的金额类指标行
     income_sum_rows = ["住宅租金收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
-    # 计算合计列：金额行求和，非金额行填/
     income_df_T["全周期合计(万元)"] = income_df_T.apply(
         lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
     )
-    # 【核心】调整列顺序：把合计列放在最前面（项目名后第一列），再放年份列
     income_df_T = income_df_T[ ["全周期合计(万元)"] + [col for col in income_df_T.columns if col != "全周期合计(万元)"] ]
-    # 空值统一替换为/，更美观
     income_df_T = income_df_T.fillna("/")
 
-    # 2. 成本费用表处理（同样先转置，再加合计列）
-    cost_df_T = cost_df.T
-    # 所有费用项都是金额，直接按行求和
+    # --- 总成本费用表处理 ---
+    cost_df_T = total_cost_df.T
     cost_df_T["全周期合计(万元)"] = cost_df_T.sum(axis=1).round(4)
-    # 调整列顺序：合计列放最前面
     cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
-    
-    # 3. 计算最终核心指标（新增总成本、净利润）
+
+    # --- 还本付息表处理 ---
+    loan_df_T = loan_df.T
+    loan_df_T["全周期合计(万元)"] = loan_df_T.sum(axis=1).round(4)
+    # 期初/期末借款的合计无意义，填/
+    loan_no_sum_rows = ["期初借款本金(万元)", "期末借款累计(万元)"]
+    loan_df_T.loc[:, "全周期合计(万元)"] = loan_df_T.apply(
+        lambda row: "/" if row.name in loan_no_sum_rows else row["全周期合计(万元)"], axis=1
+    )
+    loan_df_T = loan_df_T[ ["全周期合计(万元)"] + [col for col in loan_df_T.columns if col != "全周期合计(万元)"] ]
+
+    # 7. 计算最终核心指标
     total_income = round(income_df["总收入(万元)"].sum(), 2)
-    total_cost = round(cost_df["总成本费用(万元)"].sum(), 2)
+    total_cost = round(total_cost_df["总成本费用(万元)"].sum(), 2)
+    total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
     net_profit = round(total_income - total_cost, 2)
     
-    # 4. 展示结果（新增成本费用表格）
+    # 8. 页面结果展示
     st.header("📊 测算结果")
     st.markdown("---")
     
+    # --- 核心指标汇总 ---
     st.subheader("🎯 最终财务结果汇总")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
     with col2: st.metric("项目全周期总成本费用", f"{total_cost} 万元")
-    with col3: st.metric("项目全周期净利润", f"{net_profit} 万元")
+    with col3: st.metric("项目全周期总付息", f"{total_interest} 万元")
+    with col4: st.metric("项目全周期净利润", f"{net_profit} 万元")
     
     st.markdown("---")
     
+    # --- 收入明细 ---
     st.subheader("📋 收入明细")
     st.dataframe(income_df_T, use_container_width=True)
     
     st.markdown("---")
     
+    # --- 总成本费用明细 ---
     st.subheader("💸 总成本费用明细")
     st.dataframe(cost_df_T, use_container_width=True)
-    # ======================================
-    # 【粘贴到这里结束】
-    # ======================================
     
-    # 【重要】：把你原来这里后面的「st.header("📊 测算结果")」到「st.download_button」之间的旧代码删掉，避免重复展示
+    st.markdown("---")
     
-    # 5. 一键下载Excel（保留你原有的下载代码，仅放在最后即可）
+    # --- 新增：还本付息明细 ---
+    st.subheader("🏦 还本付息明细")
+    st.dataframe(loan_df_T, use_container_width=True)
+    
+    # 9. 一键下载Excel
     st.markdown("---")
     excel_file_name = f"{project_name}_财务测算结果_{datetime.now().strftime('%Y%m%d')}.csv"
     st.download_button(
@@ -376,8 +478,8 @@ if calc_button:
         mime="text/csv",
         use_container_width=True
     )
-
     
+
 
 
 
