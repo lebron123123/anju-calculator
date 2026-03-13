@@ -289,6 +289,32 @@ if calc_button:
         park_income_dict, total_build_area, manage_coeff,
         residential_decoration_cost, total_investment, operate_years
     )
+
+    # ===================== 新增：给收入、费用表加全周期合计列（合计在第二列）=====================
+    # 1. 收入表加合计（仅金额列求和，非金额列填/，合计列在最前面）
+    income_df_with_total = income_df.copy()
+    # 定义需要求和的收入金额列
+    income_sum_columns = ["住宅租金收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
+    # 先计算合计值
+    income_df_with_total["全周期合计(万元)"] = income_df_with_total[income_sum_columns].sum(axis=1)
+    # 非金额列的合计值替换为/
+    income_df_with_total.loc[:, "全周期合计(万元)"] = income_df_with_total.apply(
+        lambda row: round(row["全周期合计(万元)"], 4) if row.name in income_sum_columns else "/", axis=1
+    )
+    # 空值统一替换为/，更美观
+    income_df_with_total = income_df_with_total.fillna("/")
+    # 【关键】转置后调整列顺序：把「全周期合计」移到最前面（项目名后一列）
+    income_df_T = income_df_with_total.T
+    new_income_columns = ["全周期合计(万元)"] + [col for col in income_df_T.columns if col != "全周期合计(万元)"]
+    income_df_T = income_df_T[new_income_columns]
+
+    # 2. 经营费用表加合计（所有费用项均为金额，直接求和，合计列在最前面）
+    cost_df_with_total = cost_df.copy()
+    cost_df_with_total["全周期合计(万元)"] = cost_df_with_total.sum(axis=1).round(4)
+    # 【关键】转置后调整列顺序：把「全周期合计」移到最前面
+    cost_df_T = cost_df_with_total.T
+    new_cost_columns = ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"]
+    cost_df_T = cost_df_T[new_cost_columns]
     
     # 3. 计算最终核心指标（新增总成本、净利润）
     total_income = round(income_df["总收入(万元)"].sum(), 2)
@@ -308,12 +334,12 @@ if calc_button:
     st.markdown("---")
     
     st.subheader("📋 收入明细")
-    st.dataframe(income_df.T, use_container_width=True)
+    st.dataframe(income_df_T, use_container_width=True)
     
     st.markdown("---")
     
     st.subheader("💸 经营费用明细")
-    st.dataframe(cost_df.T, use_container_width=True)
+    st.dataframe(cost_df_T, use_container_width=True)
     # ======================================
     # 【粘贴到这里结束】
     # ======================================
@@ -325,13 +351,14 @@ if calc_button:
     excel_file_name = f"{project_name}_财务测算结果_{datetime.now().strftime('%Y%m%d')}.csv"
     st.download_button(
         label="📥 下载完整测算表（含计算过程）",
-        data=income_df.T.to_csv().encode("utf-8-sig"),
+        data=income_df_T.to_csv().encode("utf-8-sig"),
         file_name=excel_file_name,
         mime="text/csv",
         use_container_width=True
     )
 
     
+
 
 
 
