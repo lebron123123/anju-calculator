@@ -204,10 +204,12 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
     return income_df, resi_occupancy, resi_rent_price
   
-    # ===================== 新增：经营费用测算函数（严格按给定公式）=====================
+  # ===================== 经营费用测算函数（修复折旧50年限定+无报错版）=====================
 def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, total_investment, operate_year_list):
     cost_df = pd.DataFrame(index=all_years)
     operate_years_count = len(operate_year_list)
+    # 新增：给每个运营年份标上序号（运营第1年、第2年...），用于判断折旧年限
+    operate_year_index = {year: idx+1 for idx, year in enumerate(operate_year_list)}
     
     for year in all_years:
         if not is_operate[year]:
@@ -245,11 +247,8 @@ def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi
                 decoration_reset = 0
             else:
                 decoration_reset = decoration_cost * 0.7 / operate_years_count if operate_years_count > 0 else 0
-            # 8. 折旧摊销（严格50年）
-            if operate_year_index[year] <= 50:
-                depreciation = total_investment * (1 - 0.2) / 50
-            else:
-                depreciation = 0
+            # 8. 折旧摊销（仅运营期前50年计提，超过50年不再计提）
+            depreciation = total_investment * (1 - 0.2) / 50 if operate_year_index[year] <= 50 else 0
             
             # 填入表格
             cost_df.loc[year, "管理费用(住房)(万元)"] = round(manage_house, 4)
@@ -333,6 +332,7 @@ if calc_button:
     )
 
     
+
 
 
 
