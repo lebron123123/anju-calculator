@@ -290,31 +290,27 @@ if calc_button:
         residential_decoration_cost, total_investment, operate_years
     )
 
-    # ===================== 新增：给收入、费用表加全周期合计列（合计在第二列）=====================
-    # 1. 收入表加合计（仅金额列求和，非金额列填/，合计列在最前面）
-    income_df_with_total = income_df.copy()
-    # 定义需要求和的收入金额列
-    income_sum_columns = ["住宅租金收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
-    # 先计算合计值
-    income_df_with_total["全周期合计(万元)"] = income_df_with_total[income_sum_columns].sum(axis=1)
-    # 非金额列的合计值替换为/
-    income_df_with_total.loc[:, "全周期合计(万元)"] = income_df_with_total.apply(
-        lambda row: round(row["全周期合计(万元)"], 4) if row.name in income_sum_columns else "/", axis=1
+    # ===================== 新增：给收入、费用表加全周期合计列（合计在项目名后第一列）=====================
+    # 1. 收入表处理（先转置，再加合计列，完全匹配展示的表格结构）
+    # 先转置：行=指标（项目名），列=年份
+    income_df_T = income_df.T
+    # 定义需要求和的金额类指标行
+    income_sum_rows = ["住宅租金收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
+    # 计算合计列：金额行求和，非金额行填/
+    income_df_T["全周期合计(万元)"] = income_df_T.apply(
+        lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
     )
+    # 【核心】调整列顺序：把合计列放在最前面（项目名后第一列），再放年份列
+    income_df_T = income_df_T[ ["全周期合计(万元)"] + [col for col in income_df_T.columns if col != "全周期合计(万元)"] ]
     # 空值统一替换为/，更美观
-    income_df_with_total = income_df_with_total.fillna("/")
-    # 【关键】转置后调整列顺序：把「全周期合计」移到最前面（项目名后一列）
-    income_df_T = income_df_with_total.T
-    new_income_columns = ["全周期合计(万元)"] + [col for col in income_df_T.columns if col != "全周期合计(万元)"]
-    income_df_T = income_df_T[new_income_columns]
+    income_df_T = income_df_T.fillna("/")
 
-    # 2. 经营费用表加合计（所有费用项均为金额，直接求和，合计列在最前面）
-    cost_df_with_total = cost_df.copy()
-    cost_df_with_total["全周期合计(万元)"] = cost_df_with_total.sum(axis=1).round(4)
-    # 【关键】转置后调整列顺序：把「全周期合计」移到最前面
-    cost_df_T = cost_df_with_total.T
-    new_cost_columns = ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"]
-    cost_df_T = cost_df_T[new_cost_columns]
+    # 2. 经营费用表处理（同样先转置，再加合计列）
+    cost_df_T = cost_df.T
+    # 所有费用项都是金额，直接按行求和
+    cost_df_T["全周期合计(万元)"] = cost_df_T.sum(axis=1).round(4)
+    # 调整列顺序：合计列放最前面
+    cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
     
     # 3. 计算最终核心指标（新增总成本、净利润）
     total_income = round(income_df["总收入(万元)"].sum(), 2)
@@ -358,6 +354,7 @@ if calc_button:
     )
 
     
+
 
 
 
