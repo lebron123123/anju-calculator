@@ -129,7 +129,7 @@ st.markdown("---")
 
 # 3. 总经营费用参数
 with st.expander("3. 总经营费用参数", expanded=True):
-    st.subheader("💰 经营费用核心参数")
+    st.subheader("💰 总经营费用核心参数")
     col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
     manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=1.92, step=0.01, help="1.92×区域系数")
     total_build_area = col_cost2.number_input("总建筑面积（㎡）", min_value=0, value=50000, step=100)
@@ -334,7 +334,7 @@ if calc_button:
     
     st.markdown("---")
     
-    st.subheader("💸 经营费用明细")
+    st.subheader("💸 总经营费用明细")
     st.dataframe(cost_df_T, use_container_width=True)
     # ======================================
     # 【粘贴到这里结束】
@@ -354,6 +354,7 @@ if calc_button:
     )
 
     
+
 
 
 
