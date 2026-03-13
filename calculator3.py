@@ -407,7 +407,7 @@ if calc_button:
     build_year_set, operate_year_set = set(build_years), set(operate_years)
     total_cost_df["财务费用(建设期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in build_year_set else 0.0)
     total_cost_df["财务费用(运营期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in operate_year_set else 0.0)
-    total_cost_df["总成本费用(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(建设期)(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
+    total_cost_df["总成本费用(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
     
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
@@ -482,6 +482,7 @@ if calc_button:
         use_container_width=True
     )
     
+
 
 
 
