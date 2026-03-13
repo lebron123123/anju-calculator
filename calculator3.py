@@ -402,10 +402,12 @@ if calc_button:
         first_repay_ratio, repay_increase_rate
     )
     
-    # 5. 生成总成本费用表（经营成本+财务费用）
+    # 5. 生成总成本费用表（经营成本+财务费用分建设期/运营期）
     total_cost_df = operating_cost_df.copy()
-    total_cost_df["财务费用(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4))
-    total_cost_df["总成本费用(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(万元)"], 4)
+    build_year_set, operate_year_set = set(build_years), set(operate_years)
+    total_cost_df["财务费用(建设期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in build_year_set else 0.0)
+    total_cost_df["财务费用(运营期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in operate_year_set else 0.0)
+    total_cost_df["总成本费用(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(建设期)(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
     
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
@@ -417,9 +419,10 @@ if calc_button:
     income_df_T = income_df_T[ ["全周期合计(万元)"] + [col for col in income_df_T.columns if col != "全周期合计(万元)"] ]
     income_df_T = income_df_T.fillna("/")
 
-    # --- 总成本费用表处理 ---
+     # --- 总成本费用表处理 ---
     cost_df_T = total_cost_df.T
-    cost_df_T["全周期合计(万元)"] = cost_df_T.sum(axis=1).round(4)
+    cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(万元)"]
+    cost_df_T["全周期合计(万元)"] = cost_df_T.apply(lambda row: round(row.sum(), 4) if row.name in cost_sum_rows else "/", axis=1)
     cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
 
     # --- 还本付息表处理 ---
@@ -479,6 +482,7 @@ if calc_button:
         use_container_width=True
     )
     
+
 
 
 
