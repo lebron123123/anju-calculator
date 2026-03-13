@@ -18,7 +18,9 @@ year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2025~2200的年份
 # 1. 项目基本信息（完整正确版，确保build_years、operate_years全局可访问）
 with st.expander("1. 项目基本信息", expanded=True):
     project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
-    # 建设期年份：用生成的年份列表，默认值不变
+    # 【新增：房源类型选择，仅此一行】
+    house_type = st.radio("房源类型", options=["公租房", "保租房"], index=0, horizontal=True, help="用于匹配装修重置费计算规则")
+    # 建设期年份：原有代码完全不动
     build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
     
     # ---------------------- 运营期年份区间选择（修复警告+缩进正确版）----------------------
@@ -204,16 +206,44 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
     return income_df, resi_occupancy, resi_rent_price
   
-  # ===================== 成本费用测算函数（修复折旧50年限定+无报错版）=====================
-def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, total_investment, operate_year_list):
+# ===================== 总成本费用测算函数（装修重置费规则优化版）=====================
+def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, house_type, total_investment, operate_year_list):
     cost_df = pd.DataFrame(index=all_years)
     operate_years_count = len(operate_year_list)
-    # 新增：给每个运营年份标上序号（运营第1年、第2年...），用于判断折旧年限
+    # 运营年份序号：key=年份，value=运营第几年（1、2、3...）
     operate_year_index = {year: idx+1 for idx, year in enumerate(operate_year_list)}
+    max_operate_year_num = max(operate_year_index.values())  # 运营期总年数
     
+    # ===================== 【核心新增】提前计算每年的装修重置费分摊额 =====================
+    # 单次装修重置总费用（和原有基数一致：精装修费×70%）
+    single_reset_total = decoration_cost * 0.7
+    # 按房源类型确定重置周期
+    reset_period = 20 if house_type == "公租房" else 10
+    # 生成所有重置节点（运营期第几年需要重置）
+    reset_year_nums = list(range(reset_period, max_operate_year_num + 1, reset_period))
+    # 初始化：每个运营年份对应的装修重置费
+    decoration_reset_dict = {year: 0 for year in operate_year_list}
+
+    # 遍历每个重置节点，计算分摊额
+    for reset_year_num in reset_year_nums:
+        # 本次重置的起始分摊年份（运营第X年）
+        start_share_num = reset_year_num
+        # 本次重置的结束分摊年份：最多分摊10年，不超过运营期最后一年
+        end_share_num = min(reset_year_num + 9, max_operate_year_num)
+        # 实际分摊年数
+        share_year_count = end_share_num - start_share_num + 1
+        # 每年分摊额
+        year_share_amount = single_reset_total / share_year_count if share_year_count > 0 else 0
+        
+        # 把分摊额写入对应年份
+        for year, year_num in operate_year_index.items():
+            if start_share_num <= year_num <= end_share_num:
+                decoration_reset_dict[year] += year_share_amount
+
+    # ===================== 循环计算每年各项费用 =====================
     for year in all_years:
         if not is_operate[year]:
-            # 建设期无成本费用
+            # 建设期无成本费用，原有逻辑完全不动
             cost_df.loc[year, "管理费用(住房)(万元)"] = 0
             cost_df.loc[year, "管理费用(停车位)(万元)"] = 0
             cost_df.loc[year, "保险费(万元)"] = 0
@@ -224,33 +254,27 @@ def calc_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi
             cost_df.loc[year, "折旧摊销(万元)"] = 0
             cost_df.loc[year, "总成本费用(万元)"] = 0
         else:
-            # 运营期按公式计算
+            # 运营期基础参数，原有逻辑完全不动
             occ = resi_occupancy.get(year, 0)
             months = month_dict[year]
             resi_rent = resi_rent_price.get(year, 0)
             park_income = park_income_list.get(year, 0)
             
-            # 1. 管理费用（住房）
-            manage_house = resi_area * occ * 12 * manage_coeff / 10000
-            # 2. 管理费用（停车位）
-            manage_park = park_income * 0.4
-            # 3. 保险费
-            insurance = total_build_area * 0.3 / 10000
-            # 4. 维修费用
-            repair = (resi_area * resi_rent * occ * months / 10000) * 0.02
-            # 5. 日常物业维修基金
-            fund = resi_area * occ * months * 0.25 / 10000
-            # 6. 空置期物业管理费
-            vacancy = resi_area * (1 - occ) * months * 3.9 / 10000
-            # 7. 装修重置费（运营期第一年不重置）
-            if year == operate_year_list[0]:
-                decoration_reset = 0
-            else:
-                decoration_reset = decoration_cost * 0.7 / operate_years_count if operate_years_count > 0 else 0
-            # 8. 折旧摊销（仅运营期前50年计提，超过50年不再计提）
+            # 1-6项费用，原有逻辑完全不动
+            manage_house = resi_area * occ * 12 * manage_coeff / 10000  # 管理费用(住房)
+            manage_park = park_income * 0.4  # 管理费用(停车位)
+            insurance = total_build_area * 0.3 / 10000  # 保险费
+            repair = (resi_area * resi_rent * occ * months / 10000) * 0.02  # 维修费用
+            fund = resi_area * occ * months * 0.25 / 10000  # 日常物业维修基金
+            vacancy = resi_area * (1 - occ) * months * 3.9 / 10000  # 空置期物业管理费
+            
+            # 7. 装修重置费：直接用提前算好的分摊额
+            decoration_reset = decoration_reset_dict[year]
+            
+            # 8. 折旧摊销（原有50年限定逻辑完全不动）
             depreciation = total_investment * (1 - 0.2) / 50 if operate_year_index[year] <= 50 else 0
             
-            # 填入表格
+            # 填入表格，原有逻辑完全不动
             cost_df.loc[year, "管理费用(住房)(万元)"] = round(manage_house, 4)
             cost_df.loc[year, "管理费用(停车位)(万元)"] = round(manage_park, 4)
             cost_df.loc[year, "保险费(万元)"] = round(insurance, 4)
@@ -287,7 +311,7 @@ if calc_button:
         all_years, month_dict, is_operate,
         residential_area, resi_occupancy, resi_rent_price,
         park_income_dict, total_build_area, manage_coeff,
-        residential_decoration_cost, total_investment, operate_years
+        residential_decoration_cost, house_type, total_investment, operate_years
     )
 
     # ===================== 新增：给收入、费用表加全周期合计列（合计在项目名后第一列）=====================
@@ -354,6 +378,7 @@ if calc_button:
     )
 
     
+
 
 
 
