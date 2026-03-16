@@ -419,6 +419,78 @@ def calc_taxes(all_years, month_dict, is_operate, income_df, resi_occupancy, ope
     
     return tax_df
 
+# ===================== 新增：损益表测算函数（严格匹配弥补亏损规则）=====================
+def calc_profit(all_years, income_df, total_cost_df, tax_df):
+    profit_df = pd.DataFrame(index=all_years)
+    operate_year_list = [y for y in all_years if income_df.loc[y, "总收入(万元)"] != 0 or y in all_years]
+    
+    # 1-3行：直接调用现成数据
+    profit_df["总收入(万元)"] = income_df["总收入(万元)"]
+    profit_df["总成本费用(万元)"] = total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"]
+    profit_df["税金及其附加总和(万元)"] = tax_df["税金及其附加总和(万元)"]
+    
+    # 4. 利润总额
+    profit_df["利润总额(万元)"] = round(profit_df["总收入(万元)"] - profit_df["总成本费用(万元)"] - profit_df["税金及其附加总和(万元)"], 4)
+    
+    # 5-6. 弥补亏损、应纳税所得额（核心迭代逻辑）
+    loss_history = []
+    first_profit_year = None
+   弥补亏损_dict = {}
+   应纳税所得额_dict = {}
+    last_negative_taxable = 0
+    loss_years_used = 0
+    
+    for idx, year in enumerate(all_years):
+        current_profit = profit_df.loc[year, "利润总额(万元)"]
+        
+        # 先记录所有年份的利润，用于后续弥补
+        loss_history.append(current_profit)
+        
+        # 寻找首次盈利年份
+        if first_profit_year is None and current_profit > 0:
+            first_profit_year = year
+        
+        # 计算当年弥补亏损
+        if first_profit_year is None:
+            # 首次盈利前，弥补亏损为0
+            弥补亏损 = 0.0
+        else:
+            if loss_years_used >= 5:
+                # 已弥补5年，后续为0
+                弥补亏损 = 0.0
+            else:
+                if year == first_profit_year:
+                    # 首次盈利：弥补亏损=前5年利润之和（取最近5年）
+                    prev_5_years = loss_history[max(0, idx-5):idx]
+                    弥补亏损 = -sum(prev_5_years)  # 负数亏损用正数弥补
+                else:
+                    # 后续年份：如果上一年应纳税所得额为负，继续弥补
+                    弥补亏损 = -last_negative_taxable if last_negative_taxable < 0 else 0.0
+        
+        # 计算应纳税所得额
+        应纳税所得额 = current_profit + 弥补亏损
+        
+        # 更新迭代变量
+        if first_profit_year is not None and 弥补亏损 != 0:
+            loss_years_used += 1
+        if 应纳税所得额 < 0:
+            last_negative_taxable = 应纳税所得额
+        else:
+            last_negative_taxable = 0
+        
+        # 存入字典
+        弥补亏损_dict[year] = round(弥补亏损, 4)
+        应纳税所得额_dict[year] = round(应纳税所得额, 4)
+    
+    # 填入表格
+    profit_df["弥补亏损(万元)"] = pd.Series(弥补亏损_dict)
+    profit_df["应纳税所得额(万元)"] = pd.Series(应纳税所得额_dict)
+    
+    # 7. 所得税
+    profit_df["所得税(万元)"] = profit_df["应纳税所得额(万元)"].apply(lambda x: round(x * 0.25, 4) if x > 0 else 0.0)
+    
+    return profit_df
+
 # ===================== 结果展示区 =====================
 if calc_button:
     # 前置校验，避免参数缺失报错
@@ -549,6 +621,17 @@ if calc_button:
     tax_df_T["全周期合计(万元)"] = tax_df_T.sum(axis=1).round(4)
     tax_df_T = tax_df_T[ ["全周期合计(万元)"] + [col for col in tax_df_T.columns if col != "全周期合计(万元)"] ]
     st.dataframe(tax_df_T, use_container_width=True)
+
+    st.markdown("---")
+    
+    # --- 新增：损益表明细 ---
+    st.subheader("📈 损益表明细")
+    profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
+    profit_df_T = profit_df.T
+    profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "税金及其附加总和(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)"]
+    profit_df_T["全周期合计(万元)"] = profit_df_T.apply(lambda row: round(row.sum(), 4) if row.name in profit_sum_rows else "/", axis=1)
+    profit_df_T = profit_df_T[ ["全周期合计(万元)"] + [col for col in profit_df_T.columns if col != "全周期合计(万元)"] ]
+    st.dataframe(profit_df_T, use_container_width=True)
     
     # 9. 一键下载Excel
     st.markdown("---")
