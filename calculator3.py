@@ -15,6 +15,7 @@ START_YEAR = 2025
 END_YEAR = 2200
 year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2025~2200的年份列表
 
+
 # 1. 项目基本信息（完整正确版，确保build_years、operate_years全局可访问）
 with st.expander("1. 项目基本信息", expanded=True):
     project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
