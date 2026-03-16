@@ -663,6 +663,9 @@ if calc_button:
     
     # 3. 计算倍数
     interest_coverage_ratio = round((loan_period_profit + operate_fin_cost) / total_fin_cost, 2) if total_fin_cost != 0 else 0.0
+
+    # 全投资全周期累计净现值（取最后一年的累计值，即全周期最终净现值）
+    total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
     
     # 8. 页面结果展示
     st.header("📊 测算结果")
@@ -675,10 +678,11 @@ if calc_button:
     with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
     with col2: st.metric(":red[项目全周期总成本费用]", f"{total_cost} 万元")
     with col3: st.metric("项目全周期总付息", f"{total_interest} 万元")
-    # 第二行2个指标，宽松排版
-    col4, col5, _ = st.columns(3)
+    # 第二行3个指标，新增净现值
+    col4, col5, col6 = st.columns(3)
     with col4: st.metric("项目全周期净利润", f"{total_net_profit} 万元")
     with col5: st.metric("利息保障倍数", f"{interest_coverage_ratio}")
+    with col6: st.metric("净现值(合计)", f"{total_npv_sum} 万元")
     
     st.markdown("---")
     
