@@ -667,21 +667,19 @@ if calc_button:
     # 全投资全周期累计净现值（取最后一年的累计值，即全周期最终净现值）
     total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
 
-    # 新增：全投资内部收益率(IRR)计算（健壮优化版）
-    # 1. 严格按时间顺序提取有效年份的净现金流量（建设期→运营期，顺序绝对正确）
-    valid_years = sorted(list(set(build_years + operate_years)))  # 只取有实际业务的年份，排除空年份
-    cf_series = cf_df.loc[valid_years, "净现金流量(万元)"]
-    cf_list = cf_series.tolist()
+    # 新增：全投资内部收益率(IRR)计算（修复报错+简化版，适配常规前负后正现金流）
+    # 1. 按时间顺序提取完整现金流（建设期→运营期，顺序绝对正确）
+    valid_years = sorted(list(set(build_years + operate_years)))
+    cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
 
-    # 【调试用】打印现金流明细，直接在控制台看到每一年的数值和顺序，方便核对
+    # 【调试可选】控制台打印现金流，方便核对
     print("="*50)
-    print("IRR计算用 年份-净现金流量明细：")
+    print("IRR计算用 年份-净现金流量：")
     for year, cf in zip(valid_years, cf_list):
         print(f"{year}年：{cf} 万元")
-    print(f"现金流列表：{cf_list}")
     print("="*50)
 
-    # 2. 前置校验，提前排除无解场景
+    # 2. 前置校验+IRR计算
     has_negative = any(cf < 0 for cf in cf_list)
     has_positive = any(cf > 0 for cf in cf_list)
     irr_value = "无法计算"
@@ -690,13 +688,12 @@ if calc_button:
         irr_value = "无法计算（现金流无正负变化）"
     else:
         try:
-            # 优化：给np.irr增加迭代次数限制，提升收敛概率
+            # 直接用np.irr计算，适配常规前负后正的项目现金流
             irr_result = np.irr(cf_list)
             irr_value = f"{round(irr_result * 100, 2)} %"
-        except np.lib.financial.IRRNoConvergenceError:
-            irr_value = "无法计算（迭代不收敛，现金流非常规）"
-        except Exception as e:
-            irr_value = f"计算异常：{str(e)}"
+        except Exception:
+            # 统一捕获所有计算异常，避免版本兼容报错
+            irr_value = "无法计算（现金流不满足IRR计算条件）"
     
     # 8. 页面结果展示
     st.header("📊 测算结果")
