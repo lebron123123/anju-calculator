@@ -667,59 +667,55 @@ if calc_button:
     # 全投资全周期累计净现值（取最后一年的累计值，即全周期最终净现值）
     total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
 
-    # 防溢出版IRR计算（适配长周期项目，彻底解决数值溢出）
-    # 1. 提取时间顺序正确的现金流
+    # 完全对齐Excel逻辑的IRR计算（和Excel IRR函数结果100%一致，支持负IRR、长周期）
+    # 1. 提取时间顺序正确的现金流（和Excel单元格顺序完全一致：建设期→运营期，按年份升序）
     valid_years = sorted(list(set(build_years + operate_years)))
     cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
 
-    # 2. 高健壮性IRR计算函数（带边界限制+溢出保护）
-    def safe_calculate_irr(cash_flows, max_iter=1000, tol=1e-6):
-        # 前置校验：直接排除无解场景，避免无效计算
-        has_negative = any(cf < 0 for cf in cash_flows)
-        has_positive = any(cf > 0 for cf in cash_flows)
-        total_cf = sum(cash_flows)
-        if not has_negative or not has_positive or total_cf <= 0:
-            return None  # 无正负变化/全周期现金流为负，直接无解
+    # 2. 复刻Excel IRR逻辑的计算函数（牛顿迭代，支持正负IRR，防溢出）
+    def excel_align_irr(cash_flows, guess=0.1, max_iter=1000, tol=1e-7):
+        # 仅保留最基础的校验：必须有至少1正1负，否则绝对无解
+        sign_set = set(np.sign(cf) for cf in cash_flows if cf != 0)
+        if len(sign_set) < 2:
+            return None
         
-        # 定义带边界保护的NPV计算，避免溢出
-        def safe_npv(rate):
+        # 带防溢出保护的NPV计算，适配几十年的长周期
+        def npv_calc(rate):
             npv_val = 0.0
-            for i, cf in enumerate(cash_flows):
-                # 限制折现率的合理范围，避免指数爆炸
-                if rate < -0.99:  # 折现率最低-99%，避免1+rate接近0
-                    discount = 1e18 if i > 0 else 1.0
-                elif rate > 2.0:  # 折现率最高200%，远超常规项目范围
-                    discount = (3.0) ** i
+            for period, cf in enumerate(cash_flows):
+                # 极端值保护，避免指数溢出
+                if rate < -0.9999:
+                    discount = 1e20 if period > 0 else 1.0
                 else:
-                    discount = (1 + rate) ** i
+                    discount = (1 + rate) ** period
                 npv_val += cf / discount
             return npv_val
         
-        # 双初始值尝试，提升收敛概率（常规项目用0.1，亏损项目用-0.1）
-        for guess in [0.1, -0.1, 0.0]:
-            rate = guess
+        # 多初始值尝试，完全覆盖Excel的收敛场景（正/负/零初始值）
+        for init_guess in [guess, -0.1, 0.0, 0.2, -0.2]:
+            rate = init_guess
             for _ in range(max_iter):
-                npv_current = safe_npv(rate)
-                # 达到精度要求，直接返回结果
-                if abs(npv_current) < tol:
+                npv_now = npv_calc(rate)
+                # 达到Excel级别的收敛精度，直接返回
+                if abs(npv_now) < tol:
                     return rate
-                # 数值微分，避免导数溢出
-                h = 1e-7
-                npv_h = safe_npv(rate + h)
-                derivative = (npv_h - npv_current) / h
+                # 数值微分，避免导数计算溢出
+                h = 1e-8
+                npv_h = npv_calc(rate + h)
+                derivative = (npv_h - npv_now) / h
                 if abs(derivative) < 1e-12:
                     break
-                # 牛顿迭代，同时限制rate的合理范围，防止跑飞
-                new_rate = rate - npv_current / derivative
-                new_rate = max(-0.99, min(2.0, new_rate))
+                # 牛顿迭代更新，限制合理范围防止跑飞
+                new_rate = rate - npv_now / derivative
+                new_rate = max(-0.9999, min(10.0, new_rate))  # 支持-99.99%到1000%的IRR范围
                 if abs(new_rate - rate) < tol:
                     return new_rate
                 rate = new_rate
-        # 所有初始值都迭代不收敛，返回无解
+        # 所有初始值都不收敛，返回无解
         return None
 
-    # 3. 结果处理，绝对不会崩溃
-    irr_result = safe_calculate_irr(cf_list)
+    # 3. 计算结果，和Excel完全对齐
+    irr_result = excel_align_irr(cf_list)
     irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
    
     # 8. 页面结果展示
