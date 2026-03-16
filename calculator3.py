@@ -667,10 +667,32 @@ if calc_button:
     # 全投资全周期累计净现值（取最后一年的累计值，即全周期最终净现值）
     total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
 
-     # 极简版IRR计算
+     # 极简版IRR计算（纯Python实现，兼容所有环境，无numpy依赖问题）
+    # 1. 提取时间顺序正确的现金流
     valid_years = sorted(list(set(build_years + operate_years)))
     cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
-    irr_value = f"{round(np.irr(cf_list) * 100, 2)} %"
+    
+    # 2. 自定义IRR计算函数（和Excel、np.irr逻辑完全一致的牛顿迭代法）
+    def calculate_irr(cash_flows, guess=0.1, max_iter=1000, tol=1e-6):
+        rate = guess
+        for _ in range(max_iter):
+            # 计算当前折现率下的NPV
+            npv_val = sum(cf / (1 + rate) ** i for i, cf in enumerate(cash_flows))
+            # 计算导数，用于牛顿迭代
+            derivative = sum(-i * cf / (1 + rate) ** (i + 1) for i, cf in enumerate(cash_flows))
+            if abs(derivative) < 1e-12:
+                break
+            # 迭代更新折现率
+            new_rate = rate - npv_val / derivative
+            # 达到精度要求就返回结果
+            if abs(new_rate - rate) < tol:
+                return new_rate
+            rate = new_rate
+        return None  # 迭代不收敛时返回None
+    
+    # 3. 计算结果处理，避免程序崩溃
+    irr_result = calculate_irr(cf_list)
+    irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
    
     # 8. 页面结果展示
     st.header("📊 测算结果")
