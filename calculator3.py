@@ -398,7 +398,7 @@ def calc_taxes(all_years, month_dict, is_operate, income_df, resi_occupancy, ope
             if operate_year_index[year] <= 3:
                 property_tax = 0.0
             else:
-                resi_property = resi_rent_year * (0.04 / 1.05)
+                resi_property = resi_rent_year * occ * (0.04 / 1.05)
                 park_property = park_rent_year * (0.12 / 1.09)
                 construction_property = (construction_cost * 0.7 * 0.012 / 1.09) * (1 - occ) * (months / 12)
                 property_tax = resi_property + park_property + construction_property
