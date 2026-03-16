@@ -578,18 +578,32 @@ if calc_button:
     total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
     total_net_profit = round(profit_df["净利润(万元)"].sum(), 2)
     
+    # 新增：利息保障倍数计算
+    build_fin_cost = total_cost_df["财务费用(建设期)(万元)"].sum()
+    operate_fin_cost = total_cost_df["财务费用(运营期)(万元)"].sum()
+    total_fin_cost = build_fin_cost + operate_fin_cost
+    # 确定借款期起始年：取第一个有借款的年份，无借款则取建设期第一年
+    first_loan_year = min(loan_plan_dict.keys()) if loan_plan_dict else (min(build_years) if build_years else min(all_years))
+    # 借款期利润总额：从第一个借款年份到最后一年的总和
+    loan_period_profit = profit_df.loc[first_loan_year:max(all_years), "利润总额(万元)"].sum()
+    # 计算倍数，避免除以0
+    interest_coverage_ratio = round((loan_period_profit + operate_fin_cost) / total_fin_cost, 2) if total_fin_cost != 0 else 0.0
+    
     # 8. 页面结果展示
     st.header("📊 测算结果")
     st.markdown("---")
     
     # --- 核心指标汇总 ---
     st.subheader("🎯 最终财务结果汇总")
+    # 第一行3个指标
     col1, col2, col3 = st.columns(3)
     with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
     with col2: st.metric(":red[项目全周期总成本费用]", f"{total_cost} 万元")
     with col3: st.metric("项目全周期总付息", f"{total_interest} 万元")
-    col4, _, _ = st.columns(3)
+    # 第二行2个指标，宽松排版
+    col4, col5, _ = st.columns(3)
     with col4: st.metric("项目全周期净利润", f"{total_net_profit} 万元")
+    with col5: st.metric("利息保障倍数", f"{interest_coverage_ratio}")
     
     st.markdown("---")
     
