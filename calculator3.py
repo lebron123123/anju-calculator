@@ -465,13 +465,14 @@ if calc_button:
         land_area, construction_cost
     )
     
-    # 5. 生成总成本费用表（经营成本+财务费用+税金）
+    # 5. 生成总成本费用表（经营成本+财务费用，不含税金）
     total_cost_df = operating_cost_df.copy()
     build_year_set, operate_year_set = set(build_years), set(operate_years)
     total_cost_df["财务费用(建设期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in build_year_set else 0.0)
     total_cost_df["财务费用(运营期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in operate_year_set else 0.0)
     total_cost_df["税金及其附加总和(万元)"] = tax_df["税金及其附加总和(万元)"]
-    total_cost_df["总成本费用(不含建设期财务费用)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"] + total_cost_df["税金及其附加总和(万元)"], 4)
+    # 总成本费用：仅含经营成本+运营期财务费用，不含税金、不含建设期财务费用
+    total_cost = round(total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"].sum(), 2)
     
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
@@ -485,7 +486,7 @@ if calc_button:
 
      # --- 总成本费用表处理 ---
     cost_df_T = total_cost_df.T
-    cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用)(万元)"]
+    cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
     cost_df_T["全周期合计(万元)"] = cost_df_T.apply(lambda row: round(row.sum(), 4) if row.name in cost_sum_rows else "/", axis=1)
     cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
 
@@ -509,11 +510,11 @@ if calc_button:
     st.header("📊 测算结果")
     st.markdown("---")
     
-    # --- 核心指标汇总 ---
+        # --- 核心指标汇总 ---
     st.subheader("🎯 最终财务结果汇总")
     col1, col2, col3, col4 = st.columns(4)
     with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
-    with col2: st.metric("项目全周期总成本费用", f"{total_cost} 万元")
+    with col2: st.metric(":red[项目全周期总成本费用]", f"{total_cost} 万元")
     with col3: st.metric("项目全周期总付息", f"{total_interest} 万元")
     with col4: st.metric("项目全周期净利润", f"{net_profit} 万元")
     
@@ -525,9 +526,14 @@ if calc_button:
     
     st.markdown("---")
     
-    # --- 总成本费用明细 ---
+      # --- 总成本费用明细 ---
     st.subheader("💸 总成本费用明细")
-    st.dataframe(cost_df_T, use_container_width=True)
+    # 给总成本费用行的文字标红
+    cost_styled = cost_df_T.style.apply(
+        lambda x: ['color: red; font-weight: bold' if x.name == "总成本费用(不含建设期财务费用、不含税金)(万元)" else '' for _ in x],
+        axis=1
+    )
+    st.dataframe(cost_styled, use_container_width=True)
     
     st.markdown("---")
     
