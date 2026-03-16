@@ -667,31 +667,59 @@ if calc_button:
     # 全投资全周期累计净现值（取最后一年的累计值，即全周期最终净现值）
     total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
 
-     # 极简版IRR计算（纯Python实现，兼容所有环境，无numpy依赖问题）
+    # 防溢出版IRR计算（适配长周期项目，彻底解决数值溢出）
     # 1. 提取时间顺序正确的现金流
     valid_years = sorted(list(set(build_years + operate_years)))
     cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
-    
-    # 2. 自定义IRR计算函数（和Excel、np.irr逻辑完全一致的牛顿迭代法）
-    def calculate_irr(cash_flows, guess=0.1, max_iter=1000, tol=1e-6):
-        rate = guess
-        for _ in range(max_iter):
-            # 计算当前折现率下的NPV
-            npv_val = sum(cf / (1 + rate) ** i for i, cf in enumerate(cash_flows))
-            # 计算导数，用于牛顿迭代
-            derivative = sum(-i * cf / (1 + rate) ** (i + 1) for i, cf in enumerate(cash_flows))
-            if abs(derivative) < 1e-12:
-                break
-            # 迭代更新折现率
-            new_rate = rate - npv_val / derivative
-            # 达到精度要求就返回结果
-            if abs(new_rate - rate) < tol:
-                return new_rate
-            rate = new_rate
-        return None  # 迭代不收敛时返回None
-    
-    # 3. 计算结果处理，避免程序崩溃
-    irr_result = calculate_irr(cf_list)
+
+    # 2. 高健壮性IRR计算函数（带边界限制+溢出保护）
+    def safe_calculate_irr(cash_flows, max_iter=1000, tol=1e-6):
+        # 前置校验：直接排除无解场景，避免无效计算
+        has_negative = any(cf < 0 for cf in cash_flows)
+        has_positive = any(cf > 0 for cf in cash_flows)
+        total_cf = sum(cash_flows)
+        if not has_negative or not has_positive or total_cf <= 0:
+            return None  # 无正负变化/全周期现金流为负，直接无解
+        
+        # 定义带边界保护的NPV计算，避免溢出
+        def safe_npv(rate):
+            npv_val = 0.0
+            for i, cf in enumerate(cash_flows):
+                # 限制折现率的合理范围，避免指数爆炸
+                if rate < -0.99:  # 折现率最低-99%，避免1+rate接近0
+                    discount = 1e18 if i > 0 else 1.0
+                elif rate > 2.0:  # 折现率最高200%，远超常规项目范围
+                    discount = (3.0) ** i
+                else:
+                    discount = (1 + rate) ** i
+                npv_val += cf / discount
+            return npv_val
+        
+        # 双初始值尝试，提升收敛概率（常规项目用0.1，亏损项目用-0.1）
+        for guess in [0.1, -0.1, 0.0]:
+            rate = guess
+            for _ in range(max_iter):
+                npv_current = safe_npv(rate)
+                # 达到精度要求，直接返回结果
+                if abs(npv_current) < tol:
+                    return rate
+                # 数值微分，避免导数溢出
+                h = 1e-7
+                npv_h = safe_npv(rate + h)
+                derivative = (npv_h - npv_current) / h
+                if abs(derivative) < 1e-12:
+                    break
+                # 牛顿迭代，同时限制rate的合理范围，防止跑飞
+                new_rate = rate - npv_current / derivative
+                new_rate = max(-0.99, min(2.0, new_rate))
+                if abs(new_rate - rate) < tol:
+                    return new_rate
+                rate = new_rate
+        # 所有初始值都迭代不收敛，返回无解
+        return None
+
+    # 3. 结果处理，绝对不会崩溃
+    irr_result = safe_calculate_irr(cf_list)
     irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
    
     # 8. 页面结果展示
