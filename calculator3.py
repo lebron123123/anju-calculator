@@ -156,8 +156,15 @@ with st.expander("3. 总成本费用参数", expanded=True):
         col_loan_year = st.columns(len(loan_years))
         for idx, year in enumerate(loan_years):
             loan_plan_dict[year] = col_loan_year[idx].number_input(f"{year}年借款额（万元）", min_value=0.0, value=0.0, step=100.0)
+
+# 4. 税金及其附加参数
+with st.expander("4. 税金及其附加参数", expanded=True):
+    st.subheader("📝 税金核心参数")
+    col_tax1, col_tax2 = st.columns(2)
+    land_area = col_tax1.number_input("用地面积（㎡）", min_value=0, value=10000, step=100)
+    construction_cost = col_tax2.number_input("建安工程费（万元）", min_value=0.0, value=30000.0, step=1000.0)
     
-# 4. 一键测算按钮
+# 5. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
@@ -223,7 +230,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     
     # 总收入汇总
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
-    return income_df, resi_occupancy, resi_rent_price
+    return income_df, resi_occupancy, resi_rent_price, park_occupancy
   
 # ===================== 经营成本测算函数（原calc_cost，适配新命名）=====================
 def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, house_type, total_investment, operate_year_list):
@@ -363,6 +370,47 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
     financial_cost_dict = loan_df["本期付息(万元)"].to_dict()
     return loan_df, financial_cost_dict
 
+# ===================== 新增：税金及其附加测算函数 =====================
+def calc_taxes(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_count, park_occupancy, park_rent_price, other_income_total, other_income_name, operate_year_list, land_area, construction_cost):
+    tax_df = pd.DataFrame(index=all_years)
+    operate_year_index = {year: idx+1 for idx, year in enumerate(operate_year_list)}
+    
+    for year in all_years:
+        if not is_operate[year]:
+            tax_df.loc[year, "增值税(万元)"] = tax_df.loc[year, "印花税(万元)"] = tax_df.loc[year, "城镇维护建设税(万元)"] = tax_df.loc[year, "教育附加和地方教育附加税(万元)"] = tax_df.loc[year, "房产税(万元)"] = tax_df.loc[year, "城镇土地使用税(万元)"] = tax_df.loc[year, "税金及其附加总和(万元)"] = 0.0
+        else:
+            occ, months, resi_rent = resi_occupancy.get(year, 0), month_dict[year], resi_rent_price.get(year, 0)
+            park_occ, park_rent = park_occupancy.get(year, 0), park_rent_price.get(year, 0)
+            resi_rent_year = resi_area * resi_rent * occ * months / 10000
+            park_rent_year = park_count * park_rent * park_occ * months / 10000
+            other_rent_year = other_income_total if year == operate_year_list[0] else 0
+            total_income_year = resi_rent_year + park_rent_year + other_rent_year
+            
+            vat = (resi_rent_year * (0.015 / 1.05)) + (park_rent_year * (0.09 / 1.09))
+            stamp = total_income_year * (0.0005 / 1.09)
+            city_maintain = vat * 0.07
+            edu_surcharge = vat * 0.05
+            
+            if operate_year_index[year] <= 3: property_tax = 0.0
+            else:
+                resi_property = resi_rent_year * (0.04 / 1.05)
+                park_property = park_rent_year * (0.12 / 1.09)
+                construction_property = (construction_cost * 0.7 * 0.012 / 1.09) * (1 - occ) * (months / 12)
+                property_tax = resi_property + park_property + construction_property
+            
+            land_use_tax = land_area * 3 / 10000
+            total_tax = vat + stamp + city_maintain + edu_surcharge + property_tax + land_use_tax
+            
+            tax_df.loc[year, "增值税(万元)"] = round(vat, 4)
+            tax_df.loc[year, "印花税(万元)"] = round(stamp, 4)
+            tax_df.loc[year, "城镇维护建设税(万元)"] = round(city_maintain, 4)
+            tax_df.loc[year, "教育附加和地方教育附加税(万元)"] = round(edu_surcharge, 4)
+            tax_df.loc[year, "房产税(万元)"] = round(property_tax, 4)
+            tax_df.loc[year, "城镇土地使用税(万元)"] = round(land_use_tax, 4)
+            tax_df.loc[year, "税金及其附加总和(万元)"] = round(total_tax, 4)
+    
+    return tax_df
+
 # ===================== 结果展示区 =====================
 if calc_button:
     # 前置校验，避免参数缺失报错
@@ -376,7 +424,7 @@ if calc_button:
     operate_start_year = operate_years[0]  # 运营期起始年，用于还款判断
     
     # 2. 收入测算（原有逻辑完全不变）
-    income_df, resi_occupancy, resi_rent_price = calc_income(
+    income_df, resi_occupancy, resi_rent_price, park_occupancy = calc_income(
         all_years, month_dict, is_operate,
         residential_area, rent_start_price,
         rent_increase_span, rent_increase_rate,
@@ -402,12 +450,22 @@ if calc_button:
         first_repay_ratio, repay_increase_rate
     )
     
-    # 5. 生成总成本费用表（经营成本+财务费用分建设期/运营期）
+    # 4.5 新增：税金及其附加测算
+    tax_df = calc_taxes(
+        all_years, month_dict, is_operate,
+        residential_area, resi_occupancy, resi_rent_price,
+        park_count, park_occupancy_ramp_dict, park_rent_start_price,
+        other_income_total, other_income_name, operate_years,
+        land_area, construction_cost
+    )
+    
+    # 5. 生成总成本费用表（经营成本+财务费用+税金）
     total_cost_df = operating_cost_df.copy()
     build_year_set, operate_year_set = set(build_years), set(operate_years)
     total_cost_df["财务费用(建设期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in build_year_set else 0.0)
     total_cost_df["财务费用(运营期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in operate_year_set else 0.0)
-    total_cost_df["总成本费用(不含建设期财务费用)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
+    total_cost_df["税金及其附加总和(万元)"] = tax_df["税金及其附加总和(万元)"]
+    total_cost_df["总成本费用(不含建设期财务费用)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"] + total_cost_df["税金及其附加总和(万元)"], 4)
     
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
@@ -421,7 +479,7 @@ if calc_button:
 
      # --- 总成本费用表处理 ---
     cost_df_T = total_cost_df.T
-    cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(不含建设期财务费用)(万元)"]
+    cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用)(万元)"]
     cost_df_T["全周期合计(万元)"] = cost_df_T.apply(lambda row: round(row.sum(), 4) if row.name in cost_sum_rows else "/", axis=1)
     cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
 
@@ -470,6 +528,15 @@ if calc_button:
     # --- 新增：还本付息明细 ---
     st.subheader("🏦 还本付息明细")
     st.dataframe(loan_df_T, use_container_width=True)
+
+    st.markdown("---")
+
+    # --- 新增：税金及其附加明细 ---
+    st.subheader("📝 税金及其附加明细")
+    tax_df_T = tax_df.T
+    tax_df_T["全周期合计(万元)"] = tax_df_T.sum(axis=1).round(4)
+    tax_df_T = tax_df_T[ ["全周期合计(万元)"] + [col for col in tax_df_T.columns if col != "全周期合计(万元)"] ]
+    st.dataframe(tax_df_T, use_container_width=True)
     
     # 9. 一键下载Excel
     st.markdown("---")
