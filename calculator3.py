@@ -583,7 +583,7 @@ if calc_button:
      # 新增：利息保障倍数计算（简化版：借款期从建设期第一年开始）
     # 1. 简化判断：借款期起始年=建设期第一年，结束年=起始年+借款年限-1
     first_loan_year = min(build_years) if build_years else min(all_years)
-    last_loan_year = first_loan_year + loan_total_years - 1
+    last_loan_year = first_loan_year + loan_total_years +1
     loan_period_valid_years = [y for y in all_years if first_loan_year <= y <= last_loan_year]
     
     # 2. 提取核心数据
