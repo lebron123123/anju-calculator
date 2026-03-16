@@ -371,7 +371,8 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
     return loan_df, financial_cost_dict
 
 # ===================== 新增：税金及其附加测算函数 =====================
-def calc_taxes(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_count, park_occupancy, park_rent_price, other_income_total, other_income_name, operate_year_list, land_area, construction_cost):
+# ===================== 税金及其附加测算函数（直接调用收入表数据，100%对齐无误差）=====================
+def calc_taxes(all_years, month_dict, is_operate, income_df, resi_occupancy, operate_year_list, land_area, construction_cost):
     tax_df = pd.DataFrame(index=all_years)
     operate_year_index = {year: idx+1 for idx, year in enumerate(operate_year_list)}
     
@@ -379,28 +380,35 @@ def calc_taxes(all_years, month_dict, is_operate, resi_area, resi_occupancy, res
         if not is_operate[year]:
             tax_df.loc[year, "增值税(万元)"] = tax_df.loc[year, "印花税(万元)"] = tax_df.loc[year, "城镇维护建设税(万元)"] = tax_df.loc[year, "教育附加和地方教育附加税(万元)"] = tax_df.loc[year, "房产税(万元)"] = tax_df.loc[year, "城镇土地使用税(万元)"] = tax_df.loc[year, "税金及其附加总和(万元)"] = 0.0
         else:
-            occ, months, resi_rent = resi_occupancy.get(year, 0), month_dict[year], resi_rent_price.get(year, 0)
-            park_occ, park_rent = park_occupancy.get(year, 0), park_rent_price.get(year, 0)
-            resi_rent_year = resi_area * resi_rent * occ * months / 10000
-            park_rent_year = park_count * park_rent * park_occ * months / 10000
-            other_rent_year = other_income_total if year == operate_year_list[0] else 0
-            total_income_year = resi_rent_year + park_rent_year + other_rent_year
+            # 直接从收入表拿现成的、已经算好的收入数据，100%和收入表对齐
+            resi_rent_year = income_df.loc[year, "住宅租金收入(万元)"]
+            park_rent_year = income_df.loc[year, "车位收入(万元)"]
+            total_income_year = income_df.loc[year, "总收入(万元)"]
+            # 其他基础参数
+            occ = resi_occupancy.get(year, 0)
+            months = month_dict[year]
             
+            # 严格按你给的公式计算，基数完全和收入表一致
             vat = (resi_rent_year * (0.015 / 1.05)) + (park_rent_year * (0.09 / 1.09))
             stamp = total_income_year * (0.0005 / 1.09)
             city_maintain = vat * 0.07
             edu_surcharge = vat * 0.05
             
-            if operate_year_index[year] <= 3: property_tax = 0.0
+            # 房产税：前3年免征，严格按公式计算
+            if operate_year_index[year] <= 3:
+                property_tax = 0.0
             else:
                 resi_property = resi_rent_year * (0.04 / 1.05)
                 park_property = park_rent_year * (0.12 / 1.09)
                 construction_property = (construction_cost * 0.7 * 0.012 / 1.09) * (1 - occ) * (months / 12)
                 property_tax = resi_property + park_property + construction_property
             
+            # 城镇土地使用税：3元/㎡，转万元
             land_use_tax = land_area * 3 / 10000
+            # 税金总和
             total_tax = vat + stamp + city_maintain + edu_surcharge + property_tax + land_use_tax
             
+            # 填入表格
             tax_df.loc[year, "增值税(万元)"] = round(vat, 4)
             tax_df.loc[year, "印花税(万元)"] = round(stamp, 4)
             tax_df.loc[year, "城镇维护建设税(万元)"] = round(city_maintain, 4)
@@ -453,9 +461,7 @@ if calc_button:
     # 4.5 新增：税金及其附加测算
     tax_df = calc_taxes(
         all_years, month_dict, is_operate,
-        residential_area, resi_occupancy, resi_rent_price,
-        park_count, park_occupancy, park_rent_price,
-        other_income_total, other_income_name, operate_years,
+        income_df, resi_occupancy, operate_years,
         land_area, construction_cost
     )
     
