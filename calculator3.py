@@ -142,10 +142,11 @@ with st.expander("3. 总成本费用参数", expanded=True):
     st.markdown("---")
     st.subheader("🏦 银行借款与还本付息参数")
     # 基础参数
-    col_loan1, col_loan2, col_loan3 = st.columns(3)
+    col_loan1, col_loan2, col_loan3, col_loan4 = st.columns(4)
     loan_annual_rate = col_loan1.number_input("借款年利率（%）", min_value=0.0, max_value=20.0, value=3.0, step=0.1)
-    first_repay_ratio = col_loan2.number_input("首次还款比例（%）", min_value=0.0, max_value=100.0, value=3.0, step=0.1, help="运营期第一年还本额=借款总额×该比例")
-    repay_increase_rate = col_loan3.number_input("每年还款递增率（%）", min_value=0.0, max_value=50.0, value=4.5, step=0.1, help="每年还本额较上年的递增比例")
+    loan_total_years = col_loan2.number_input("借款总年限（年）", min_value=1, max_value=100, value=25, step=1, help="借款的总期限，用于计算利息保障倍数的借款期范围")
+    first_repay_ratio = col_loan3.number_input("首次还款比例（%）", min_value=0.0, max_value=100.0, value=3.0, step=0.1, help="运营期第一年还本额=借款总额×该比例")
+    repay_increase_rate = col_loan4.number_input("每年还款递增率（%）", min_value=0.0, max_value=50.0, value=4.5, step=0.1, help="每年还本额较上年的递增比例")
 
     # 银行借款计划（动态输入，和出租率操作逻辑一致）
     st.markdown("#### 银行借款计划")
@@ -578,15 +579,17 @@ if calc_button:
     total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
     total_net_profit = round(profit_df["净利润(万元)"].sum(), 2)
     
-    # 新增：利息保障倍数计算
+    # 新增：利息保障倍数计算（严格按借款总年限计算）
     build_fin_cost = total_cost_df["财务费用(建设期)(万元)"].sum()
     operate_fin_cost = total_cost_df["财务费用(运营期)(万元)"].sum()
     total_fin_cost = build_fin_cost + operate_fin_cost
-    # 确定借款期起始年：取第一个有借款的年份，无借款则取建设期第一年
+    # 确定借款期的起止年份（严格按输入的借款总年限）
     first_loan_year = min(loan_plan_dict.keys()) if loan_plan_dict else (min(build_years) if build_years else min(all_years))
-    # 借款期利润总额：从第一个借款年份到最后一年的总和
-    loan_period_profit = profit_df.loc[first_loan_year:max(all_years), "利润总额(万元)"].sum()
-    # 计算倍数，避免除以0
+    last_loan_year = first_loan_year + loan_total_years - 1  # 借款期结束年=起始年+总年限-1
+    # 仅取借款期内的利润总额，超出年限的不算
+    loan_period_valid_years = [y for y in all_years if first_loan_year <= y <= last_loan_year]
+    loan_period_profit = profit_df.loc[loan_period_valid_years, "利润总额(万元)"].sum()
+    # 计算倍数，避免除以0报错
     interest_coverage_ratio = round((loan_period_profit + operate_fin_cost) / total_fin_cost, 2) if total_fin_cost != 0 else 0.0
     
     # 8. 页面结果展示
