@@ -165,8 +165,24 @@ with st.expander("4. 税金及其附加参数", expanded=True):
     col_tax1, col_tax2 = st.columns(2)
     land_area = col_tax1.number_input("用地面积（㎡）", min_value=0, value=10000, step=100)
     construction_cost = col_tax2.number_input("建安工程费（万元）", min_value=0.0, value=30000.0, step=1000.0)
+
+# 5. 全投资现金流量表参数
+with st.expander("5. 全投资现金流量表参数", expanded=True):
+    st.subheader("📊 现金流量表核心参数")
+    # 折现率输入
+    discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=8.0, step=0.1)
+    # 建设投资计划（和银行借款计划模式完全一致，选年份动态生成输入框）
+    st.markdown("#### 建设投资计划")
+    invest_available_years = sorted(list(set(build_years + operate_years)))
+    invest_years = st.multiselect("请选择有建设投资的年份", options=invest_available_years, default=build_years if build_years else [])
+    # 动态生成每年建设投资输入框
+    invest_plan_dict = {}
+    if invest_years:
+        col_invest_year = st.columns(len(invest_years))
+        for idx, year in enumerate(invest_years):
+            invest_plan_dict[year] = col_invest_year[idx].number_input(f"{year}年建设投资额（万元）", min_value=0.0, value=0.0, step=100.0)
     
-# 5. 一键测算按钮
+# 6. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
@@ -547,6 +563,59 @@ if calc_button:
 
     # 提前计算损益表，用于核心指标的净利润
     profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
+
+    # ===================== 新增：全投资现金流量表计算 =====================
+    cf_df = pd.DataFrame(index=all_years)
+    # 1. 现金流入：直接调用现成的总收入
+    cf_df["现金流入(万元)"] = income_df["总收入(万元)"]
+
+    # 2. 现金流出：全调用现成表数据，按你的公式汇总
+    for year in all_years:
+        build_invest = invest_plan_dict.get(year, 0.0)
+        tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
+        manage_total = total_cost_df.loc[year, "管理费用(住房)(万元)"] + total_cost_df.loc[year, "管理费用(停车位)(万元)"]
+        vacancy_fee = total_cost_df.loc[year, "空置期物业管理费(万元)"]
+        repair_fee = total_cost_df.loc[year, "维修费用(万元)"]
+        insurance_fee = total_cost_df.loc[year, "保险费(万元)"]
+        decoration_reset = total_cost_df.loc[year, "装修重置费(万元)"]
+        maintain_fund = total_cost_df.loc[year, "日常物业维修基金(万元)"]
+        income_tax = profit_df.loc[year, "所得税(万元)"]
+        
+        # 现金流出合计
+        cash_out_total = build_invest + tax_total + manage_total + vacancy_fee + repair_fee + insurance_fee + decoration_reset + maintain_fund + income_tax
+        cf_df.loc[year, "建设投资(万元)"] = round(build_invest, 4)
+        cf_df.loc[year, "现金流出合计(万元)"] = round(cash_out_total, 4)
+
+    # 3. 净现金流量
+    cf_df["净现金流量(万元)"] = round(cf_df["现金流入(万元)"] - cf_df["现金流出合计(万元)"], 4)
+
+    # 4. 累计净现金流量
+    cum_cf_list = []
+    last_cum_cf = 0
+    for year in all_years:
+        current_cum = cf_df.loc[year, "净现金流量(万元)"] + last_cum_cf
+        cum_cf_list.append(current_cum)
+        last_cum_cf = current_cum
+    cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
+
+    # 5. 净现值（严格按你给的公式计算）
+    discount_rate_decimal = discount_rate / 100
+    npv_list = []
+    for idx, year in enumerate(all_years):
+        n = idx + 1  # 从建设期开始的第n年，从1开始计数
+        discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
+        current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
+        npv_list.append(current_npv)
+    cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
+
+    # 6. 累计净现值
+    cum_npv_list = []
+    last_cum_npv = 0
+    for year in all_years:
+        current_cum_npv = cf_df.loc[year, "净现值(万元)"] + last_cum_npv
+        cum_npv_list.append(current_cum_npv)
+        last_cum_npv = current_cum_npv
+    cf_df["累计净现值(万元)"] = round(pd.Series(cum_npv_list, index=all_years), 4)
   
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
@@ -653,6 +722,22 @@ if calc_button:
     profit_df_T["全周期合计(万元)"] = profit_df_T.apply(lambda row: round(row.sum(), 4) if row.name in profit_sum_rows else "/", axis=1)
     profit_df_T = profit_df_T[ ["全周期合计(万元)"] + [col for col in profit_df_T.columns if col != "全周期合计(万元)"] ]
     st.dataframe(profit_df_T, use_container_width=True)
+
+    st.markdown("---")
+    
+    # --- 新增：全投资现金流量表明细 ---
+    st.subheader("💵 全投资现金流量表明细")
+    cf_df_T = cf_df.T
+    # 合计行规则：普通行求和，累计行取最后一年的期末值（符合财务表规范）
+    cf_sum_rows = ["现金流入(万元)", "建设投资(万元)", "现金流出合计(万元)", "净现金流量(万元)", "净现值(万元)"]
+    cf_df_T["全周期合计/期末值"] = cf_df_T.apply(
+        lambda row: round(row.sum(), 4) if row.name in cf_sum_rows 
+        else (round(row.iloc[-1], 4) if "累计" in row.name else "/"), 
+        axis=1
+    )
+    # 调整列顺序，合计列放最前面
+    cf_df_T = cf_df_T[ ["全周期合计/期末值"] + [col for col in cf_df_T.columns if col != "全周期合计/期末值"] ]
+    st.dataframe(cf_df_T, use_container_width=True)
     
     # 9. 一键下载Excel
     st.markdown("---")
