@@ -580,17 +580,19 @@ if calc_button:
     total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
     total_net_profit = round(profit_df["净利润(万元)"].sum(), 2)
     
-    # 新增：利息保障倍数计算（严格按借款总年限计算）
+     # 新增：利息保障倍数计算（简化版：借款期从建设期第一年开始）
+    # 1. 简化判断：借款期起始年=建设期第一年，结束年=起始年+借款年限-1
+    first_loan_year = min(build_years) if build_years else min(all_years)
+    last_loan_year = first_loan_year + loan_total_years - 1
+    loan_period_valid_years = [y for y in all_years if first_loan_year <= y <= last_loan_year]
+    
+    # 2. 提取核心数据
     build_fin_cost = total_cost_df["财务费用(建设期)(万元)"].sum()
     operate_fin_cost = total_cost_df["财务费用(运营期)(万元)"].sum()
     total_fin_cost = build_fin_cost + operate_fin_cost
-    # 确定借款期的起止年份（严格按输入的借款总年限）
-    first_loan_year = min(loan_plan_dict.keys()) if loan_plan_dict else (min(build_years) if build_years else min(all_years))
-    last_loan_year = first_loan_year + loan_total_years - 1  # 借款期结束年=起始年+总年限-1
-    # 仅取借款期内的利润总额，超出年限的不算
-    loan_period_valid_years = [y for y in all_years if first_loan_year <= y <= last_loan_year]
     loan_period_profit = profit_df.loc[loan_period_valid_years, "利润总额(万元)"].sum()
-    # 计算倍数，避免除以0报错
+    
+    # 3. 计算倍数
     interest_coverage_ratio = round((loan_period_profit + operate_fin_cost) / total_fin_cost, 2) if total_fin_cost != 0 else 0.0
     
     # 8. 页面结果展示
