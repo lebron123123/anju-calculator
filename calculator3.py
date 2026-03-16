@@ -666,6 +666,16 @@ if calc_button:
 
     # 全投资全周期累计净现值（取最后一年的累计值，即全周期最终净现值）
     total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
+
+    # 新增：全投资内部收益率(IRR)计算
+    cf_list = cf_df["净现金流量(万元)"].tolist()
+    try:
+        # 按全周期净现金流量计算IRR，转成百分比格式，保留2位小数
+        irr_result = np.irr(cf_list)
+        irr_value = f"{round(irr_result * 100, 2)} %"
+    except:
+        # 异常处理：现金流全负/无正现金流时，避免程序崩溃
+        irr_value = "无法计算"
     
     # 8. 页面结果展示
     st.header("📊 测算结果")
@@ -673,16 +683,24 @@ if calc_button:
     
     # --- 核心指标汇总 ---
     st.subheader("🎯 最终财务结果汇总")
-    # 第一行3个指标
-    col1, col2, col3 = st.columns(3)
+    # 第一行：总收入、总成本
+    col1, col2 = st.columns(2)
     with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
     with col2: st.metric(":red[项目全周期总成本费用]", f"{total_cost} 万元")
+    
+    # 第二行：总付息、净利润
+    col3, col4 = st.columns(2)
     with col3: st.metric("项目全周期总付息", f"{total_interest} 万元")
-    # 第二行3个指标，新增净现值
-    col4, col5, col6 = st.columns(3)
     with col4: st.metric("项目全周期净利润", f"{total_net_profit} 万元")
+    
+    # 第三行：利息保障倍数、净现值合计
+    col5, col6 = st.columns(2)
     with col5: st.metric("利息保障倍数", f"{interest_coverage_ratio}")
     with col6: st.metric("净现值(合计)", f"{total_npv_sum} 万元")
+    
+    # 第四行：全投资内部收益率
+    col7, _ = st.columns(2)
+    with col7: st.metric("全投资内部收益率(IRR)", irr_value)
     
     st.markdown("---")
     
