@@ -230,7 +230,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     
     # 总收入汇总
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
-    return income_df, resi_occupancy, resi_rent_price, park_occupancy
+    return income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price
   
 # ===================== 经营成本测算函数（原calc_cost，适配新命名）=====================
 def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, house_type, total_investment, operate_year_list):
@@ -424,7 +424,7 @@ if calc_button:
     operate_start_year = operate_years[0]  # 运营期起始年，用于还款判断
     
     # 2. 收入测算（原有逻辑完全不变）
-    income_df, resi_occupancy, resi_rent_price, park_occupancy = calc_income(
+    income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = calc_income(
         all_years, month_dict, is_operate,
         residential_area, rent_start_price,
         rent_increase_span, rent_increase_rate,
@@ -454,7 +454,7 @@ if calc_button:
     tax_df = calc_taxes(
         all_years, month_dict, is_operate,
         residential_area, resi_occupancy, resi_rent_price,
-        park_count, park_occupancy_ramp_dict, park_rent_start_price,
+        park_count, park_occupancy, park_rent_price,
         other_income_total, other_income_name, operate_years,
         land_area, construction_cost
     )
