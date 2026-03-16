@@ -542,7 +542,10 @@ if calc_button:
     total_cost_df["税金及其附加总和(万元)"] = tax_df["税金及其附加总和(万元)"]
     # 总成本费用：仅含经营成本+运营期财务费用，不含税金、不含建设期财务费用
     total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
-    
+
+    # 提前计算损益表，用于核心指标的净利润
+    profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
+  
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
     income_df_T = income_df.T
@@ -573,19 +576,20 @@ if calc_button:
     total_income = round(income_df["总收入(万元)"].sum(), 2)
     total_cost = round(total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"].sum(), 2)
     total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
-    net_profit = round(total_income - total_cost, 2)
+    total_net_profit = round(profit_df["净利润(万元)"].sum(), 2)
     
     # 8. 页面结果展示
     st.header("📊 测算结果")
     st.markdown("---")
     
-        # --- 核心指标汇总 ---
+    # --- 核心指标汇总 ---
     st.subheader("🎯 最终财务结果汇总")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
     with col2: st.metric(":red[项目全周期总成本费用]", f"{total_cost} 万元")
     with col3: st.metric("项目全周期总付息", f"{total_interest} 万元")
-    with col4: st.metric("项目全周期净利润", f"{net_profit} 万元")
+    col4, _, _ = st.columns(3)
+    with col4: st.metric("项目全周期净利润", f"{total_net_profit} 万元")
     
     st.markdown("---")
     
