@@ -419,7 +419,7 @@ def calc_taxes(all_years, month_dict, is_operate, income_df, resi_occupancy, ope
     
     return tax_df
 
-# ===================== 新增：损益表测算函数（严格匹配弥补亏损规则）=====================
+# ===================== 新增：损益表测算函数（严格匹配弥补亏损规则，缩进修复版）=====================
 def calc_profit(all_years, income_df, total_cost_df, tax_df):
     profit_df = pd.DataFrame(index=all_years)
     operate_year_list = [y for y in all_years if income_df.loc[y, "总收入(万元)"] != 0 or y in all_years]
@@ -432,11 +432,11 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df):
     # 4. 利润总额
     profit_df["利润总额(万元)"] = round(profit_df["总收入(万元)"] - profit_df["总成本费用(万元)"] - profit_df["税金及其附加总和(万元)"], 4)
     
-    # 5-6. 弥补亏损、应纳税所得额（核心迭代逻辑）
+    # 5-6. 弥补亏损、应纳税所得额（核心迭代逻辑，缩进完全修正）
     loss_history = []
     first_profit_year = None
-   弥补亏损_dict = {}
-   应纳税所得额_dict = {}
+    弥补亏损_dict = {}
+    应纳税所得额_dict = {}
     last_negative_taxable = 0
     loss_years_used = 0
     
