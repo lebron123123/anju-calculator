@@ -142,11 +142,12 @@ with st.expander("3. 总成本费用参数", expanded=True):
     st.markdown("---")
     st.subheader("🏦 银行借款与还本付息参数")
     # 基础参数
-    col_loan1, col_loan2, col_loan3, col_loan4 = st.columns(4)
+    col_loan1, col_loan2 = st.columns(2)
     loan_annual_rate = col_loan1.number_input("借款年利率（%）", min_value=0.0, max_value=20.0, value=3.0, step=0.1)
     loan_total_years = col_loan2.number_input("借款总年限（年）", min_value=1, max_value=100, value=25, step=1, help="借款的总期限，用于计算利息保障倍数的借款期范围")
-    first_repay_ratio = col_loan3.number_input("首次还款比例（%）", min_value=0.0, max_value=100.0, value=3.0, step=0.1, help="运营期第一年还本额=借款总额×该比例")
-    repay_increase_rate = col_loan4.number_input("每年还款递增率（%）", min_value=0.0, max_value=50.0, value=4.5, step=0.1, help="每年还本额较上年的递增比例")
+    # 固定还款规则参数，无需用户修改
+    first_repay_ratio = 3.0
+    repay_increase_rate = 4.5
 
     # 银行借款计划（动态输入，和出租率操作逻辑一致）
     st.markdown("#### 银行借款计划")
