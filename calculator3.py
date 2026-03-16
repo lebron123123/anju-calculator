@@ -472,7 +472,7 @@ if calc_button:
     total_cost_df["财务费用(运营期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in operate_year_set else 0.0)
     total_cost_df["税金及其附加总和(万元)"] = tax_df["税金及其附加总和(万元)"]
     # 总成本费用：仅含经营成本+运营期财务费用，不含税金、不含建设期财务费用
-    total_cost = round(total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"].sum(), 2)
+    total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
     
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
@@ -502,7 +502,7 @@ if calc_button:
 
     # 7. 计算最终核心指标
     total_income = round(income_df["总收入(万元)"].sum(), 2)
-    total_cost = round(total_cost_df["总成本费用(不含建设期财务费用)(万元)"].sum(), 2)
+    total_cost = round(total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"].sum(), 2)
     total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
     net_profit = round(total_income - total_cost, 2)
     
