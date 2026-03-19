@@ -74,8 +74,11 @@ year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2025~2200的年份
 # 1. 项目基本信息（完整正确版，确保build_years、operate_years全局可访问）
 with st.expander("1. 项目基本信息", expanded=True):
     project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
-    # 【新增：房源类型选择，仅此一行】
-    house_type = st.radio("房源类型", options=["公租房", "保租房"], index=0, horizontal=True, help="用于匹配装修重置费计算规则")
+    # 【核心修改：仅出租型项目显示房源类型，缩进和上面的project_name完全一致】
+    if project_type == "出租型(协议出让/合作类等)":
+        house_type = st.radio("房源类型", options=["公租房", "保租房"], index=0, horizontal=True, help="用于匹配装修重置费计算规则")
+    else:
+        house_type = "公租房"  # 非出租型项目，给固定默认值，不影响计算
     # 建设期年份：原有代码完全不动
     build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
     
