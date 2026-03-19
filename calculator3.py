@@ -4,57 +4,66 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-# ===================== 【最小新增】项目类型配置字典（新增/改项目只动这里）=====================
+# ===================== 【最小改动】项目类型配置字典（新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
-    "基础安居房项目": {
-        "extra_inputs": [],
+    # 类型1：出租型(协议出让/合作类等)
+    "出租型(协议出让/合作类等)": {
+        "extra_inputs": [],  # 后续要加出租专属参数，直接在这里加就行
+        "calc_rules": {},    # 后续要加出租专属计算规则，直接在这里加
+        "show_metrics": []   # 后续要加出租专属展示指标，直接在这里加
+    },
+    # 类型2：出售类(配保房/可售型人才房等)
+    "出售类(配保房/可售型人才房等)": {
+        "extra_inputs": [],  # 后续要加销售单价、去化率等，直接在这里加
         "calc_rules": {},
         "show_metrics": []
     },
-    "招拍挂项目": {
-        "extra_inputs": [
-            {"name": "土地出让金(万元)", "type": "number", "min": 0, "step": 1000, "default": 0},
-            {"name": "土地契税(%)", "type": "percent", "min": 0, "max": 10, "step": 0.1, "default": 3}
-        ],
-        "calc_rules": {
-            # 招拍挂规则：土地成本计入建设投资，自动加到分年投资的第一年
-            "build_invest_adjust": lambda invest_dict, build_years, extra_params: {
-                **invest_dict,
-                min(build_years): invest_dict.get(min(build_years), 0) + extra_params["土地出让金(万元)"] + (extra_params["土地出让金(万元)"] * extra_params["土地契税(%)"] / 100)
-            },
-            # 额外指标：土地成本占比
-            "extra_metrics": lambda extra_params, total_invest: {
-                "土地成本占总投资比(%)": round( (extra_params["土地出让金(万元)"] * (1 + extra_params["土地契税(%)"]/100)) / total_invest * 100, 2 ) if total_invest !=0 else 0
-            }
-        },
-        "show_metrics": ["土地成本占总投资比(%)"]
-    },
-    "合作类项目": {
-        "extra_inputs": [
-            {"name": "合作方投资占比(%)", "type": "percent", "min": 0, "max": 100, "step": 1, "default": 50},
-            {"name": "利润分成比例(%)", "type": "percent", "min": 0, "max": 100, "step": 1, "default": 50}
-        ],
-        "calc_rules": {
-            # 合作类规则：拆分投资和利润
-            "profit_split": lambda total_profit, extra_params: {
-                "我方净利润(万元)": round(total_profit * (1 - extra_params["利润分成比例(%)"] / 100), 2),
-                "合作方净利润(万元)": round(total_profit * (extra_params["利润分成比例(%)"] / 100), 2)
-            },
-            "invest_split": lambda total_invest, extra_params: {
-                "我方投资金额(万元)": round(total_invest * (1 - extra_params["合作方投资占比(%)"] / 100), 2)
-            }
-        },
-        "show_metrics": ["我方投资金额(万元)", "我方净利润(万元)", "合作方净利润(万元)"]
+    # 类型3：租售结合类
+    "租售结合类": {
+        "extra_inputs": [],  # 后续要加出租+出售的组合参数，直接在这里加
+        "calc_rules": {},
+        "show_metrics": []
     }
 }
-# 全局初始化项目类型参数
-project_type = "基础安居房项目"
+# 全局初始化项目类型参数（保留，后面代码要用到）
+project_type = list(PROJECT_CONFIG.keys())[0]
 extra_params_global = {}
 
 # ===================== 页面配置（优化：更适合手机）=====================
 st.set_page_config(page_title="安居房财务测算", page_icon="🏠", layout="centered")
 st.title("🏠 安居房财务测算计算器")
 st.markdown("---")
+
+# ===================== 【移到最开头】项目类型选择（用户一进来就能选）=====================
+st.subheader("📌 项目类型选择")
+project_type = st.selectbox("请选择项目类型", list(PROJECT_CONFIG.keys()), index=0)
+current_config = PROJECT_CONFIG[project_type]
+
+# 动态生成该项目类型的专属参数（如果配置里有，就自动显示）
+extra_params_global = {}
+if current_config["extra_inputs"]:
+    st.markdown(f"#### {project_type}专属参数")
+    for input_info in current_config["extra_inputs"]:
+        if input_info["type"] == "number":
+            extra_params_global[input_info["name"]] = st.number_input(
+                input_info["name"], 
+                min_value=input_info["min"], 
+                default=input_info["default"], 
+                step=input_info["step"]
+            )
+        elif input_info["type"] == "percent":
+            extra_params_global[input_info["name"]] = st.number_input(
+                input_info["name"], 
+                min_value=input_info["min"], 
+                max_value=input_info["max"], 
+                default=input_info["default"], 
+                step=input_info["step"]
+            )
+st.markdown("---")
+
+# ===================== 原来的「📝 请输入项目数据」输入区（完全不动，接在后面就行）=====================
+st.header("📝 请输入项目数据")
+# ... 后面你原来的所有输入代码、测算代码、结果展示代码，一行都不用改 ...
 
 # ===================== 输入区（优化：手机上更易操作）=====================
 st.header("📝 请输入项目数据")
@@ -231,33 +240,6 @@ with st.expander("5. 全投资现金流量表参数", expanded=True):
         col_invest_year = st.columns(len(invest_years))
         for idx, year in enumerate(invest_years):
             invest_plan_dict[year] = col_invest_year[idx].number_input(f"{year}年建设投资额（万元）", min_value=0.0, value=0.0, step=100.0)
-
-# ===================== 【最小新增】项目类型选择（插在一键测算按钮之前）=====================
-st.markdown("---")
-st.subheader("📌 项目类型选择")
-project_type = st.selectbox("请选择项目类型", list(PROJECT_CONFIG.keys()), index=0)
-current_config = PROJECT_CONFIG[project_type]
-
-# 动态生成该项目类型的专属参数
-extra_params_global = {}
-if current_config["extra_inputs"]:
-    st.markdown(f"#### {project_type}专属参数")
-    for input_info in current_config["extra_inputs"]:
-        if input_info["type"] == "number":
-            extra_params_global[input_info["name"]] = st.number_input(
-                input_info["name"], 
-                min_value=input_info["min"], 
-                default=input_info["default"], 
-                step=input_info["step"]
-            )
-        elif input_info["type"] == "percent":
-            extra_params_global[input_info["name"]] = st.number_input(
-                input_info["name"], 
-                min_value=input_info["min"], 
-                max_value=input_info["max"], 
-                default=input_info["default"], 
-                step=input_info["step"]
-            )
 
 # 6. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
