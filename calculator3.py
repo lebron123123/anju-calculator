@@ -7,6 +7,123 @@ from datetime import datetime
 st.set_page_config(page_title="安居房财务测算", page_icon="🏠", layout="centered")
 st.title("🏠 安居房财务测算计算器")
 st.markdown("---")
+
+# ===================== 内置项目类型配置字典（不用Excel，改这里就行）=====================
+PROJECT_CONFIG = {
+    # 项目类型1：招拍挂项目
+    "招拍挂": {
+        "extra_inputs": [  # 该类型项目专属的输入参数（基础参数外新增的）
+            {"name": "土地出让金(万元)", "type": "number", "min": 0, "step": 1000, "default": 0},
+            {"name": "土地契税(%)", "type": "percent", "min": 0, "max": 10, "step": 0.1, "default": 3}
+        ],
+        "calc_rules": {  # 该类型项目的特殊计算规则（函数形式，核心代码会调用）
+            "adjust_build_invest": lambda base_invest, extra_params: 
+                base_invest + extra_params["土地出让金(万元)"] + (extra_params["土地出让金(万元)"] * extra_params["土地契税(%)"] / 100),
+            "extra_metrics": lambda total_invest, extra_params: {
+                "土地成本占总投资比(%)": round((extra_params["土地出让金(万元)"] / total_invest) * 100, 2)
+            }
+        },
+        "show_metrics": ["土地成本占总投资比(%)", "全周期净利润(万元)", "IRR(%)"]  # 该类型项目重点展示的指标
+    },
+    # 项目类型2：合作类项目
+    "合作类": {
+        "extra_inputs": [
+            {"name": "合作方投资占比(%)", "type": "percent", "min": 0, "max": 100, "step": 1, "default": 50},
+            {"name": "利润分成比例(%)", "type": "percent", "min": 0, "max": 100, "step": 1, "default": 50}
+        ],
+        "calc_rules": {
+            "split_profit": lambda total_profit, extra_params: {
+                "我方净利润(万元)": round(total_profit * (1 - extra_params["利润分成比例(%)"] / 100), 2),
+                "合作方净利润(万元)": round(total_profit * (extra_params["利润分成比例(%)"] / 100), 2)
+            },
+            "extra_metrics": lambda total_invest, extra_params: {
+                "我方投资金额(万元)": round(total_invest * (1 - extra_params["合作方投资占比(%)"] / 100), 2)
+            }
+        },
+        "show_metrics": ["我方净利润(万元)", "合作方净利润(万元)", "我方投资金额(万元)", "IRR(%)"]
+    },
+    # 项目类型3：自营类项目（无特殊参数，用基础配置）
+    "自营类": {
+        "extra_inputs": [],  # 无专属参数
+        "calc_rules": {},    # 无特殊规则
+        "show_metrics": ["全周期净利润(万元)", "全周期ROI(%)", "IRR(%)"]
+    }
+}
+
+# ---------------------- 1. 前端：根据选择的项目类型，动态生成输入表单 ----------------------
+project_type = st.selectbox("选择项目类型", list(PROJECT_CONFIG.keys()))  # 加载配置中的项目类型
+current_config = PROJECT_CONFIG[project_type]
+
+# （1）生成基础输入参数（原有代码，不变）
+st.subheader("基础参数")
+base_params = {
+    "建设投资(万元)": st.number_input("建设投资(万元)", min_value=0.0, default=0.0, step=1000.0),
+    "折现率(%)": st.number_input("折现率(%)", min_value=0.0, default=8.0, step=0.1),
+    # ... 其他原有基础参数
+}
+
+# （2）生成该项目类型的专属输入参数（从配置中读取，动态生成）
+if current_config["extra_inputs"]:
+    st.subheader(f"{project_type}项目专属参数")
+    extra_params = {}
+    for input_info in current_config["extra_inputs"]:
+        if input_info["type"] == "number":
+            extra_params[input_info["name"]] = st.number_input(
+                input_info["name"], 
+                min_value=input_info["min"], 
+                default=input_info["default"], 
+                step=input_info["step"]
+            )
+        elif input_info["type"] == "percent":
+            extra_params[input_info["name"]] = st.number_input(
+                input_info["name"], 
+                min_value=input_info["min"], 
+                max_value=input_info["max"], 
+                default=input_info["default"], 
+                step=input_info["step"]
+            )
+else:
+    extra_params = {}  # 无专属参数
+
+
+# ---------------------- 2. 计算：根据配置的特殊规则，调整核心计算 ----------------------
+# （1）基础计算（原有代码，不变）
+total_base_build_invest = base_params["建设投资(万元)"]
+# ... 其他原有基础计算
+
+# （2）执行该项目类型的特殊计算规则（从配置中调用函数，动态执行）
+final_build_invest = total_base_build_invest
+extra_metrics_result = {}  # 存储特殊规则计算出的额外指标
+
+# 示例1：招拍挂项目调整建设投资
+if "adjust_build_invest" in current_config["calc_rules"]:
+    final_build_invest = current_config["calc_rules"]["adjust_build_invest"](total_base_build_invest, extra_params)
+
+# 示例2：合作类项目拆分利润
+total_profit = ...  # 原有代码计算的全周期总利润
+profit_split_result = {"全周期净利润(万元)": total_profit}
+if "split_profit" in current_config["calc_rules"]:
+    profit_split_result.update(current_config["calc_rules"]["split_profit"](total_profit, extra_params))
+
+# 示例3：计算额外指标（如土地成本占比、我方投资金额）
+if "extra_metrics" in current_config["calc_rules"]:
+    extra_metrics_result = current_config["calc_rules"]["extra_metrics"](final_build_invest, extra_params)
+
+
+# ---------------------- 3. 输出：根据配置，展示该项目类型的重点指标 ----------------------
+st.subheader(f"{project_type}项目核心财务指标")
+# 合并基础指标和额外指标
+all_metrics = {
+    "IRR(%)": irr_value,
+    "全周期ROI(%)": round((total_profit / final_build_invest) * 100, 2),
+    **profit_split_result,
+    **extra_metrics_result
+}
+
+# 只展示配置中指定的指标（避免无关指标干扰）
+for metric_name in current_config["show_metrics"]:
+    st.metric(metric_name, all_metrics[metric_name])
+
 # ===================== 输入区（优化：手机上更易操作）=====================
 st.header("📝 请输入项目数据")
 
