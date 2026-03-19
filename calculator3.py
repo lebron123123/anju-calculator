@@ -3,12 +3,58 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+
+# ===================== 【最小新增】项目类型配置字典（新增/改项目只动这里）=====================
+PROJECT_CONFIG = {
+    "基础安居房项目": {
+        "extra_inputs": [],
+        "calc_rules": {},
+        "show_metrics": []
+    },
+    "招拍挂项目": {
+        "extra_inputs": [
+            {"name": "土地出让金(万元)", "type": "number", "min": 0, "step": 1000, "default": 0},
+            {"name": "土地契税(%)", "type": "percent", "min": 0, "max": 10, "step": 0.1, "default": 3}
+        ],
+        "calc_rules": {
+            # 招拍挂规则：土地成本计入建设投资，自动加到分年投资的第一年
+            "build_invest_adjust": lambda invest_dict, build_years, extra_params: {
+                **invest_dict,
+                min(build_years): invest_dict.get(min(build_years), 0) + extra_params["土地出让金(万元)"] + (extra_params["土地出让金(万元)"] * extra_params["土地契税(%)"] / 100)
+            },
+            # 额外指标：土地成本占比
+            "extra_metrics": lambda extra_params, total_invest: {
+                "土地成本占总投资比(%)": round( (extra_params["土地出让金(万元)"] * (1 + extra_params["土地契税(%)"]/100)) / total_invest * 100, 2 ) if total_invest !=0 else 0
+            }
+        },
+        "show_metrics": ["土地成本占总投资比(%)"]
+    },
+    "合作类项目": {
+        "extra_inputs": [
+            {"name": "合作方投资占比(%)", "type": "percent", "min": 0, "max": 100, "step": 1, "default": 50},
+            {"name": "利润分成比例(%)", "type": "percent", "min": 0, "max": 100, "step": 1, "default": 50}
+        ],
+        "calc_rules": {
+            # 合作类规则：拆分投资和利润
+            "profit_split": lambda total_profit, extra_params: {
+                "我方净利润(万元)": round(total_profit * (1 - extra_params["利润分成比例(%)"] / 100), 2),
+                "合作方净利润(万元)": round(total_profit * (extra_params["利润分成比例(%)"] / 100), 2)
+            },
+            "invest_split": lambda total_invest, extra_params: {
+                "我方投资金额(万元)": round(total_invest * (1 - extra_params["合作方投资占比(%)"] / 100), 2)
+            }
+        },
+        "show_metrics": ["我方投资金额(万元)", "我方净利润(万元)", "合作方净利润(万元)"]
+    }
+}
+# 全局初始化项目类型参数
+project_type = "基础安居房项目"
+extra_params_global = {}
+
 # ===================== 页面配置（优化：更适合手机）=====================
 st.set_page_config(page_title="安居房财务测算", page_icon="🏠", layout="centered")
 st.title("🏠 安居房财务测算计算器")
 st.markdown("---")
-
-
 
 # ===================== 输入区（优化：手机上更易操作）=====================
 st.header("📝 请输入项目数据")
@@ -185,7 +231,34 @@ with st.expander("5. 全投资现金流量表参数", expanded=True):
         col_invest_year = st.columns(len(invest_years))
         for idx, year in enumerate(invest_years):
             invest_plan_dict[year] = col_invest_year[idx].number_input(f"{year}年建设投资额（万元）", min_value=0.0, value=0.0, step=100.0)
-    
+
+# ===================== 【最小新增】项目类型选择（插在一键测算按钮之前）=====================
+st.markdown("---")
+st.subheader("📌 项目类型选择")
+project_type = st.selectbox("请选择项目类型", list(PROJECT_CONFIG.keys()), index=0)
+current_config = PROJECT_CONFIG[project_type]
+
+# 动态生成该项目类型的专属参数
+extra_params_global = {}
+if current_config["extra_inputs"]:
+    st.markdown(f"#### {project_type}专属参数")
+    for input_info in current_config["extra_inputs"]:
+        if input_info["type"] == "number":
+            extra_params_global[input_info["name"]] = st.number_input(
+                input_info["name"], 
+                min_value=input_info["min"], 
+                default=input_info["default"], 
+                step=input_info["step"]
+            )
+        elif input_info["type"] == "percent":
+            extra_params_global[input_info["name"]] = st.number_input(
+                input_info["name"], 
+                min_value=input_info["min"], 
+                max_value=input_info["max"], 
+                default=input_info["default"], 
+                step=input_info["step"]
+            )
+
 # 6. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
@@ -728,7 +801,80 @@ if calc_button:
     # 4. 计算IRR并处理结果
     irr_result = excel_irr_final(cf_list)
     irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
-   
+
+    # ===================== 【最小新增】项目类型特殊计算与指标展示（插在测算完成后、结果展示前）=====================
+    current_config = PROJECT_CONFIG[project_type]
+    extra_metrics = {}
+    # 1. 招拍挂项目：调整建设投资（自动把土地成本加到建设期第一年的建设投资里）
+    if "build_invest_adjust" in current_config["calc_rules"]:
+        invest_plan_dict = current_config["calc_rules"]["build_invest_adjust"](invest_plan_dict, build_years, extra_params_global)
+        # 重新计算现金流量表的建设投资（因为调整了投资计划）
+        for year in all_years:
+            cf_df.loc[year, "建设投资(万元)"] = round(invest_plan_dict.get(year, 0.0), 4)
+            # 重新计算现金流出合计
+            build_invest = invest_plan_dict.get(year, 0.0)
+            tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
+            manage_total = total_cost_df.loc[year, "管理费用(住房)(万元)"] + total_cost_df.loc[year, "管理费用(停车位)(万元)"]
+            vacancy_fee = total_cost_df.loc[year, "空置期物业管理费(万元)"]
+            repair_fee = total_cost_df.loc[year, "维修费用(万元)"]
+            insurance_fee = total_cost_df.loc[year, "保险费(万元)"]
+            decoration_reset = total_cost_df.loc[year, "装修重置费(万元)"]
+            maintain_fund = total_cost_df.loc[year, "日常物业维修基金(万元)"]
+            income_tax = profit_df.loc[year, "所得税(万元)"]
+            cash_out_total = build_invest + tax_total + manage_total + vacancy_fee + repair_fee + insurance_fee + decoration_reset + maintain_fund + income_tax
+            cf_df.loc[year, "现金流出合计(万元)"] = round(cash_out_total, 4)
+        # 重新计算净现金流量、累计值、IRR相关
+        cf_df["净现金流量(万元)"] = round(cf_df["现金流入(万元)"] - cf_df["现金流出合计(万元)"], 4)
+        # 重新算累计净现金流量
+        cum_cf_list = []
+        last_cum_cf = 0
+        for year in all_years:
+            current_cum = cf_df.loc[year, "净现金流量(万元)"] + last_cum_cf
+            cum_cf_list.append(current_cum)
+            last_cum_cf = current_cum
+        cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
+        # 重新算净现值、累计净现值
+        discount_rate_decimal = discount_rate / 100
+        npv_list = []
+        for idx, year in enumerate(all_years):
+            n = idx + 1
+            discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
+            current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
+            npv_list.append(current_npv)
+        cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
+        cum_npv_list = []
+        last_cum_npv = 0
+        for year in all_years:
+            current_cum_npv = cf_df.loc[year, "净现值(万元)"] + last_cum_npv
+            cum_npv_list.append(current_cum_npv)
+            last_cum_npv = current_cum_npv
+        cf_df["累计净现值(万元)"] = round(pd.Series(cum_npv_list, index=all_years), 4)
+        # 重新计算IRR
+        valid_years = sorted(list(set(build_years + operate_years)))
+        cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
+        irr_result = excel_irr_final(cf_list)
+        irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
+        # 重新计算核心汇总指标
+        total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
+    
+    # 2. 计算额外指标
+    total_invest = sum(invest_plan_dict.values())
+    if "extra_metrics" in current_config["calc_rules"]:
+        extra_metrics.update(current_config["calc_rules"]["extra_metrics"](extra_params_global, total_invest))
+    if "invest_split" in current_config["calc_rules"]:
+        extra_metrics.update(current_config["calc_rules"]["invest_split"](total_investment, extra_params_global))
+    if "profit_split" in current_config["calc_rules"]:
+        extra_metrics.update(current_config["calc_rules"]["profit_split"](total_net_profit, extra_params_global))
+    
+    # 3. 展示项目类型专属指标
+    if current_config["show_metrics"] and extra_metrics:
+        st.subheader(f"📌 {project_type}专属核心指标")
+        cols = st.columns(len(current_config["show_metrics"]))
+        for idx, metric_name in enumerate(current_config["show_metrics"]):
+            cols[idx].metric(metric_name, extra_metrics.get(metric_name, "-"))
+        st.markdown("---")
+   # ===================== 【最小新增】项目类型特殊计算与指标展示（插在测算完成后、结果展示前）=====================
+    
     # 8. 页面结果展示
     st.header("📊 测算结果")
     st.markdown("---")
