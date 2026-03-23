@@ -4,23 +4,34 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-# ===================== 【最小改动】项目类型配置字典（新增/改项目只动这里）=====================
+# ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
     "出租型(协议出让/合作类等)": {
-        "extra_inputs": [],  # 后续要加出租专属参数，直接在这里加就行
-        "calc_rules": {},    # 后续要加出租专属计算规则，直接在这里加
-        "show_metrics": []   # 后续要加出租专属展示指标，直接在这里加
+        "extra_inputs": [],
+        "ui_components": [],  # 前端专属组件
+        "calc_rules": {
+            # 出租型规则：自动递增还款
+            "repay_plan_mode": "auto",
+            "first_repay_ratio": 3.0,
+            "repay_increase_rate": 4.5
+        },
+        "show_metrics": []
     },
     # 类型2：出售类(配保房/可售型人才房等)
     "出售类(配保房/可售型人才房等)": {
-        "extra_inputs": [],  # 后续要加销售单价、去化率等，直接在这里加
-        "calc_rules": {},
+        "extra_inputs": [],
+        "ui_components": ["custom_repay_plan"],  # 前端专属：显示自定义还款计划
+        "calc_rules": {
+            # 出售型规则：用户自定义还款
+            "repay_plan_mode": "custom"
+        },
         "show_metrics": []
     },
     # 类型3：租售结合类
     "租售结合类": {
-        "extra_inputs": [],  # 后续要加出租+出售的组合参数，直接在这里加
+        "extra_inputs": [],
+        "ui_components": [],
         "calc_rules": {},
         "show_metrics": []
     }
@@ -217,6 +228,17 @@ with st.expander("3. 总成本费用参数", expanded=True):
         col_loan_year = st.columns(len(loan_years))
         for idx, year in enumerate(loan_years):
             loan_plan_dict[year] = col_loan_year[idx].number_input(f"{year}年借款额（万元）", min_value=0.0, value=0.0, step=100.0)
+    # ===================== 【完全基于配置】动态生成项目类型专属UI组件 ======================
+    repay_plan_dict = {}
+    current_config = PROJECT_CONFIG[project_type]
+    if "custom_repay_plan" in current_config.get("ui_components", []):
+        st.markdown("#### 银行还款计划")
+        repay_available_years = operate_years
+        repay_years = st.multiselect("请选择有还款的年份", options=repay_available_years, default=operate_years[:loan_total_years] if len(operate_years)>=loan_total_years else operate_years)
+        if repay_years:
+            col_repay_year = st.columns(len(repay_years))
+            for idx, year in enumerate(repay_years):
+                repay_plan_dict[year] = col_repay_year[idx].number_input(f"{year}年还款本金（万元）", min_value=0.0, value=0.0, step=100.0)
 
 # 4. 税金及其附加参数
 with st.expander("4. 税金及其附加参数", expanded=True):
@@ -395,23 +417,18 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
     end_loan_last = 0  # 上一年期末借款余额，迭代初始值
     last_repay_principal = 0  # 上一年的还本额，用于递增计算
     is_operate_start = False  # 标记是否进入运营期
-    repay_principal_plan = {}  # 预计算每年的计划还本额
-
-    # 第一步：预计算每年的计划还本额（运营期开始按规则递增）
-    for year in all_years:
-        if year >= operate_start_year and year <= last_loan_year:
-            if not is_operate_start:
-                # 运营期第一年，首次还本=总借款×约定比例
-                repay_principal = total_loan * first_repay_rate
-                is_operate_start = True
-            else:
-                # 后续年份，按递增率计算还本额
-                repay_principal = last_repay_principal * (1 + increase_rate)
-            repay_principal_plan[year] = repay_principal
-            last_repay_principal = repay_principal
-        else:
-            # 建设期不还本
-            repay_principal_plan[year] = 0.0
+    repay_principal_plan = {}
+    # ===================== 【最小改动】仅替换预计算逻辑 ======================
+    calc_rules = PROJECT_CONFIG[project_type].get("calc_rules", {}) if 'project_type' in locals() else {}
+    if calc_rules.get("repay_plan_mode") == "custom" and 'repay_plan_dict' in locals() and repay_plan_dict:
+        for year in all_years: repay_principal_plan[year] = repay_plan_dict.get(year, 0.0) if year <= last_loan_year else 0.0
+    else:
+        for year in all_years:
+            if year >= operate_start_year and year <= last_loan_year:
+                if not is_operate_start: repay_principal, is_operate_start = total_loan * first_repay_rate, True
+                else: repay_principal = last_repay_principal * (1 + increase_rate)
+                repay_principal_plan[year], last_repay_principal = repay_principal, repay_principal
+            else: repay_principal_plan[year] = 0.0
 
     # 第二步：迭代计算每年的还本付息数据（严格按你给的公式）
     for year in all_years:
@@ -600,11 +617,14 @@ if calc_button:
         residential_decoration_cost, house_type, total_investment, operate_years
     )
     
-    # 4. 还本付息与财务费用测算
+    # 4. 还本付息与财务费用测算（完全基于配置）
+    current_config = PROJECT_CONFIG[project_type]
     loan_df, financial_cost_dict = calc_loan_repayment(
         all_years, operate_start_year,
         loan_plan_dict, loan_annual_rate,
-        first_repay_ratio, repay_increase_rate, loan_total_years
+        first_repay_ratio, repay_increase_rate, loan_total_years,
+        custom_repay_plan=repay_plan_dict,
+        project_config=current_config
     )
     
     # 4.5 新增：税金及其附加测算
