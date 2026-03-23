@@ -138,12 +138,23 @@ with st.expander("2. 收入计算参数", expanded=True):
             for idx, y in enumerate(sale_ramp_years):
                 sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
         st.markdown("---")
-    # 出售类专属：显隐控制按钮（最小改动）
-    if "sale_and_commercial" in current_config.get("ui_components", []):
-        col1, col2, col3 = st.columns(3)
-        if col1.button("隐/显住宅出租", key="btn_resi"): st.session_state["show_resi"] = not st.session_state["show_resi"]
-        if col2.button("隐/显商业出租", key="btn_comm"): st.session_state["show_comm"] = not st.session_state["show_comm"]
-        if col3.button("隐/显车位收入", key="btn_park"): st.session_state["show_park"] = not st.session_state["show_park"]
+   # 出售类专属：有/无收入双按钮（点击“无”全隐藏，点击“有”全显示）
+if "sale_and_commercial" in current_config.get("ui_components", []):
+    st.markdown("### 🎛️ 收入模块控制")
+    # 住宅收入：有/无按钮
+    col1, col2 = st.columns(2)
+    if col1.button("有住宅收入", key="btn_resi_yes"): st.session_state["show_resi"] = True
+    if col2.button("无住宅收入", key="btn_resi_no"): st.session_state["show_resi"] = False
+    
+    # 商业收入：有/无按钮
+    col3, col4 = st.columns(2)
+    if col3.button("有商业收入", key="btn_comm_yes"): st.session_state["show_comm"] = True
+    if col4.button("无商业收入", key="btn_comm_no"): st.session_state["show_comm"] = False
+    
+    # 车位收入：有/无按钮
+    col5, col6 = st.columns(2)
+    if col5.button("有车位收入", key="btn_park_yes"): st.session_state["show_park"] = True
+    if col6.button("无车位收入", key="btn_park_no"): st.session_state["show_park"] = False
     st.markdown("---")
     # 基础参数（一行排版）
     if st.session_state["show_resi"]:
@@ -197,7 +208,7 @@ with st.expander("2. 收入计算参数", expanded=True):
         st.markdown("---")
         if st.session_state["show_comm"]:
             st.subheader("🏪 商业出租")
-        # 基础参数（和住宅完全一致，仅改名称）
+            # 基础参数（和住宅完全一致，仅改名称）
             col_comm1, col_comm2 = st.columns(2)
             comm_area = col_comm1.number_input("商业面积（㎡）", value=0, min_value=0, step=100)
             comm_rent_start_price = col_comm2.number_input("商业起始租金单价（元/㎡/月）", value=0.0, min_value=0.0, step=0.1)
