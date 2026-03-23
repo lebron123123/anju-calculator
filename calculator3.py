@@ -378,7 +378,7 @@ def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occup
     return operating_cost_df
 
 # ===================== 新增：还本付息测算函数（严格匹配迭代规则）=====================
-def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_rate, first_repay_ratio, repay_increase_rate):
+def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_rate, first_repay_ratio, repay_increase_rate, loan_total_years):
     """
     测算还本付息明细，返回：
     1. loan_df：还本付息表完整明细
@@ -390,6 +390,8 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
     increase_rate = repay_increase_rate / 100
     
     total_loan = sum(loan_plan_dict.values())  # 借款总额
+    # 一行搞定：计算借款期首尾年份，限制迭代周期
+    first_loan_year = min(loan_plan_dict.keys()) if loan_plan_dict else min(all_years); last_loan_year = first_loan_year + loan_total_years - 1
     end_loan_last = 0  # 上一年期末借款余额，迭代初始值
     last_repay_principal = 0  # 上一年的还本额，用于递增计算
     is_operate_start = False  # 标记是否进入运营期
@@ -397,7 +399,7 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
 
     # 第一步：预计算每年的计划还本额（运营期开始按规则递增）
     for year in all_years:
-        if year >= operate_start_year:
+        if year >= operate_start_year and year <= last_loan_year:
             if not is_operate_start:
                 # 运营期第一年，首次还本=总借款×约定比例
                 repay_principal = total_loan * first_repay_rate
@@ -424,7 +426,8 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
         # 5. 本期还本：按计划还本，最多还清剩余本金，避免出现负数
         plan_repay = repay_principal_plan.get(year, 0.0)
         max_repayable = begin_loan + current_loan + current_interest - repay_interest
-        repay_principal = min(plan_repay, max_repayable)
+        # 一行搞定：非最后一年按计划还，最后一年直接结清全部剩余本金
+        repay_principal = min(plan_repay, max_repayable) if year < last_loan_year else max_repayable
         # 6. 本期本息偿还合计
         total_repay = repay_principal + repay_interest
         # 7. 期末借款累计 = 期初 + 本期借款 + 本期计息 - 本期付息 - 本期还本
@@ -601,7 +604,7 @@ if calc_button:
     loan_df, financial_cost_dict = calc_loan_repayment(
         all_years, operate_start_year,
         loan_plan_dict, loan_annual_rate,
-        first_repay_ratio, repay_increase_rate
+        first_repay_ratio, repay_increase_rate, loan_total_years
     )
     
     # 4.5 新增：税金及其附加测算
