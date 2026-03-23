@@ -240,6 +240,32 @@ if "sale_and_commercial" in current_config.get("ui_components", []):
             comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
             comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_stable_occ = {}, 0, 0, 0.0
         
+    # ===================== 出售类专属：税金计算参数（每2个一行） ======================
+    if "sale_and_commercial" in current_config.get("ui_components", []):
+        st.markdown("---")
+        st.subheader("💸 税金及成本计算参数")
+        # 第1行：2个参数
+        col1, col2 = st.columns(2)
+        land_cost = col1.number_input("土地成本费（万元）", min_value=0.0, value=0.0, step=10.0)
+        construction_cost = col2.number_input("建安工程费（万元）", min_value=0.0, value=0.0, step=10.0)
+        st.markdown("")  # 换行
+    
+        # 第2行：2个参数
+        col3, col4 = st.columns(2)
+        infra_cost = col3.number_input("基础设施建设费（万元）", min_value=0.0, value=0.0, step=10.0)
+        other_eng_cost = col4.number_input("工程建设其他费用（万元）", min_value=0.0, value=0.0, step=10.0)
+        st.markdown("")  # 换行
+    
+        # 第3行：2个参数
+        col5, col6 = st.columns(2)
+        peibao_area = col5.number_input("配保房面积（㎡）", min_value=0, value=0, step=100)
+        land_use_area = col6.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
+        st.markdown("")  # 换行
+    
+        # 第4行：2个参数
+        col7, col8 = st.columns(2)
+        lease_months = col7.number_input("租赁月数", min_value=0, value=12, step=1)
+        rent_area = col8.number_input("出租面积（㎡）", min_value=0, value=0, step=100) 
     
     # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
     st.markdown("---")
