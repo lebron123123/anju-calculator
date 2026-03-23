@@ -190,7 +190,6 @@ with st.expander("2. 收入计算参数", expanded=True):
         comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
         
         # 商业出租率设置（和住宅完全一致，仅改名称）
-        st.subheader("🏢 商业出租率设置（爬坡期+稳定期）")
         if 'operate_years' in locals() and operate_years:
             # 商业爬坡期设置
             comm_ramp_years = st.multiselect("请选择商业爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
