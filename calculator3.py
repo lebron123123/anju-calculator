@@ -46,6 +46,10 @@ st.markdown("---")
 st.subheader("📌 项目类型选择")
 project_type = st.selectbox("请选择项目类型", list(PROJECT_CONFIG.keys()), index=0)
 current_config = PROJECT_CONFIG[project_type]
+# 初始化显隐状态（最小改动）
+if "show_resi" not in st.session_state: st.session_state["show_resi"] = True
+if "show_comm" not in st.session_state: st.session_state["show_comm"] = True
+if "show_park" not in st.session_state: st.session_state["show_park"] = True
 
 # 动态生成该项目类型的专属参数（如果配置里有，就自动显示）
 extra_params_global = {}
@@ -134,10 +138,23 @@ with st.expander("2. 收入计算参数", expanded=True):
             for idx, y in enumerate(sale_ramp_years):
                 sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
         st.markdown("---")
+    # 出售类专属：显隐控制按钮（最小改动）
+    if "sale_and_commercial" in current_config.get("ui_components", []):
+        col1, col2, col3 = st.columns(3)
+        if col1.button("隐/显住宅出租", key="btn_resi"): st.session_state["show_resi"] = not st.session_state["show_resi"]
+        if col2.button("隐/显商业出租", key="btn_comm"): st.session_state["show_comm"] = not st.session_state["show_comm"]
+        if col3.button("隐/显车位收入", key="btn_park"): st.session_state["show_park"] = not st.session_state["show_park"]
+    st.markdown("---")
     # 基础参数（一行排版）
-    st.subheader("🏠 住宅出租")
-    residential_area = st.number_input("住宅面积（㎡）", value=34330, min_value=0)
-    rent_start_price = st.number_input("起始租金单价（元/㎡/月）", value=19.2, min_value=0.0, step=0.1)
+    if st.session_state["show_resi"]:
+        st.subheader("🏠 住宅出租")
+        residential_area = st.number_input("住宅面积（㎡）", value=34330, min_value=0)
+        rent_start_price = st.number_input("起始租金单价（元/㎡/月）", value=19.2, min_value=0.0, step=0.1)
+    else:
+    # 隐藏时赋默认值（仅5行，避免报错）
+        residential_area, rent_start_price = 0, 0.0
+        rent_increase_span, rent_increase_rate = 3, 2.0
+        occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0.0
     
     # ---------------------- 新增需求①：租金每X年递增Y% ----------------------
     col_rent1, col_rent2 = st.columns(2)
@@ -178,11 +195,17 @@ with st.expander("2. 收入计算参数", expanded=True):
 
     if "sale_and_commercial" in current_config.get("ui_components", []):
         st.markdown("---")
-        st.subheader("🏪 商业出租")
+        if st.session_state["show_comm"]:
+            st.subheader("🏪 商业出租")
         # 基础参数（和住宅完全一致，仅改名称）
-        col_comm1, col_comm2 = st.columns(2)
-        comm_area = col_comm1.number_input("商业面积（㎡）", value=0, min_value=0, step=100)
-        comm_rent_start_price = col_comm2.number_input("商业起始租金单价（元/㎡/月）", value=0.0, min_value=0.0, step=0.1)
+            col_comm1, col_comm2 = st.columns(2)
+            comm_area = col_comm1.number_input("商业面积（㎡）", value=0, min_value=0, step=100)
+            comm_rent_start_price = col_comm2.number_input("商业起始租金单价（元/㎡/月）", value=0.0, min_value=0.0, step=0.1)
+        else:
+        # 隐藏时赋默认值（仅5行）
+            comm_area, comm_rent_start_price = 0, 0.0
+            comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
+            comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_stable_occ = {}, 0, 0, 0.0
         
         # 商业租金递增设置（和住宅完全一致，仅改名称）
         col_comm_rent1, col_comm_rent2 = st.columns(2)
@@ -208,11 +231,16 @@ with st.expander("2. 收入计算参数", expanded=True):
     
     # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
     st.markdown("---")
-    st.subheader("🚗 车位收入")
-    col_park1, col_park2, col_park3 = st.columns(3)
-    park_count = col_park1.number_input("车位个数", min_value=0, value=500, step=1)
-    park_rent_start_price = col_park2.number_input("车位起始租金单价（元/个/月）", min_value=0.0, value=300.0, step=10.0)
-    park_income_ratio = col_park3.number_input("车位实际收入系数", min_value=0.0, max_value=1.0, value=0.5, step=0.01, help="比如50%填0.5")
+    if st.session_state["show_park"]:
+        st.subheader("🚗 车位收入")
+        col_park1, col_park2, col_park3 = st.columns(3)
+        park_count = col_park1.number_input("车位个数", min_value=0, value=500, step=1)
+        park_rent_start_price = col_park2.number_input("车位起始租金单价（元/个/月）", min_value=0.0, value=300.0, step=10.0)
+        park_income_ratio = col_park3.number_input("车位实际收入系数", min_value=0.0, max_value=1.0, value=0.5, step=0.01, help="比如50%填0.5")
+    else:
+    # 隐藏时赋默认值（仅5行）
+        park_count, park_rent_start_price, park_income_ratio = 0, 0.0, 0.0
+        park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_stable_occ = {}, 0, 0, 0.0
     
     # ---------------------- 车位出租率设置（爬坡期+稳定期，缩进完全匹配）----------------------
     if 'operate_years' in locals() and operate_years:
