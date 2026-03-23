@@ -172,6 +172,47 @@ with st.expander("2. 收入计算参数", expanded=True):
         # 给变量赋默认值，避免NameError
         occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0
 
+    # ===================== 【出售类专属】商业出租设置（1:1复刻住宅出租，零重复逻辑）======================
+    # 先初始化商业所有变量，非出售类自动赋默认值，避免NameError
+    comm_area, comm_rent_start_price = 0, 0.0
+    comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
+    comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable = {}, 0, 0, 0.9
+
+    if "sale_and_commercial" in current_config.get("ui_components", []):
+        st.markdown("---")
+        st.subheader("🏪 商业出租设置")
+        # 基础参数（和住宅完全一致，仅改名称）
+        col_comm1, col_comm2 = st.columns(2)
+        comm_area = col_comm1.number_input("商业面积（㎡）", value=0, min_value=0, step=100)
+        comm_rent_start_price = col_comm2.number_input("商业起始租金单价（元/㎡/月）", value=0.0, min_value=0.0, step=0.1)
+        
+        # 商业租金递增设置（和住宅完全一致，仅改名称）
+        st.markdown("---")
+        st.subheader("📈 商业租金递增设置")
+        col_comm_rent1, col_comm_rent2 = st.columns(2)
+        comm_rent_increase_span = col_comm_rent1.number_input("商业租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
+        comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
+        
+        # 商业出租率设置（和住宅完全一致，仅改名称）
+        st.markdown("---")
+        st.subheader("🏢 商业出租率设置（爬坡期+稳定期）")
+        if 'operate_years' in locals() and operate_years:
+            # 商业爬坡期设置
+            comm_ramp_years = st.multiselect("请选择商业爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
+            comm_occupancy_ramp_dict = {}
+            if comm_ramp_years:
+                col_comm_ramp = st.columns(len(comm_ramp_years))
+                for idx, year in enumerate(comm_ramp_years):
+                    comm_occupancy_ramp_dict[year] = col_comm_ramp[idx].number_input(f"商业{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
+            
+            # 商业稳定期设置
+            st.markdown("---")
+            col_comm_stable1, col_comm_stable2, col_comm_stable3 = st.columns(3)
+            comm_default_stable_start = max(comm_ramp_years) + 1 if comm_ramp_years else operate_years[0]
+            comm_stable_start = col_comm_stable1.number_input("商业稳定期起始年", min_value=operate_years[0], max_value=operate_years[-1], value=comm_default_stable_start, step=1)
+            comm_stable_end = col_comm_stable2.number_input("商业稳定期结束年", min_value=comm_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
+            comm_occupancy_stable = col_comm_stable3.number_input("商业稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
+    
     # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
     st.markdown("---")
     st.subheader("🚗 车位收入设置")
@@ -210,13 +251,6 @@ with st.expander("2. 收入计算参数", expanded=True):
     other_income_name = col_other1.text_input("其他收入名称", value="其他收入")
     other_income_total = col_other2.number_input(f"{other_income_name}总额（万元）", min_value=0.0, value=0.0, step=10.0)
 
-    # ===================== 【出售类专属】商业出租设置（复用住宅逻辑）======================
-    if "sale_and_commercial" in current_config.get("ui_components", []):
-        st.markdown("---")
-        st.subheader("🏪 商业出租（复用住宅逻辑）")
-        col_comm1, col_comm2 = st.columns(2)
-        comm_area = col_comm1.number_input("商业面积（㎡）", min_value=0, max_value=9999999, value=0, step=100)
-        comm_rent_price = col_comm2.number_input("商业租金（元/㎡/月）", min_value=0.0, max_value=9999.0, value=0.0, step=0.1)
    
 st.markdown("---")
 
@@ -630,20 +664,25 @@ if calc_button:
         other_income_name, other_income_total
     )
 
-    # ===================== 【仅加3行·直接复用】出售类新增收入 ======================
+    # ===================== 【仅改参数·100%复用】出售类新增收入 ======================
     if "sale_and_commercial" in PROJECT_CONFIG[project_type].get("ui_components", []):
-        # 1. 商业出租：直接把商业当成“第二套住宅”，再调一次calc_income
-        comm_income_df, _, _, _, _ = calc_income(all_years, month_dict, is_operate, comm_area, comm_rent_price, rent_increase_span, rent_increase_rate, occupancy_ramp_dict, stable_start, stable_end, occupancy_stable, 0, 0, 0, {}, 0, 0, 0, "无", 0)
+        # 1. 商业出租：完全复用calc_income函数，传入商业专属参数，零重复代码
+        comm_income_df, _, _, _, _ = calc_income(
+            all_years, month_dict, is_operate,
+            comm_area, comm_rent_start_price,
+            comm_rent_increase_span, comm_rent_increase_rate,
+            comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable,
+            0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
+        )
         income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
         
-        # 2. 配保房销售收入：极简1行逻辑
+        # 2. 配保房销售收入：原有逻辑完全不动
         for year in all_years:
             sale_rate = sale_ramp_dict.get(year, 1.0 if year >= max(sale_ramp_dict, default=year) else 0.0)
             income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
         
-        # 3. 更新总收入
+        # 3. 更新总收入：原有逻辑完全不动
         income_df["总收入(万元)"] = income_df["总收入(万元)"] + income_df["配保房销售收入(万元)"] + income_df["商业出租收入(万元)"]
-
     
     # 3. 经营成本测算
     park_income_dict = income_df["车位收入(万元)"].to_dict()
