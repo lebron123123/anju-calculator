@@ -201,9 +201,9 @@ with st.expander("2. 收入计算参数", expanded=True):
     if "sale_and_commercial" in current_config.get("ui_components", []):
         st.markdown("---")
         st.subheader("🏠 配保房销售")
-        sale_area, sale_avg_price = st.columns(2)
-        sale_area = sale_area.number_input("销售面积（㎡）", 0, 0, 100)
-        sale_avg_price = sale_avg_price.number_input("售价（元/㎡）", 0.0, 0.0, 100.0)
+        col_sale1, col_sale2 = st.columns(2)
+        sale_area = col_sale1.number_input("销售面积（㎡）", min_value=0, max_value=9999999, value=0, step=100)
+        sale_avg_price = col_sale2.number_input("售价（元/㎡）", min_value=0.0, max_value=999999.0, value=0.0, step=100.0)
         sale_ramp_years = st.multiselect("销售年份", operate_years, operate_years[:3])
         if sale_ramp_years:
             cols = st.columns(len(sale_ramp_years))
@@ -211,9 +211,9 @@ with st.expander("2. 收入计算参数", expanded=True):
         
         st.markdown("---")
         st.subheader("🏪 商业出租（复用住宅逻辑）")
-        comm_area, comm_rent_price = st.columns(2)
-        comm_area = comm_area.number_input("商业面积（㎡）", 0, 0, 100)
-        comm_rent_price = comm_rent_price.number_input("商业租金（元/㎡/月）", 0.0, 0.0, 0.1)
+        col_comm1, col_comm2 = st.columns(2)
+        comm_area = col_comm1.number_input("商业面积（㎡）", min_value=0, max_value=9999999, value=0, step=100)
+        comm_rent_price = col_comm2.number_input("商业租金（元/㎡/月）", min_value=0.0, max_value=9999.0, value=0.0, step=0.1)
    
 st.markdown("---")
 
