@@ -21,11 +21,8 @@ PROJECT_CONFIG = {
     # 类型2：出售类(配保房/可售型人才房等)
     "出售类(配保房/可售型人才房等)": {
         "extra_inputs": [],
-        "ui_components": ["custom_repay_plan"],  # 前端专属：显示自定义还款计划
-        "calc_rules": {
-            # 出售型规则：用户自定义还款
-            "repay_plan_mode": "custom"
-        },
+        "ui_components": ["custom_repay_plan", "sale_and_commercial"],  # 合并成1个标记 #前端专属:显示自定义还款计划
+        "calc_rules": {"repay_plan_mode": "custom"}, #出售型规则:用户自定义还款
         "show_metrics": []
     },
     # 类型3：租售结合类
@@ -197,6 +194,27 @@ with st.expander("2. 收入计算参数", expanded=True):
     other_income_name = col_other1.text_input("其他收入名称", value="其他收入")
     other_income_total = col_other2.number_input(f"{other_income_name}总额（万元）", min_value=0.0, value=0.0, step=10.0)
 
+    # ===================== 【出售类专属·极简版】直接复用calc_income ======================
+    current_config = PROJECT_CONFIG[project_type]
+    sale_area, sale_avg_price, sale_ramp_dict, sale_stable_occ = 0, 0, {}, 1.0
+    comm_area, comm_rent_price, comm_ramp_dict, comm_stable_occ = 0, 0, {}, 0.9
+    if "sale_and_commercial" in current_config.get("ui_components", []):
+        st.markdown("---")
+        st.subheader("🏠 配保房销售")
+        sale_area, sale_avg_price = st.columns(2)
+        sale_area = sale_area.number_input("销售面积（㎡）", 0, 0, 100)
+        sale_avg_price = sale_avg_price.number_input("售价（元/㎡）", 0.0, 0.0, 100.0)
+        sale_ramp_years = st.multiselect("销售年份", operate_years, operate_years[:3])
+        if sale_ramp_years:
+            cols = st.columns(len(sale_ramp_years))
+            for idx, y in enumerate(sale_ramp_years): sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
+        
+        st.markdown("---")
+        st.subheader("🏪 商业出租（复用住宅逻辑）")
+        comm_area, comm_rent_price = st.columns(2)
+        comm_area = comm_area.number_input("商业面积（㎡）", 0, 0, 100)
+        comm_rent_price = comm_rent_price.number_input("商业租金（元/㎡/月）", 0.0, 0.0, 0.1)
+   
 st.markdown("---")
 
 # 3. 总成本费用参数
@@ -608,6 +626,21 @@ if calc_button:
         park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable,
         other_income_name, other_income_total
     )
+
+    # ===================== 【仅加3行·直接复用】出售类新增收入 ======================
+    if "sale_and_commercial" in PROJECT_CONFIG[project_type].get("ui_components", []):
+        # 1. 商业出租：直接把商业当成“第二套住宅”，再调一次calc_income
+        comm_income_df, _, _, _, _ = calc_income(all_years, month_dict, is_operate, comm_area, comm_rent_price, rent_increase_span, rent_increase_rate, occupancy_ramp_dict, stable_start, stable_end, occupancy_stable, 0, 0, 0, {}, 0, 0, 0, "无", 0)
+        income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
+        
+        # 2. 配保房销售收入：极简1行逻辑
+        for year in all_years:
+            sale_rate = sale_ramp_dict.get(year, 1.0 if year >= max(sale_ramp_dict, default=year) else 0.0)
+            income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
+        
+        # 3. 更新总收入
+        income_df["总收入(万元)"] = income_df["总收入(万元)"] + income_df["配保房销售收入(万元)"] + income_df["商业出租收入(万元)"]
+
     
     # 3. 经营成本测算
     park_income_dict = income_df["车位收入(万元)"].to_dict()
