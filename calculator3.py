@@ -212,33 +212,34 @@ if "sale_and_commercial" in current_config.get("ui_components", []):
             col_comm1, col_comm2 = st.columns(2)
             comm_area = col_comm1.number_input("商业面积（㎡）", value=0, min_value=0, step=100)
             comm_rent_start_price = col_comm2.number_input("商业起始租金单价（元/㎡/月）", value=0.0, min_value=0.0, step=0.1)
+            # 商业租金递增设置（和住宅完全一致，仅改名称）
+            col_comm_rent1, col_comm_rent2 = st.columns(2)
+            comm_rent_increase_span = col_comm_rent1.number_input("商业租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
+            comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
+        
+            # 商业出租率设置（和住宅完全一致，仅改名称）
+            if 'operate_years' in locals() and operate_years:
+                # 商业爬坡期设置
+                comm_ramp_years = st.multiselect("请选择商业爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
+                comm_occupancy_ramp_dict = {}
+                if comm_ramp_years:
+                    col_comm_ramp = st.columns(len(comm_ramp_years))
+                    for idx, year in enumerate(comm_ramp_years):
+                        comm_occupancy_ramp_dict[year] = col_comm_ramp[idx].number_input(f"商业{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
+            
+                # 商业稳定期设置
+                col_comm_stable1, col_comm_stable2, col_comm_stable3 = st.columns(3)
+                comm_default_stable_start = max(comm_ramp_years) + 1 if comm_ramp_years else operate_years[0]
+                comm_stable_start = col_comm_stable1.number_input("商业稳定期起始年", min_value=operate_years[0], max_value=operate_years[-1], value=comm_default_stable_start, step=1)
+                comm_stable_end = col_comm_stable2.number_input("商业稳定期结束年", min_value=comm_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
+                comm_occupancy_stable = col_comm_stable3.number_input("商业稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
+        
         else:
         # 隐藏时赋默认值（仅5行）
             comm_area, comm_rent_start_price = 0, 0.0
             comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
             comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_stable_occ = {}, 0, 0, 0.0
         
-        # 商业租金递增设置（和住宅完全一致，仅改名称）
-        col_comm_rent1, col_comm_rent2 = st.columns(2)
-        comm_rent_increase_span = col_comm_rent1.number_input("商业租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
-        comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
-        
-        # 商业出租率设置（和住宅完全一致，仅改名称）
-        if 'operate_years' in locals() and operate_years:
-            # 商业爬坡期设置
-            comm_ramp_years = st.multiselect("请选择商业爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
-            comm_occupancy_ramp_dict = {}
-            if comm_ramp_years:
-                col_comm_ramp = st.columns(len(comm_ramp_years))
-                for idx, year in enumerate(comm_ramp_years):
-                    comm_occupancy_ramp_dict[year] = col_comm_ramp[idx].number_input(f"商业{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
-            
-            # 商业稳定期设置
-            col_comm_stable1, col_comm_stable2, col_comm_stable3 = st.columns(3)
-            comm_default_stable_start = max(comm_ramp_years) + 1 if comm_ramp_years else operate_years[0]
-            comm_stable_start = col_comm_stable1.number_input("商业稳定期起始年", min_value=operate_years[0], max_value=operate_years[-1], value=comm_default_stable_start, step=1)
-            comm_stable_end = col_comm_stable2.number_input("商业稳定期结束年", min_value=comm_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
-            comm_occupancy_stable = col_comm_stable3.number_input("商业稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
     
     # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
     st.markdown("---")
