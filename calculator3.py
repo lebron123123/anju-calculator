@@ -135,17 +135,16 @@ with st.expander("2. 收入计算参数", expanded=True):
                 sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
         st.markdown("---")
     # 基础参数（一行排版）
+    st.subheader("🏠 住宅出租")
     residential_area = st.number_input("住宅面积（㎡）", value=34330, min_value=0)
     rent_start_price = st.number_input("起始租金单价（元/㎡/月）", value=19.2, min_value=0.0, step=0.1)
     
     # ---------------------- 新增需求①：租金每X年递增Y% ----------------------
-    st.subheader("📈 租金递增设置")
     col_rent1, col_rent2 = st.columns(2)
     rent_increase_span = col_rent1.number_input("租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
     rent_increase_rate = col_rent2.number_input("租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
     
     # ---------------------- 新增需求②：出租率爬坡期+稳定期 ----------------------
-    st.subheader("🏢 出租率设置（爬坡期+稳定期）")
     # 先获取运营期年份作为可选范围（联动之前的operate_years）
     if 'operate_years' in locals() and operate_years:
         # 1. 爬坡期设置：让用户选年份，动态生成输入框
