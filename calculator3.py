@@ -400,7 +400,7 @@ def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occup
     return operating_cost_df
 
 # ===================== 新增：还本付息测算函数（严格匹配迭代规则）=====================
-def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_rate, first_repay_ratio, repay_increase_rate, loan_total_years):
+def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_rate, first_repay_ratio, repay_increase_rate, loan_total_years, custom_repay_plan=None, project_config=None):
     """
     测算还本付息明细，返回：
     1. loan_df：还本付息表完整明细
@@ -419,9 +419,10 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
     is_operate_start = False  # 标记是否进入运营期
     repay_principal_plan = {}
     # ===================== 【最小改动】仅替换预计算逻辑 ======================
-    calc_rules = PROJECT_CONFIG[project_type].get("calc_rules", {}) if 'project_type' in locals() else {}
-    if calc_rules.get("repay_plan_mode") == "custom" and 'repay_plan_dict' in locals() and repay_plan_dict:
-        for year in all_years: repay_principal_plan[year] = repay_plan_dict.get(year, 0.0) if year <= last_loan_year else 0.0
+    # ===================== 【修复报错】预计算还本计划 ======================
+    calc_rules = project_config.get("calc_rules", {}) if project_config else {}
+    if calc_rules.get("repay_plan_mode") == "custom" and custom_repay_plan:
+        for year in all_years: repay_principal_plan[year] = custom_repay_plan.get(year, 0.0) if year <= last_loan_year else 0.0
     else:
         for year in all_years:
             if year >= operate_start_year and year <= last_loan_year:
