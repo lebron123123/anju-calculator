@@ -378,36 +378,6 @@ with st.expander("5. 全投资现金流量表参数", expanded=True):
 
 # 6. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
-# ===================== 测算逻辑执行（点击按钮后）=====================
-if calc_button:
-    # 1. 基础年份/运营标记生成（复用原有函数）
-    all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
-    operate_year_list = [y for y in all_years if is_operate[y]]
-
-    # 2. 预计算商业出租收入+出租率（匹配原有商业租金递增逻辑）
-    comm_rent_income_dict = {}  # 每年商业租金收入（万元）
-    comm_occupancy_dict = {}    # 每年商业出租率
-    for year in operate_year_list:
-        # 商业租金单价（按递增规则计算）
-        comm_rent = comm_rent_start_price * (1 + comm_rent_increase_rate/100) ** (operate_year_list.index(year) // comm_rent_increase_span)
-        # 商业出租率（优先爬坡期，再稳定期）
-        comm_occ = comm_occupancy_ramp_dict.get(year, 0.0) if year in comm_occupancy_ramp_dict else (comm_occupancy_stable if (comm_stable_start <= year <= comm_stable_end) else 0.0)
-        # 商业年租金收入（转万元）
-        comm_income = (comm_area * comm_rent * comm_occ * lease_months) / 10000
-        comm_rent_income_dict[year] = comm_income
-        comm_occupancy_dict[year] = comm_occ
-
-    # 3. 计算出租营运成本（调用新增函数）
-    rental_cost_df = calc_rental_operating_cost(
-        all_years, is_operate, operate_year_list, comm_rent_income_dict,
-        land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area,
-        comm_area, comm_occupancy_dict, park_count, lease_months, rent_area, land_use_area
-    )
-
-    # 4. 显示结果表格（新增的出租营运成本表）
-    st.markdown("## 📊 测算结果")
-    st.subheader("出租营运成本明细")
-    st.dataframe(rental_cost_df, use_container_width=True)
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
 # ===================== 核心测算函数（极简修改版，完全匹配需求）=====================
