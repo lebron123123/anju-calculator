@@ -118,6 +118,22 @@ with st.expander("1. 项目基本信息", expanded=True):
 
 # 2. 收入计算参数
 with st.expander("2. 收入计算参数", expanded=True):
+    # ===================== 【出售类专属·移到最开头】配保房销售设置 ======================
+    # 先初始化变量，非出售类自动赋默认值，避免NameError
+    sale_area, sale_avg_price, sale_ramp_dict = 0, 0.0, {}
+    comm_area, comm_rent_price = 0, 0.0
+    current_config = PROJECT_CONFIG[project_type]
+    if "sale_and_commercial" in current_config.get("ui_components", []):
+        st.subheader("🏠 配保房销售")
+        col_sale1, col_sale2 = st.columns(2)
+        sale_area = col_sale1.number_input("销售面积（㎡）", min_value=0, max_value=9999999, value=0, step=100)
+        sale_avg_price = col_sale2.number_input("售价（元/㎡）", min_value=0.0, max_value=999999.0, value=0.0, step=100.0)
+        sale_ramp_years = st.multiselect("销售年份", operate_years, operate_years[:3])
+        if sale_ramp_years:
+            cols = st.columns(len(sale_ramp_years))
+            for idx, y in enumerate(sale_ramp_years):
+                sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
+        st.markdown("---")
     # 基础参数（一行排版）
     residential_area = st.number_input("住宅面积（㎡）", value=34330, min_value=0)
     rent_start_price = st.number_input("起始租金单价（元/㎡/月）", value=19.2, min_value=0.0, step=0.1)
@@ -194,21 +210,8 @@ with st.expander("2. 收入计算参数", expanded=True):
     other_income_name = col_other1.text_input("其他收入名称", value="其他收入")
     other_income_total = col_other2.number_input(f"{other_income_name}总额（万元）", min_value=0.0, value=0.0, step=10.0)
 
-    # ===================== 【出售类专属·极简版】直接复用calc_income ======================
-    current_config = PROJECT_CONFIG[project_type]
-    sale_area, sale_avg_price, sale_ramp_dict, sale_stable_occ = 0, 0, {}, 1.0
-    comm_area, comm_rent_price, comm_ramp_dict, comm_stable_occ = 0, 0, {}, 0.9
+    # ===================== 【出售类专属】商业出租设置（复用住宅逻辑）======================
     if "sale_and_commercial" in current_config.get("ui_components", []):
-        st.markdown("---")
-        st.subheader("🏠 配保房销售")
-        col_sale1, col_sale2 = st.columns(2)
-        sale_area = col_sale1.number_input("销售面积（㎡）", min_value=0, max_value=9999999, value=0, step=100)
-        sale_avg_price = col_sale2.number_input("售价（元/㎡）", min_value=0.0, max_value=999999.0, value=0.0, step=100.0)
-        sale_ramp_years = st.multiselect("销售年份", operate_years, operate_years[:3])
-        if sale_ramp_years:
-            cols = st.columns(len(sale_ramp_years))
-            for idx, y in enumerate(sale_ramp_years): sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
-        
         st.markdown("---")
         st.subheader("🏪 商业出租（复用住宅逻辑）")
         col_comm1, col_comm2 = st.columns(2)
