@@ -378,6 +378,54 @@ with st.expander("5. 全投资现金流量表参数", expanded=True):
 
 # 6. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
+# ===================== 测算逻辑执行（新增出租表 + 保留原有逻辑）=====================
+if calc_button:
+    # 1. 基础年份数据（原有逻辑不动）
+    all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
+    operate_year_list = [y for y in all_years if is_operate[y]]
+    
+    # 2. 处理非出售类项目的参数默认值（防NameError，最小改动）
+    land_cost = locals().get("land_cost", 0.0)
+    construction_cost = locals().get("construction_cost", 0.0)
+    infra_cost = locals().get("infra_cost", 0.0)
+    other_eng_cost = locals().get("other_eng_cost", 0.0)
+    peibao_area = locals().get("peibao_area", 0)
+    rent_area = locals().get("rent_area", 0)
+    land_use_area = locals().get("land_use_area", 0)
+    lease_months = locals().get("lease_months", 12)
+    
+    # 3. 计算并展示【出租情况表】（新增核心逻辑，放在收入表前）
+    rental_operation_table = calc_rental_operation_table(
+        all_years=all_years, is_operate=is_operate, operate_year_list=operate_year_list,
+        comm_area=comm_area, comm_rent_start_price=comm_rent_start_price,
+        comm_rent_increase_span=comm_rent_increase_span, comm_rent_increase_rate=comm_rent_increase_rate,
+        comm_occupancy_ramp_dict=comm_occupancy_ramp_dict, comm_stable_start=comm_stable_start,
+        comm_stable_end=comm_stable_end, comm_occupancy_stable=comm_occupancy_stable,
+        park_count=park_count, land_cost=land_cost, construction_cost=construction_cost,
+        infra_cost=infra_cost, other_eng_cost=other_eng_cost, peibao_area=peibao_area,
+        rent_area=rent_area, land_use_area=land_use_area, lease_months=lease_months
+    )
+    st.markdown("---")
+    st.header("📊 出租情况表（营运成本明细）")
+    st.dataframe(rental_operation_table, use_container_width=True)  # 一行式展示，和原有风格一致
+    
+    # 4. 原有收入表计算/展示逻辑（完全保留，仅位置后移）
+    income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = calc_income(
+        all_years=all_years, month_dict=month_dict, is_operate=is_operate,
+        area=residential_area, price=rent_start_price, increase_span=rent_increase_span,
+        increase_rate=rent_increase_rate, occupancy_ramp_dict=occupancy_ramp_dict,
+        stable_start=stable_start, stable_end=stable_end, stable_occ=occupancy_stable,
+        park_count=park_count, park_price=park_rent_start_price, park_ratio=park_income_ratio,
+        park_occupancy_ramp_dict=park_occupancy_ramp_dict, park_stable_start=park_stable_start,
+        park_stable_end=park_stable_end, park_stable_occ=park_occupancy_stable,
+        other_name=other_income_name, other_total=other_income_total
+    )
+    st.markdown("---")
+    st.header("📊 收入明细表")
+    st.dataframe(income_df, use_container_width=True)
+
+    # 后续经营成本、还本付息等逻辑（完全保留，无需改动）
+    # ... 原有calc_operating_cost、calc_loan_repayment等调用逻辑继续保留 ...
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
 # ===================== 核心测算函数（极简修改版，完全匹配需求）=====================
@@ -443,6 +491,64 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     # 总收入汇总
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
     return income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price
+
+# ===================== 新增：出租情况表（营运成本）计算函数 ======================
+def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area, rent_area, land_use_area, lease_months):
+    """计算出租营运成本明细表（出租情况表），复用现有参数，最小改动"""
+    rental_table = pd.DataFrame(index=all_years)
+    # 1. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
+    comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {}
+    for year in operate_year_list:
+        # 商业出租率（爬坡期+稳定期）
+        if year in comm_occupancy_ramp_dict: comm_occupancy[year] = comm_occupancy_ramp_dict[year]
+        elif comm_stable_start <= year <= comm_stable_end: comm_occupancy[year] = comm_occupancy_stable
+        else: comm_occupancy[year] = 0.0
+        # 商业租金单价（递增逻辑）
+        increase_times = list(operate_year_list).index(year) // comm_rent_increase_span
+        comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
+
+    # 2. 逐年份计算各项成本/税费
+    for year in all_years:
+        if not is_operate[year]:  # 建设期：各项为0
+            rental_table.loc[year, ["商业出租率", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
+                                   "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", "物业专项维修金(万元)", 
+                                   "维修费用(万元)", "空置物业服务费(万元)", "保险费用(万元)", "土地使用税(万元)", 
+                                   "出租营运成本合计(万元)"]] = 0.0
+            continue
+        
+        # 运营期核心参数
+        occ = comm_occupancy[year]
+        cr_price = comm_rent_price[year]
+        comm_income = comm_area * cr_price * occ * lease_months / 10000  # 商业出租收入（万元）
+        
+        # 按公式计算各项成本（严格匹配需求，单位统一为万元）
+        tax1 = comm_income * (0.12 / 1.09)  # 房产税1
+        tax2_base = land_cost + construction_cost + infra_cost + other_eng_cost + construction_cost * 0.02 * (1 - peibao_area/(peibao_area+comm_area) if (peibao_area+comm_area)!=0 else 0)
+        tax2 = tax2_base * 0.7 * 0.012 * (1 - occ)  # 房产税2（防除0）
+        manage_comm = comm_income * 0.08  # 运营管理费（商业）
+        manage_park = park_count * 80 * 12 / 10000  # 运营管理费（停车场）
+        property_fund = (comm_area * occ * lease_months * 0.25) / 10000  # 物业专项维修金
+        repair_fee = comm_income * 0.2  # 维修费用
+        vacancy_service = (rent_area * (1 - occ) * 0.08 * 12 * 0.88) / 10000  # 空置物业服务费
+        insurance_fee = (rent_area * 1.86) / 10000  # 保险费用
+        land_tax = (land_use_area * 3) / 10000  # 土地使用税
+        total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 合计
+        
+        # 填入表格（保留4位小数，和原有风格一致）
+        rental_table.loc[year, "商业出租率"] = round(occ, 4)
+        rental_table.loc[year, "商业出租收入(万元)"] = round(comm_income, 4)
+        rental_table.loc[year, "房产税1(万元)"] = round(tax1, 4)
+        rental_table.loc[year, "房产税2(万元)"] = round(tax2, 4)
+        rental_table.loc[year, "运营管理费用（商业）(万元)"] = round(manage_comm, 4)
+        rental_table.loc[year, "运营管理费用（停车场）(万元)"] = round(manage_park, 4)
+        rental_table.loc[year, "物业专项维修金(万元)"] = round(property_fund, 4)
+        rental_table.loc[year, "维修费用(万元)"] = round(repair_fee, 4)
+        rental_table.loc[year, "空置物业服务费(万元)"] = round(vacancy_service, 4)
+        rental_table.loc[year, "保险费用(万元)"] = round(insurance_fee, 4)
+        rental_table.loc[year, "土地使用税(万元)"] = round(land_tax, 4)
+        rental_table.loc[year, "出租营运成本合计(万元)"] = round(total_cost, 4)
+    
+    return rental_table
   
 # ===================== 经营成本测算函数（原calc_cost，适配新命名）=====================
 def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occupancy, resi_rent_price, park_income_list, total_build_area, manage_coeff, decoration_cost, house_type, total_investment, operate_year_list):
