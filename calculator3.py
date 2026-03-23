@@ -379,53 +379,6 @@ with st.expander("5. 全投资现金流量表参数", expanded=True):
 # 6. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 # ===================== 测算逻辑执行（新增出租表 + 保留原有逻辑）=====================
-if calc_button:
-    # 1. 基础年份数据（原有逻辑不动）
-    all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
-    operate_year_list = [y for y in all_years if is_operate[y]]
-    
-    # 2. 处理非出售类项目的参数默认值（防NameError，最小改动）
-    land_cost = locals().get("land_cost", 0.0)
-    construction_cost = locals().get("construction_cost", 0.0)
-    infra_cost = locals().get("infra_cost", 0.0)
-    other_eng_cost = locals().get("other_eng_cost", 0.0)
-    peibao_area = locals().get("peibao_area", 0)
-    rent_area = locals().get("rent_area", 0)
-    land_use_area = locals().get("land_use_area", 0)
-    lease_months = locals().get("lease_months", 12)
-    
-    # 3. 计算并展示【出租情况表】（新增核心逻辑，放在收入表前）
-    rental_operation_table = calc_rental_operation_table(
-        all_years=all_years, is_operate=is_operate, operate_year_list=operate_year_list,
-        comm_area=comm_area, comm_rent_start_price=comm_rent_start_price,
-        comm_rent_increase_span=comm_rent_increase_span, comm_rent_increase_rate=comm_rent_increase_rate,
-        comm_occupancy_ramp_dict=comm_occupancy_ramp_dict, comm_stable_start=comm_stable_start,
-        comm_stable_end=comm_stable_end, comm_occupancy_stable=comm_occupancy_stable,
-        park_count=park_count, land_cost=land_cost, construction_cost=construction_cost,
-        infra_cost=infra_cost, other_eng_cost=other_eng_cost, peibao_area=peibao_area,
-        rent_area=rent_area, land_use_area=land_use_area, lease_months=lease_months
-    )
-    st.markdown("---")
-    st.header("📊 出租情况表（营运成本明细）")
-    st.dataframe(rental_operation_table, use_container_width=True)  # 一行式展示，和原有风格一致
-    
-    # 4. 原有收入表计算/展示逻辑（完全保留，仅位置后移）
-    income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = calc_income(
-        all_years=all_years, month_dict=month_dict, is_operate=is_operate,
-        area=residential_area, price=rent_start_price, increase_span=rent_increase_span,
-        increase_rate=rent_increase_rate, occupancy_ramp_dict=occupancy_ramp_dict,
-        stable_start=stable_start, stable_end=stable_end, stable_occ=occupancy_stable,
-        park_count=park_count, park_price=park_rent_start_price, park_ratio=park_income_ratio,
-        park_occupancy_ramp_dict=park_occupancy_ramp_dict, park_stable_start=park_stable_start,
-        park_stable_end=park_stable_end, park_stable_occ=park_occupancy_stable,
-        other_name=other_income_name, other_total=other_income_total
-    )
-    st.markdown("---")
-    st.header("📊 收入明细表")
-    st.dataframe(income_df, use_container_width=True)
-
-    # 后续经营成本、还本付息等逻辑（完全保留，无需改动）
-    # ... 原有calc_operating_cost、calc_loan_repayment等调用逻辑继续保留 ...
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
 # ===================== 核心测算函数（极简修改版，完全匹配需求）=====================
