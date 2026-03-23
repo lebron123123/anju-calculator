@@ -378,7 +378,36 @@ with st.expander("5. 全投资现金流量表参数", expanded=True):
 
 # 6. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
-# ===================== 测算逻辑执行（新增出租表 + 保留原有逻辑）=====================
+# ===================== 测算逻辑执行（点击按钮后）=====================
+if calc_button:
+    # 1. 基础年份/运营标记生成（复用原有函数）
+    all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
+    operate_year_list = [y for y in all_years if is_operate[y]]
+
+    # 2. 预计算商业出租收入+出租率（匹配原有商业租金递增逻辑）
+    comm_rent_income_dict = {}  # 每年商业租金收入（万元）
+    comm_occupancy_dict = {}    # 每年商业出租率
+    for year in operate_year_list:
+        # 商业租金单价（按递增规则计算）
+        comm_rent = comm_rent_start_price * (1 + comm_rent_increase_rate/100) ** (operate_year_list.index(year) // comm_rent_increase_span)
+        # 商业出租率（优先爬坡期，再稳定期）
+        comm_occ = comm_occupancy_ramp_dict.get(year, 0.0) if year in comm_occupancy_ramp_dict else (comm_occupancy_stable if (comm_stable_start <= year <= comm_stable_end) else 0.0)
+        # 商业年租金收入（转万元）
+        comm_income = (comm_area * comm_rent * comm_occ * lease_months) / 10000
+        comm_rent_income_dict[year] = comm_income
+        comm_occupancy_dict[year] = comm_occ
+
+    # 3. 计算出租营运成本（调用新增函数）
+    rental_cost_df = calc_rental_operating_cost(
+        all_years, is_operate, operate_year_list, comm_rent_income_dict,
+        land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area,
+        comm_area, comm_occupancy_dict, park_count, lease_months, rent_area, land_use_area
+    )
+
+    # 4. 显示结果表格（新增的出租营运成本表）
+    st.markdown("## 📊 测算结果")
+    st.subheader("出租营运成本明细")
+    st.dataframe(rental_cost_df, use_container_width=True)
 
 # ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
 # ===================== 核心测算函数（极简修改版，完全匹配需求）=====================
@@ -570,6 +599,74 @@ def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occup
             operating_cost_df.loc[year, "经营成本(万元)"] = round(total_operating_cost, 4)
     
     return operating_cost_df
+
+# ===================== 新增：出租营运成本测算函数 ======================
+def calc_rental_operating_cost(all_years, is_operate, operate_year_list, comm_rent_income_dict, land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area, comm_area, comm_occupancy_dict, park_count, lease_months, rent_area, land_use_area):
+    """
+    计算出租营运成本明细（按年）
+    公式：出租营运成本=房产税1+房产税2+运营管理费用（商业）+运营管理费用（停车场）+物业专项维修金+维修费用+空置物业服务费+保险费用+土地使用税
+    """
+    rental_cost_df = pd.DataFrame(index=all_years)
+    # 预计算房产税2固定基数（避免重复计算）
+    if (peibao_area + comm_area) == 0:  # 防分母为0
+        tax2_base = 0.0
+    else:
+        tax2_base = (
+            land_cost + construction_cost + infra_cost + other_eng_cost + 
+            construction_cost * 0.02 * (1 - peibao_area / (peibao_area + comm_area))
+        )
+    tax2_rate = 0.7 * 0.012  # 70% × 1.2%
+
+    for year in all_years:
+        if not is_operate[year]:  # 建设期无成本
+            rental_cost_df.loc[year, "房产税1(万元)"] = 0.0
+            rental_cost_df.loc[year, "房产税2(万元)"] = 0.0
+            rental_cost_df.loc[year, "运营管理费用（商业）(万元)"] = 0.0
+            rental_cost_df.loc[year, "运营管理费用（停车场）(万元)"] = 0.0
+            rental_cost_df.loc[year, "物业专项维修金(万元)"] = 0.0
+            rental_cost_df.loc[year, "维修费用(万元)"] = 0.0
+            rental_cost_df.loc[year, "空置物业服务费(万元)"] = 0.0
+            rental_cost_df.loc[year, "保险费用(万元)"] = 0.0
+            rental_cost_df.loc[year, "土地使用税(万元)"] = 0.0
+            rental_cost_df.loc[year, "出租营运成本合计(万元)"] = 0.0
+            continue
+
+        # 1. 房产税1 = 商业出租收入 × [12%/(1+9%)]
+        comm_income = comm_rent_income_dict.get(year, 0.0)
+        tax1 = comm_income * (0.12 / 1.09)
+        # 2. 房产税2 = 基数 × 70% × 1.2% × (1-商业出租率)
+        comm_occ = comm_occupancy_dict.get(year, 0.0)
+        tax2 = tax2_base * tax2_rate * (1 - comm_occ)
+        # 3. 运营管理费用（商业）= 商业出租收入 ×8%
+        manage_comm = comm_income * 0.08
+        # 4. 运营管理费用（停车场）= 车位个数 ×80×12/10000
+        manage_park = park_count * 80 * 12 / 10000
+        # 5. 物业专项维修金 = 商业面积 ×出租率×租赁月数×0.25 / 10000（转万元）
+        property_fund = (comm_area * comm_occ * lease_months * 0.25) / 10000
+        # 6. 维修费用 = 商业租金收入 ×0.2
+        repair_fee = comm_income * 0.2
+        # 7. 空置物业服务费 = 出租面积 × (1-出租率) ×8%×12×0.88 / 10000
+        vacant_service = (rent_area * (1 - comm_occ) * 0.08 * 12 * 0.88) / 10000
+        # 8. 保险费用 = 出租面积 ×1.86 / 10000
+        insurance_fee = (rent_area * 1.86) / 10000
+        # 9. 土地使用税 = 用地面积 ×3 / 10000
+        land_tax = (land_use_area * 3) / 10000
+        # 合计：出租营运成本
+        total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacant_service + insurance_fee + land_tax
+
+        # 填入表格（保留4位小数，和原有格式一致）
+        rental_cost_df.loc[year, "房产税1(万元)"] = round(tax1, 4)
+        rental_cost_df.loc[year, "房产税2(万元)"] = round(tax2, 4)
+        rental_cost_df.loc[year, "运营管理费用（商业）(万元)"] = round(manage_comm, 4)
+        rental_cost_df.loc[year, "运营管理费用（停车场）(万元)"] = round(manage_park, 4)
+        rental_cost_df.loc[year, "物业专项维修金(万元)"] = round(property_fund, 4)
+        rental_cost_df.loc[year, "维修费用(万元)"] = round(repair_fee, 4)
+        rental_cost_df.loc[year, "空置物业服务费(万元)"] = round(vacant_service, 4)
+        rental_cost_df.loc[year, "保险费用(万元)"] = round(insurance_fee, 4)
+        rental_cost_df.loc[year, "土地使用税(万元)"] = round(land_tax, 4)
+        rental_cost_df.loc[year, "出租营运成本合计(万元)"] = round(total_cost, 4)
+
+    return rental_cost_df
 
 # ===================== 新增：还本付息测算函数（严格匹配迭代规则）=====================
 def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_rate, first_repay_ratio, repay_increase_rate, loan_total_years, custom_repay_plan=None, project_config=None):
