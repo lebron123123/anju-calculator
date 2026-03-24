@@ -1171,31 +1171,35 @@ if calc_button:
     st.markdown("---")
 
     # ===================== ✅ 出售类：插入出租营运成本表 =====================
+    # ===================== ✅ 修复版：出租营运成本表 =====================
+    # 仅出售类项目显示该表，非出售类完全不执行，避免报错
     if project_type == "出售类(配保房/可售型人才房等)":
-
-        rental_cost_table = calc_rental_operation_table(
+        # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
+        rental_cost_df = calc_rental_operation_table(
             all_years=all_years,
             is_operate=is_operate,
             operate_year_list=operate_year_list,
-
-             # 👇 这里把你函数需要的参数传进去（按你已有变量填）
-            comm_rent_income_dict=comm_rent_income_dict,
             comm_area=comm_area,
-            parking_count=parking_count,
-            sale_area=sale_area,
-            land_cost=land_cost,
-            build_cost=build_cost,
-            infra_cost=infra_cost,
-            other_cost=other_cost,
-            occupancy_ramp_dict=occupancy_ramp_dict,
+            comm_rent_start_price=comm_rent_start_price,
+            comm_rent_increase_span=comm_rent_increase_span,
+            comm_rent_increase_rate=comm_rent_increase_rate,
             comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
-            plot_area=plot_area
+            comm_stable_start=comm_stable_start,
+            comm_stable_end=comm_stable_end,
+            comm_occupancy_stable=comm_occupancy_stable,
+            park_count=park_count,
+            land_cost=land_cost,
+            construction_cost=construction_cost,
+            infra_cost=infra_cost,
+            other_eng_cost=other_eng_cost,
+            peibao_area=peibao_area,
+            rent_area=rent_area,
+            land_use_area=land_use_area,
+            lease_months=lease_months
         )
-
-        rental_cost_df = pd.DataFrame(rental_cost_table)
-
-    st.subheader("📊 出租情况表")
-    st.dataframe(rental_cost_df)
+        # 表格展示放在if块内，仅出售类执行，非出售类不运行，彻底避免变量未定义
+        st.subheader("📊 出租情况表")
+        st.dataframe(rental_cost_df, use_container_width=True)
     
     # --- 收入明细 ---
     st.subheader("📋 收入明细表")
