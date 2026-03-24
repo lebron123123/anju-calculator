@@ -520,10 +520,9 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
             remaining_input = total_input_tax_calc
             # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
         output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
-        # 3. 增值税(一般计税)：前一年剩余进项税 - 本年销项税，>0则输出差值，否则0
-        vat = max(remaining_input - output_tax, 0.0)
-        # 更新剩余进项税（供下一年使用）
-        remaining_input = vat
+        input_before = remaining_input
+        vat = max(output_tax - input_before, 0.0)
+        remaining_input = max(input_before - output_tax, 0.0)
         # 4. 增值税附加：∑（截至当年的增值税）×12%
         cum_vat.append(vat)
         vat_surcharge = sum(cum_vat) * 0.12
