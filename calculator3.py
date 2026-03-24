@@ -452,7 +452,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     return income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price
 
 # ===================== 新增：出租情况表（营运成本）计算函数 ======================
-def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area, rent_area, land_use_area, lease_months):
+def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area, rent_area, land_use_area, lease_months, plot_ratio_area=1):
     """计算出租营运成本明细表（出租情况表），复用现有参数，最小改动"""
     rental_table = pd.DataFrame(index=all_years)
     # 1. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
@@ -478,7 +478,10 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
             rental_table.loc[year, ["商业出租率", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
                                    "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", "物业专项维修金(万元)", 
                                    "维修费用(万元)", "空置物业服务费(万元)", "保险费用(万元)", "土地使用税(万元)", 
-                                   "出租营运成本合计(万元)"]] = 0.0
+                                   "出租营运成本合计(万元)","增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"]] = 0.0
+            # 仅新增这2行（初始化累计缓存）
+            if 'cum_vat' not in locals(): cum_vat, cum_rent = [], []
+            cum_vat.append(0.0); cum_rent.append(0.0)
             continue
         
         # 运营期核心参数
@@ -500,6 +503,28 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 合计
 
          # ===================== 新增：出租经营税金计算逻辑 ======================
+        # ===================== 修复：出租经营税金计算逻辑 ======================
+        # 1. 初始化累计缓存（仅运行一次）
+        if 'cum_vat' not in locals(): cum_vat, cum_rent = [], []
+        # 2. 进项税（用入参的plot_ratio_area）
+        input_tax1 = (manage_comm + insurance_fee) * (0.06 / 1.06)
+        input_tax2 = vacancy_service * (0.09 / 1.09)
+        input_tax3 = (construction_cost + other_eng_cost) / plot_ratio_area * 900 * 0.09 / 1.09
+        total_input_tax = input_tax1 + input_tax2 + input_tax3
+        # 3. 销项税
+        output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
+        # 4. 增值税（修复首年顺序）
+        if year == operate_year_list[0]: total_input_tax_init = total_input_tax
+        vat = max((total_input_tax_init if year == operate_year_list[0] else prev_input_tax) - output_tax, 0)
+        # 5. 增值税附加（累计）
+        cum_vat.append(vat); vat_surcharge = sum(cum_vat) * 0.12
+        # 6. 印花税（累计）
+        cum_rent.append(comm_income); stamp_tax = sum(cum_rent) * 0.0005
+        # 7. 合计
+        total_rental_tax = vat + vat_surcharge + stamp_tax
+        # 8. 更新缓存
+        prev_input_tax = total_input_tax
+        
         # 1. 进项税计算（分三部分）
         # （1）管理费用+保险费 部分
         input_tax1 = (manage_comm + insurance_fee) * (0.06 / 1.06)
@@ -1244,6 +1269,7 @@ if calc_button:
             rent_area=rent_area,
             land_use_area=land_use_area,
             lease_months=lease_months
+            plot_ratio_area=plot_ratio_area
         )
         rental_cost_df_T = rental_cost_df.T
         # 2. 定义需要求和的行（比率类不合计，数值类全合计）
@@ -1252,6 +1278,7 @@ if calc_button:
             "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
             "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
             "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)"
+            "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"
         ]
         # 3. 新增全周期合计列
         rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
