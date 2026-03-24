@@ -474,6 +474,8 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     total_input_tax_calc = 0  # 全周期进项税合计（初始化）
     cum_vat = []  # 累计增值税缓存
     cum_rent = []  # 累计租金缓存
+    total_manage_ins = 0
+    total_vacancy = 0
     
     # 2. 逐年份计算各项成本/税费
     for year in all_years:
@@ -511,9 +513,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
         if year == operate_year_list[0] and total_input_tax_calc == 0:
             # 全周期合计管理费用manage_comm+保险费insurance_fee(各年累加)
-            total_manage_ins = sum([manage_comm_each_year]) + sum([insurance_fee_each_year])
             # 全周期合计空置物业服务费total_vacancy(各年累加)
-            total_vacancy = sum([vacancy_each_year])
             if 'total_manage_ins' not in locals(): #检查变量是否存在
                 total_manage_ins = 0
                 total_vacancy = 0
