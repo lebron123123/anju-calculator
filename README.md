@@ -12,10 +12,14 @@ PROJECT_CONFIG{{}}
 二、streamlit库应用
 
 （一）页面显示
-      st.set_page_config()网页标题  
-      st.title()页面大标题
-      st.subheader（）创建栏目标题
-      st.selectbox（）创建下拉菜单
+      st.set_page_config()网页标题    
+      st.title()页面大标题  
+      st.subheader（）创建栏目标题  
+      st.selectbox（）创建下拉菜单  
 （二）其他功能
-      st.session_state()功能盒子
+      st.session_state()功能盒子  
+
+三、测算逻辑
+（一）pandas库
+      pd.DataFrame()生成表格
       
