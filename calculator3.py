@@ -1197,9 +1197,25 @@ if calc_button:
             land_use_area=land_use_area,
             lease_months=lease_months
         )
+        rental_cost_df_T = rental_cost_df.T
+        # 2. 定义需要求和的行（比率类不合计，数值类全合计）
+        rental_sum_rows = [
+            "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
+            "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
+            "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
+            "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)"
+        ]
+        # 3. 新增全周期合计列
+        rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
+            lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
+        )
+        # 4. 调整列顺序：合计列放最前面，和其他表格格式完全统一
+        rental_cost_df_T = rental_cost_df_T[ ["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"] ]
+    
+        # 5. 展示转置后的表格
         # 表格展示放在if块内，仅出售类执行，非出售类不运行，彻底避免变量未定义
         st.subheader("📊 出租情况表")
-        st.dataframe(rental_cost_df, use_container_width=True)
+        st.dataframe(rental_cost_df_T, use_container_width=True)
     
     # --- 收入明细 ---
     st.subheader("📋 收入明细表")
