@@ -457,6 +457,8 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     rental_table = pd.DataFrame(index=all_years)
     # 1. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
     comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {}
+    remaining_input = 0
+    total_input_tax_calc = 0
     for year in operate_year_list:
         # 商业出租率（爬坡期+稳定期）
         if year in comm_occupancy_ramp_dict: comm_occupancy[year] = comm_occupancy_ramp_dict[year]
@@ -508,15 +510,15 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 1. 先算全周期合计（仅算1次，放在循环外）
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
         if year == operate_year_list[0] and total_input_tax_calc == 0:
-         # 全周期合计管理费用+保险费（基于单年公式反推全周期）
-        total_manage_ins = (manage_comm * len(operate_year_list)) + (insurance_fee * len(operate_year_list))
-        # 全周期合计空置物业服务费
-        total_vacancy = vacancy_service * len(operate_year_list)
-        # 进项税合计（严格按你的公式）
-        total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + ((construction_cost + other_eng_cost) / plot_ratio_area * 900 * (0.09 / 1.09))
-        # 初始化剩余进项税（首年的"前一年"就是这个合计）
-        remaining_input = total_input_tax_calc
-        # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
+            # 全周期合计管理费用+保险费（基于单年公式反推全周期）
+            total_manage_ins = (manage_comm * len(operate_year_list)) + (insurance_fee * len(operate_year_list))
+            # 全周期合计空置物业服务费
+            total_vacancy = vacancy_service * len(operate_year_list)
+            # 进项税合计（严格按你的公式）
+            total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + ((construction_cost + other_eng_cost) / plot_ratio_area * 900 * (0.09 / 1.09))
+            # 初始化剩余进项税（首年的"前一年"就是这个合计）
+            remaining_input = total_input_tax_calc
+            # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
         output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
         # 3. 增值税(一般计税)：前一年剩余进项税 - 本年销项税，>0则输出差值，否则0
         vat = max(remaining_input - output_tax, 0.0)
@@ -530,7 +532,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         stamp_tax = sum(cum_rent) * 0.0005
         # 6. 出租经营税金合计
         total_rental_tax = vat + vat_surcharge + stamp_tax
-        # ===================== 计算逻辑结束 ======================
+         # ===================== 计算逻辑结束 ======================
         
         
         # 填入表格（保留4位小数，和原有风格一致）
