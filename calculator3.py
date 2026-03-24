@@ -469,8 +469,6 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     # ===================== 新增：初始化进项税缓存（处理前一年逻辑） ======================
     prev_input_tax = 0  # 前一年进项税初始值
     total_input_tax_init = 0  # 建设期首年的"前一年合计进项税"初始值
-    # 补充：计容建筑面积原参数无，赋默认值避免报错（需根据实际业务替换为真实值）
-    plot_ratio_area = 0  # 若有该参数，可新增到函数入参并赋值
     
     # 2. 逐年份计算各项成本/税费
     for year in all_years:
@@ -520,35 +518,9 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         cum_vat.append(vat); vat_surcharge = sum(cum_vat) * 0.12
         # 6. 印花税（累计）
         cum_rent.append(comm_income); stamp_tax = sum(cum_rent) * 0.0005
-        # 7. 合计
+        # 7. 出租经营税金合计
         total_rental_tax = vat + vat_surcharge + stamp_tax
-        # 8. 更新缓存
-        prev_input_tax = total_input_tax
-        
-        # 1. 进项税计算（分三部分）
-        # （1）管理费用+保险费 部分
-        input_tax1 = (manage_comm + insurance_fee) * (0.06 / 1.06)
-        # （2）空置物业服务费 部分
-        input_tax2 = vacancy_service * (0.09 / 1.09)
-        # （3）建安+工程其他费 部分（防除0）
-        input_tax3 = (construction_cost + other_eng_cost) / plot_ratio_area * 900 * 0.09 / 1.09 if plot_ratio_area != 0 else 0
-        # 进项税合计
-        total_input_tax = input_tax1 + input_tax2 + input_tax3
-        # 2. 销项税计算（租金收入×9%/(1+9%)）
-        output_tax = comm_income * (0.09 / 1.09)
-        # 3. 增值税(一般计税)：进项-销项>0则取差值，否则0；处理建设期首年逻辑
-        if year == operate_year_list[0]:  # 运营期首年，前一年为"合计进项税"
-            vat = max(total_input_tax_init - output_tax, 0)
-        else:  # 非首年，前一年进项税-本年销项税
-            vat = max(prev_input_tax - output_tax, 0)
-        # 4. 增值税附加（增值税×12%）
-        vat_surcharge = vat * 0.12
-        # 5. 印花税（租金收入×0.05%）
-        stamp_tax = comm_income * 0.0005
-        # 6. 出租经营税金合计
-        total_rental_tax = vat + vat_surcharge + stamp_tax
-        
-        # 更新前一年进项税缓存（供下一年使用）
+        # 8. 更新前一年进项税缓存（供下一年使用）
         prev_input_tax = total_input_tax
         # 建设期首年合计进项税（仅初始化一次）
         if year == operate_year_list[0] and total_input_tax_init == 0:
@@ -1268,7 +1240,7 @@ if calc_button:
             peibao_area=peibao_area,
             rent_area=rent_area,
             land_use_area=land_use_area,
-            lease_months=lease_months
+            lease_months=lease_months,
             plot_ratio_area=plot_ratio_area
         )
         rental_cost_df_T = rental_cost_df.T
@@ -1277,7 +1249,7 @@ if calc_button:
             "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
             "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
             "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
-            "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)"
+            "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)",
             "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"
         ]
         # 3. 新增全周期合计列
