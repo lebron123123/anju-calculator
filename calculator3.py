@@ -1166,6 +1166,25 @@ if calc_button:
     with col7: st.metric("全投资内部收益率(IRR)", irr_value)
     
     st.markdown("---")
+
+    # ===================== 新增：出租情况表（仅出租类显示，放在收入明细前）=====================
+    if project_type == "出租型(协议出让/合作类等)":  # 仅出租类显示
+        # 1. 调用出租情况表计算函数（复用你已定义的calc_rental_operation_table）
+        rental_table = calc_rental_operation_table(
+            all_years=all_years, is_operate=is_operate, operate_year_list=operate_year_list,
+            comm_area=comm_area, comm_rent_start_price=comm_rent_start_price,
+            comm_rent_increase_span=comm_rent_increase_span, comm_rent_increase_rate=comm_rent_increase_rate,
+            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict, comm_stable_start=comm_stable_start,
+            comm_stable_end=comm_stable_end, comm_occupancy_stable=comm_occupancy_stable,
+            park_count=park_count, land_cost=land_cost, construction_cost=construction_cost,
+            infra_cost=infra_cost, other_eng_cost=other_eng_cost, peibao_area=peibao_area,
+            rent_area=rent_area, land_use_area=land_use_area, lease_months=lease_months
+        )
+    # 2. 展示出租情况表（和你现有表格风格完全一致）
+        st.markdown("---")
+        st.subheader("📋 出租情况表（营运成本）")
+        st.dataframe(rental_table, use_container_width=True)
+# ===================== 新增结束 ======================
     
     # --- 收入明细 ---
     st.subheader("📋 收入明细")
