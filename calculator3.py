@@ -511,7 +511,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 1. 初始化累计缓存（仅运行一次）
         # 1. 先算全周期合计（仅算1次，放在循环外）
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
-        if year == operate_year_list[0] and total_input_tax_calc == 0:
+        if year == operate_year_list[-1] and total_input_tax_calc == 0:
             # 全周期合计管理费用manage_comm+保险费insurance_fee(各年累加)
             # 全周期合计空置物业服务费total_vacancy(各年累加)
             if 'total_manage_ins' not in locals(): #检查变量是否存在
