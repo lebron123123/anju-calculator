@@ -9,7 +9,7 @@ PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
     "出租型(协议出让/合作类等)": {
         "extra_inputs": [],
-        "ui_components": [],  # 前端专属组件
+        "ui_components": ["rent_basic"],  # 前端专属组件
         "calc_rules": {
             # 出租型规则：自动递增还款
             "repay_plan_mode": "auto",
@@ -139,7 +139,7 @@ with st.expander("2. 收入计算参数", expanded=True):
                 sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
         st.markdown("---")
    # 出售类专属：有/无收入双按钮（点击“无”全隐藏，点击“有”全显示）
-if "sale_and_commercial" in current_config.get("ui_components", []):
+if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_basic" in current_config.get("ui_components", [])):
     st.markdown("### 🎛️ 收入模块控制")
     # 住宅收入：有/无按钮
     col1, col2 = st.columns(2)
@@ -204,7 +204,7 @@ if "sale_and_commercial" in current_config.get("ui_components", []):
     comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
     comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable = {}, 0, 0, 0.9
 
-    if "sale_and_commercial" in current_config.get("ui_components", []):
+    if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_basic" in current_config.get("ui_components", [])):
         st.markdown("---")
         if st.session_state["show_comm"]:
             st.subheader("🏪 商业出租")
