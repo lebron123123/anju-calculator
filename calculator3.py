@@ -451,29 +451,29 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
     return income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price
 
-# ===================== 新增：出租情况表（营运成本）计算函数 ======================
+# ===================== 新增：(出售型)出租情况表（营运成本）计算函数 ======================
+#(备注防忘)年份列表all_years，建设运营期判断is_operate，运营期年份列表operate_year_list，商业面积comm_area，商业起始租金comm_rent_start_price，商业租金递增跨度comm_rent_increase_span，爬坡期每年的商业出租率字典comm_occupancy_ramp_dict
+#商业稳定期起始年comm_stable_start，商业稳定期结束年comm_stable_end，商业稳定期固定出租率comm_occupancy_stable，车位个数park_count，土地成本land_cost，建安工程费construction_cost，基础设施建设费infra_cost，工程建设其他费用other_eng_cost
+#配保房面积peibao_area，出租面积rent_area，用地面积land_use_area，租赁月数lease_months，计容建筑面积plot_ratio_area
 def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area, rent_area, land_use_area, lease_months, plot_ratio_area=1):
     """计算出租营运成本明细表（出租情况表），复用现有参数，最小改动"""
     rental_table = pd.DataFrame(index=all_years)
     # 1. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
-    comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {}
-    remaining_input = 0
+    comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {} #创造空字典储存商业出租率、单价、收入
+    remaining_input = 0 #增值税的2个临时变量
     total_input_tax_calc = 0
     for year in operate_year_list:
         # 商业出租率（爬坡期+稳定期）
-        if year in comm_occupancy_ramp_dict: comm_occupancy[year] = comm_occupancy_ramp_dict[year]
-        elif comm_stable_start <= year <= comm_stable_end: comm_occupancy[year] = comm_occupancy_stable
-        else: comm_occupancy[year] = 0.0
+        if year in comm_occupancy_ramp_dict: comm_occupancy[year] = comm_occupancy_ramp_dict[year] #爬坡期出租率
+        elif comm_stable_start <= year <= comm_stable_end: comm_occupancy[year] = comm_occupancy_stable #稳定期出租率
+        else: comm_occupancy[year] = 0.0 #防错
         # 商业租金单价（递增逻辑）
-        increase_times = list(operate_year_list).index(year) // comm_rent_increase_span
+        increase_times = list(operate_year_list).index(year) // comm_rent_increase_span #递增次数计算
         comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
 
     # ===================== 新增：初始化进项税缓存（处理前一年逻辑） ======================
-    prev_input_tax = 0  # 前一年进项税初始值
     total_input_tax_init = 0  # 建设期首年的"前一年合计进项税"初始值
     total_input_tax_calc = 0  # 全周期进项税合计（初始化）
-    cum_vat = []  # 累计增值税缓存
-    cum_rent = []  # 累计租金缓存
     total_manage_ins = 0
     total_vacancy = 0
     
