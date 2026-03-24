@@ -34,8 +34,8 @@ PROJECT_CONFIG = {
     }
 }
 # 全局初始化项目类型参数（保留，后面代码要用到）
-project_type = list(PROJECT_CONFIG.keys())[0]
-extra_params_global = {}
+project_type = list(PROJECT_CONFIG.keys())[0]  #默认展示第一个
+extra_params_global = {}  #项目类型独有输入框储存地方
 
 # ===================== 页面配置（优化：更适合手机）=====================
 st.set_page_config(page_title="安居房财务测算", page_icon="🏠", layout="centered")
