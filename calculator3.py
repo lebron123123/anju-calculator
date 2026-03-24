@@ -1168,7 +1168,7 @@ if calc_button:
     st.markdown("---")
 
     # ===================== ✅ 出售类：插入出租营运成本表 =====================
-    if project_type == "出售类":
+    if project_type == "出售类(配保房/可售型人才房等)":
 
         rental_cost_table = calc_rental_operation_table(
             all_years=all_years,
@@ -1191,7 +1191,7 @@ if calc_button:
 
         rental_cost_df = pd.DataFrame(rental_cost_table)
 
-    st.subheader("📊 出租营运成本表")
+    st.subheader("📊 出租情况表")
     st.dataframe(rental_cost_df)
     
     # --- 收入明细 ---
