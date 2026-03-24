@@ -157,7 +157,7 @@ if "sale_and_commercial" in current_config.get("ui_components", []):
     if col6.button("无车位收入", key="btn_park_no"): st.session_state["show_park"] = False
     st.markdown("---")
     # 基础参数（一行排版）
-    if st.session_state["show_resi"]:
+    if (project_type != "出售类(配保房/可售型人才房等)") or st.session_state["show_resi"]:
         st.subheader("🏠 住宅出租")
         residential_area = st.number_input("住宅面积（㎡）", value=34330, min_value=0)
         rent_start_price = st.number_input("起始租金单价（元/㎡/月）", value=19.2, min_value=0.0, step=0.1)
@@ -269,7 +269,7 @@ if "sale_and_commercial" in current_config.get("ui_components", []):
     
     # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
     st.markdown("---")
-    if st.session_state["show_park"]:
+    if (project_type != "出售类(配保房/可售型人才房等)") or st.session_state["show_park"]:
         st.subheader("🚗 车位收入")
         col_park1, col_park2, col_park3 = st.columns(3)
         park_count = col_park1.number_input("车位个数", min_value=0, value=500, step=1)
