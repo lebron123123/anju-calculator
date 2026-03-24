@@ -510,11 +510,16 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 1. 先算全周期合计（仅算1次，放在循环外）
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
         if year == operate_year_list[0] and total_input_tax_calc == 0:
-            # 全周期合计管理费用+保险费（基于单年公式反推全周期）
-            total_manage_ins = (manage_comm * len(operate_year_list)) + (insurance_fee * len(operate_year_list))
-            # 全周期合计空置物业服务费
-            total_vacancy = vacancy_service * len(operate_year_list)
-            # 进项税合计（严格按你的公式）
+            # 全周期合计管理费用manage_comm+保险费insurance_fee(各年累加)
+            total_manage_ins = sum([manage_comm_each_year]) + sum([insurance_fee_each_year])
+            # 全周期合计空置物业服务费total_vacancy(各年累加)
+            total_vacancy = sum([vacancy_each_year])
+            if 'total_manage_ins' not in locals(): #检查变量是否存在
+                total_manage_ins = 0
+                total_vacancy = 0
+            total_manage_ins += manage_comm + insurance_fee
+            total_vacancy += vacancy_service
+            # 进项税合计total_input_tax_calc
             total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + ((construction_cost + other_eng_cost) / plot_ratio_area * 900 * (0.09 / 1.09))
             # 初始化剩余进项税（首年的"前一年"就是这个合计）
             remaining_input = total_input_tax_calc
@@ -525,10 +530,10 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         remaining_input = max(input_before - output_tax, 0.0)
         # 4. 增值税附加：∑（截至当年的增值税）×12%
         cum_vat.append(vat)
-        vat_surcharge = sum(cum_vat) * 0.12
+        vat_surcharge = vat * 0.12
         # 5. 印花税：∑（截至当年的租金收入）×0.05%
         cum_rent.append(comm_income)
-        stamp_tax = sum(cum_rent) * 0.0005
+        stamp_tax = comm_income * 0.0005
         # 6. 出租经营税金合计
         total_rental_tax = vat + vat_surcharge + stamp_tax
          # ===================== 计算逻辑结束 ======================
