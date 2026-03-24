@@ -458,7 +458,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
 def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area, rent_area, land_use_area, lease_months, plot_ratio_area=1):
     """计算出租营运成本明细表（出租情况表），复用现有参数，最小改动"""
     rental_table = pd.DataFrame(index=all_years)
-    # 1. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
+    # （1）. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
     comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {} #创造空字典储存商业出租率、单价、收入
     remaining_input = 0 #增值税的2个临时变量
     total_input_tax_calc = 0
@@ -474,10 +474,10 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     # ===================== 新增：初始化进项税缓存（处理前一年逻辑） ======================
     total_input_tax_init = 0  # 建设期首年的"前一年合计进项税"初始值
     total_input_tax_calc = 0  # 全周期进项税合计（初始化）
-    total_manage_ins = 0
-    total_vacancy = 0
+    total_manage_ins = 0      #管理费+保险费累计
+    total_vacancy = 0         #空置费用累计
     
-    # 2. 逐年份计算各项成本/税费
+    # （2）. 逐年份计算各项成本/税费
     for year in all_years:
         if not is_operate[year]:  # 建设期：各项为0
             rental_table.loc[year, ["商业出租率", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
@@ -486,13 +486,13 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
                                    "出租营运成本合计(万元)","增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"]] = 0.0
             # 仅新增这2行（初始化累计缓存）
             if 'cum_vat' not in locals(): cum_vat, cum_rent = [], []
-            cum_vat.append(0.0); cum_rent.append(0.0)
+            cum_vat.append(0.0); cum_rent.append(0.0) #累计列表中加0，保持长度一致
             continue
         
         # 运营期核心参数
-        occ = comm_occupancy[year]
-        cr_price = comm_rent_price[year]
-        comm_income = comm_area * cr_price * occ * lease_months / 10000  # 商业出租收入（万元）
+        occ = comm_occupancy[year] #该年出租率
+        cr_price = comm_rent_price[year] #该年出租单价
+        comm_income = comm_area * cr_price * occ * lease_months / 10000  # 该年商业出租收入（万元）
         
         # 按公式计算各项成本（严格匹配需求，单位统一为万元）
         tax1 = comm_income * (0.12 / 1.09)  # 房产税1
@@ -505,38 +505,36 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         vacancy_service = (rent_area * (1 - occ) * 0.08 * 12 * 0.88) / 10000  # 空置物业服务费
         insurance_fee = (rent_area * 1.86) / 10000  # 保险费用
         land_tax = (land_use_area * 3) / 10000  # 土地使用税
-        total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 合计
+        total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 成本合计
 
-         # ===================== 新增：出租经营税金计算逻辑 ======================
-        # 1. 初始化累计缓存（仅运行一次）
-        # 1. 先算全周期合计（仅算1次，放在循环外）
+        # ===================== 新增：出租经营税金计算逻辑 ======================
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
         if year == operate_year_list[-1] and total_input_tax_calc == 0:
             # 全周期合计管理费用manage_comm+保险费insurance_fee(各年累加)
             # 全周期合计空置物业服务费total_vacancy(各年累加)
-            if 'total_manage_ins' not in locals(): #检查变量是否存在
+            if 'total_manage_ins' not in locals(): #检查变量是否初次存在(local)
                 total_manage_ins = 0
                 total_vacancy = 0
             total_manage_ins += manage_comm + insurance_fee
             total_vacancy += vacancy_service
             # 进项税合计total_input_tax_calc
             total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + ((construction_cost + other_eng_cost) / plot_ratio_area * 900 * (0.09 / 1.09))
-            # 初始化剩余进项税（首年的"前一年"就是这个合计）
+            # 初始化剩余进项税（首年的"前一年"是这个合计）
             remaining_input = total_input_tax_calc
             # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
         output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
         input_before = remaining_input
         vat = max(output_tax - input_before, 0.0)
         remaining_input = max(input_before - output_tax, 0.0)
-        # 4. 增值税附加：∑（截至当年的增值税）×12%
-        cum_vat.append(vat)
+        # 4. 增值税附加：当年的增值税×12%
+        cum_vat.append(vat) #累加函数
         vat_surcharge = vat * 0.12
-        # 5. 印花税：∑（截至当年的租金收入）×0.05%
+        # 5. 印花税：当年的租金收入×0.05%
         cum_rent.append(comm_income)
         stamp_tax = comm_income * 0.0005
         # 6. 出租经营税金合计
         total_rental_tax = vat + vat_surcharge + stamp_tax
-         # ===================== 计算逻辑结束 ======================
+        # ===================== 计算逻辑结束 ======================
         
         
         # 填入表格（保留4位小数，和原有风格一致）
@@ -1229,7 +1227,6 @@ if calc_button:
     st.markdown("---")
 
     # ===================== ✅ 出售类：插入出租营运成本表 =====================
-    # ===================== ✅ 修复版：出租营运成本表 =====================
     # 仅出售类项目显示该表，非出售类完全不执行，避免报错
     if project_type == "出售类(配保房/可售型人才房等)":
         # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
@@ -1257,7 +1254,7 @@ if calc_button:
             plot_ratio_area=plot_ratio_area
         )
         rental_cost_df_T = rental_cost_df.T
-        # 2. 定义需要求和的行（比率类不合计，数值类全合计）
+        # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
         rental_sum_rows = [
             "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
             "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
@@ -1265,14 +1262,14 @@ if calc_button:
             "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)",
             "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"
         ]
-        # 3. 新增全周期合计列
+        # （3）. 新增全周期合计列
         rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
             lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
         )
-        # 4. 调整列顺序：合计列放最前面，和其他表格格式完全统一
+        #（4）. 调整列顺序：合计列放最前面，和其他表格格式完全统一
         rental_cost_df_T = rental_cost_df_T[ ["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"] ]
     
-        # 5. 展示转置后的表格
+        # （5）. 展示转置后的表格
         # 表格展示放在if块内，仅出售类执行，非出售类不运行，彻底避免变量未定义
         st.subheader("📊 出租情况表")
         st.dataframe(rental_cost_df_T, use_container_width=True)
