@@ -836,6 +836,9 @@ if calc_button:
     # 1. 基础年份数据生成
     all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
     operate_start_year = operate_years[0]  # 运营期起始年，用于还款判断
+    # ========== 【新增1行，仅此改动】定义operate_year_list，修复未定义报错 ==========
+    operate_year_list = [y for y in all_years if is_operate[y]]
+
     
     # 2. 收入测算（原有逻辑完全不变）
     income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = calc_income(
