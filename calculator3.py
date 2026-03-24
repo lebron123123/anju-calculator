@@ -501,24 +501,34 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 合计
 
          # ===================== 新增：出租经营税金计算逻辑 ======================
-        # ===================== 修复：出租经营税金计算逻辑 ======================
         # 1. 初始化累计缓存（仅运行一次）
-        if 'cum_vat' not in locals(): cum_vat, cum_rent = [], []
-        # 2. 进项税（用入参的plot_ratio_area）
-        input_tax1 = (manage_comm + insurance_fee) * (0.06 / 1.06)
-        input_tax2 = vacancy_service * (0.09 / 1.09)
-        input_tax3 = (construction_cost + other_eng_cost) / plot_ratio_area * 900 * 0.09 / 1.09
-        total_input_tax = input_tax1 + input_tax2 + input_tax3
-        # 3. 销项税
+        # 1. 先算全周期合计（仅算1次，放在循环外）
+        if 'total_input_tax_calc' not in locals():
+            # 全周期合计管理费用+保险费
+            total_manage_ins = (rental_table["运营管理费用（商业）(万元)"].sum() + rental_table["保险费用(万元)"].sum())
+            # 全周期合计空置物业服务费
+            total_vacancy = rental_table["空置物业服务费(万元)"].sum()
+            # 进项税合计（严格按你的公式）
+            total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + ((construction_cost + other_eng_cost) / plot_ratio_area * 900 * (0.09 / 1.09))
+            # 初始化剩余进项税（首年的"前一年"就是这个合计）
+            remaining_input = total_input_tax_calc
+            # 初始化累计缓存
+            cum_vat = []
+            cum_rent = []
+        # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
         output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
-        # 4. 增值税（修复首年顺序）
-        if year == operate_year_list[0]: total_input_tax_init = total_input_tax
-        vat = max((total_input_tax_init if year == operate_year_list[0] else prev_input_tax) - output_tax, 0)
-        # 5. 增值税附加（累计）
-        cum_vat.append(vat); vat_surcharge = sum(cum_vat) * 0.12
-        # 6. 印花税（累计）
-        cum_rent.append(comm_income); stamp_tax = sum(cum_rent) * 0.0005
-        # 7. 出租经营税金合计
+        # 3. 增值税(一般计税)：前一年剩余进项税 - 本年销项税，>0则输出差值，否则0
+        vat = max(remaining_input - output_tax, 0.0)
+        # 更新剩余进项税（供下一年使用）
+        remaining_input = vat
+        # 4. 增值税附加：∑（截至当年的增值税）×12%
+        cum_vat.append(vat)
+        vat_surcharge = sum(cum_vat) * 0.12
+         # 5. 印花税：∑（截至当年的租金收入）×0.05%
+        cum_rent.append(comm_income)
+        stamp_tax = sum(cum_rent) * 0.0005
+
+        # 6. 出租经营税金合计
         total_rental_tax = vat + vat_surcharge + stamp_tax
         # 8. 更新前一年进项税缓存（供下一年使用）
         prev_input_tax = total_input_tax
