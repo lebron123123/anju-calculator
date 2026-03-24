@@ -1166,9 +1166,36 @@ if calc_button:
     with col7: st.metric("全投资内部收益率(IRR)", irr_value)
     
     st.markdown("---")
+
+    # ===================== ✅ 出售类：插入出租营运成本表 =====================
+    if project_type == "出售类":
+
+        rental_cost_table = calc_rental_operation_table(
+            all_years=all_years,
+            is_operate=is_operate,
+            operate_year_list=operate_year_list,
+
+             # 👇 这里把你函数需要的参数传进去（按你已有变量填）
+            comm_rent_income_dict=comm_rent_income_dict,
+            comm_area=comm_area,
+            parking_count=parking_count,
+            sale_area=sale_area,
+            land_cost=land_cost,
+            build_cost=build_cost,
+            infra_cost=infra_cost,
+            other_cost=other_cost,
+            occupancy_ramp_dict=occupancy_ramp_dict,
+            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
+            plot_area=plot_area
+        )
+
+        rental_cost_df = pd.DataFrame(rental_cost_table)
+
+    st.subheader("📊 出租营运成本表")
+    st.dataframe(rental_cost_df)
     
     # --- 收入明细 ---
-    st.subheader("📋 收入明细")
+    st.subheader("📋 收入明细表")
     st.dataframe(income_df_T, use_container_width=True)
     
     st.markdown("---")
