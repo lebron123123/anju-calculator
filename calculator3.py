@@ -459,6 +459,12 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         increase_times = list(operate_year_list).index(year) // comm_rent_increase_span
         comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
 
+    # ===================== 新增：初始化进项税缓存（处理前一年逻辑） ======================
+    prev_input_tax = 0  # 前一年进项税初始值
+    total_input_tax_init = 0  # 建设期首年的"前一年合计进项税"初始值
+    # 补充：计容建筑面积原参数无，赋默认值避免报错（需根据实际业务替换为真实值）
+    plot_ratio_area = 0  # 若有该参数，可新增到函数入参并赋值
+    
     # 2. 逐年份计算各项成本/税费
     for year in all_years:
         if not is_operate[year]:  # 建设期：各项为0
@@ -485,6 +491,36 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         insurance_fee = (rent_area * 1.86) / 10000  # 保险费用
         land_tax = (land_use_area * 3) / 10000  # 土地使用税
         total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 合计
+
+         # ===================== 新增：出租经营税金计算逻辑 ======================
+        # 1. 进项税计算（分三部分）
+        # （1）管理费用+保险费 部分
+        input_tax1 = (manage_comm + insurance_fee) * (0.06 / 1.06)
+        # （2）空置物业服务费 部分
+        input_tax2 = vacancy_service * (0.09 / 1.09)
+        # （3）建安+工程其他费 部分（防除0）
+        input_tax3 = (construction_cost + other_eng_cost) / plot_ratio_area * 900 * 0.09 / 1.09 if plot_ratio_area != 0 else 0
+        # 进项税合计
+        total_input_tax = input_tax1 + input_tax2 + input_tax3
+        # 2. 销项税计算（租金收入×9%/(1+9%)）
+        output_tax = comm_income * (0.09 / 1.09)
+        # 3. 增值税(一般计税)：进项-销项>0则取差值，否则0；处理建设期首年逻辑
+        if year == operate_year_list[0]:  # 运营期首年，前一年为"合计进项税"
+            vat = max(total_input_tax_init - output_tax, 0)
+        else:  # 非首年，前一年进项税-本年销项税
+            vat = max(prev_input_tax - output_tax, 0)
+        # 4. 增值税附加（增值税×12%）
+        vat_surcharge = vat * 0.12
+        # 5. 印花税（租金收入×0.05%）
+        stamp_tax = comm_income * 0.0005
+        # 6. 出租经营税金合计
+        total_rental_tax = vat + vat_surcharge + stamp_tax
+        
+        # 更新前一年进项税缓存（供下一年使用）
+        prev_input_tax = total_input_tax
+        # 建设期首年合计进项税（仅初始化一次）
+        if year == operate_year_list[0] and total_input_tax_init == 0:
+            total_input_tax_init = total_input_tax
         
         # 填入表格（保留4位小数，和原有风格一致）
         rental_table.loc[year, "商业出租率"] = round(occ, 4)
@@ -499,7 +535,12 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         rental_table.loc[year, "保险费用(万元)"] = round(insurance_fee, 4)
         rental_table.loc[year, "土地使用税(万元)"] = round(land_tax, 4)
         rental_table.loc[year, "出租营运成本合计(万元)"] = round(total_cost, 4)
-    
+        # ===================== 新增：填入税金列 ======================
+        rental_table.loc[year, "增值税(一般计税)(万元)"] = round(vat, 4)
+        rental_table.loc[year, "增值税附加(万元)"] = round(vat_surcharge, 4)
+        rental_table.loc[year, "印花税(万元)"] = round(stamp_tax, 4)
+        rental_table.loc[year, "出租经营税金合计(万元)"] = round(total_rental_tax, 4)
+        
     return rental_table
   
 # ===================== 经营成本测算函数（原calc_cost，适配新命名）=====================
