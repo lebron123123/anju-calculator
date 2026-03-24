@@ -9,9 +9,13 @@ PROJECT_CONFIG{{}}
 （三）项目的计算规则是什么（calc_rules）  
 （四）这种项目的结果页额外显示指标（show_metrics）    
 
-二、页面显示
-streamlit库
-（一）st.set_page_config()网页标题  
+二、streamlit库应用
+
+（一）页面显示
+      st.set_page_config()网页标题  
       st.title()页面大标题
       st.subheader（）创建栏目标题
       st.selectbox（）创建下拉菜单
+（二）其他功能
+      st.session_state()功能盒子
+      
