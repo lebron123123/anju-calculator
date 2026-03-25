@@ -884,6 +884,7 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df):
 # ===================== 结果展示区 =====================
 if calc_button:
     # 前置校验，避免参数缺失报错
+    show_resi = st.session_state.get("show_resi", True)
     if not operate_years: st.error("❌ 请先在「1. 项目基本信息」中设置运营期年份！"); st.stop()
     if  show_resi and not occupancy_ramp_dict: st.error("❌ 请先设置住宅爬坡期年份及对应出租率！"); st.stop()
     if stable_start > stable_end: st.error("❌ 住宅稳定期起始年不能晚于结束年！"); st.stop()
