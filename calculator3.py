@@ -501,7 +501,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         manage_park = park_count * 80 * 12 / 10000  # 运营管理费（停车场）
         property_fund = (comm_area * lease_months * 0.25) / 10000  # 物业专项维修金
         repair_fee = comm_income * 0.02  # 维修费用
-        vacancy_service = (comm_area * (1 - occ) * 0.08 * 12 * 0.88) / 10000  # 空置物业服务费
+        vacancy_service = (comm_area * (1 - occ) * 8 * 12 * 0.88) / 10000  # 空置物业服务费
         insurance_fee = (comm_area * 1.86) / 10000  # 保险费用
         land_tax = (land_use_area * comm_area/(sale_area+comm_area) * 3) / 10000  # 土地使用税
         total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 成本合计
