@@ -442,8 +442,8 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
 # ===================== 新增：(出售型)出租情况表（营运成本）计算函数 ======================
 #(备注防忘)年份列表all_years，建设运营期判断is_operate，运营期年份列表operate_year_list，商业面积comm_area，商业起始租金comm_rent_start_price，商业租金递增跨度comm_rent_increase_span，爬坡期每年的商业出租率字典comm_occupancy_ramp_dict
 #商业稳定期起始年comm_stable_start，商业稳定期结束年comm_stable_end，商业稳定期固定出租率comm_occupancy_stable，车位个数park_count，土地成本land_cost，建安工程费construction_cost，基础设施建设费infra_cost，工程建设其他费用other_eng_cost
-#配保房面积peibao_area，用地面积land_use_area，租赁月数lease_months，计容建筑面积plot_ratio_area
-def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area, land_use_area, lease_months, plot_ratio_area=1):
+，用地面积land_use_area，租赁月数lease_months，计容建筑面积plot_ratio_area
+def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost,land_use_area, lease_months, plot_ratio_area=1):
     """计算出租营运成本明细表（出租情况表），复用现有参数，最小改动"""
     rental_table = pd.DataFrame(index=all_years)
     # （1）. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
@@ -484,7 +484,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         
         # 按公式计算各项成本（严格匹配需求，单位统一为万元）
         tax1 = comm_income * (0.12 / 1.09)  # 房产税1
-        tax2_base = land_cost + construction_cost + infra_cost + other_eng_cost + construction_cost * 0.02 * (1 - peibao_area/(peibao_area+comm_area) if (peibao_area+comm_area)!=0 else 0)
+        tax2_base = land_cost + construction_cost + infra_cost + other_eng_cost + construction_cost * 0.02 * (1 - sale_area/(sale_area+comm_area) if (sale_area+comm_area)!=0 else 0)
         tax2 = tax2_base * 0.7 * 0.012 * (1 - occ)  # 房产税2（防除0）
         manage_comm = comm_income * 0.08  # 运营管理费（商业）
         manage_park = park_count * 80 * 12 / 10000  # 运营管理费（停车场）
@@ -615,19 +615,19 @@ def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occup
     return operating_cost_df
 
 # ===================== 新增：出租营运成本测算函数 ======================
-def calc_rental_operating_cost(all_years, is_operate, operate_year_list, comm_rent_income_dict, land_cost, construction_cost, infra_cost, other_eng_cost, peibao_area, comm_area, comm_occupancy_dict, park_count, lease_months, rent_area, land_use_area):
+def calc_rental_operating_cost(all_years, is_operate, operate_year_list, comm_rent_income_dict, land_cost, construction_cost, infra_cost, other_eng_cost, comm_area, comm_occupancy_dict, park_count, lease_months, rent_area, land_use_area):
     """
     计算出租营运成本明细（按年）
     公式：出租营运成本=房产税1+房产税2+运营管理费用（商业）+运营管理费用（停车场）+物业专项维修金+维修费用+空置物业服务费+保险费用+土地使用税
     """
     rental_cost_df = pd.DataFrame(index=all_years)
     # 预计算房产税2固定基数（避免重复计算）
-    if (peibao_area + comm_area) == 0:  # 防分母为0
+    if (sale_area + comm_area) == 0:  # 防分母为0
         tax2_base = 0.0
     else:
         tax2_base = (
             land_cost + construction_cost + infra_cost + other_eng_cost + 
-            construction_cost * 0.02 * (1 - peibao_area / (peibao_area + comm_area))
+            construction_cost * 0.02 * (1 - sale_area / (sale_area + comm_area))
         )
     tax2_rate = 0.7 * 0.012  # 70% × 1.2%
 
@@ -1245,7 +1245,6 @@ if calc_button:
             construction_cost=construction_cost,
             infra_cost=infra_cost,
             other_eng_cost=other_eng_cost,
-            peibao_area=peibao_area,
             lease_months=lease_months if 'lease_months' in locals() else 12,
             land_use_area=land_use_area,
             plot_ratio_area=plot_ratio_area
