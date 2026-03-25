@@ -354,7 +354,7 @@ with st.expander("3. 总成本费用参数", expanded=True):
     if "custom_repay_plan" in current_config.get("ui_components", []):
         st.markdown("#### 银行还款计划")
         repay_available_years = operate_years
-        repay_years = st.multiselect("请选择有还款的年份", options=repay_available_years, default=operate_years[:3] if len(operate_years)>=loan_total_years else operate_years)
+        repay_years = st.multiselect("请选择有还款的年份", options=repay_available_years, default=operate_years[:3] if len(operate_years)>=loan_total_years else operate_years) #默认3年,免得太大了我靠
         if repay_years:
             col_repay_year = st.columns(len(repay_years))
             for idx, year in enumerate(repay_years):
