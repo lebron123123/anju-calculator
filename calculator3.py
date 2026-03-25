@@ -456,7 +456,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         if year in comm_occupancy_ramp_dict: comm_occupancy[year] = comm_occupancy_ramp_dict[year] #爬坡期出租率
         elif comm_stable_start <= year <= comm_stable_end: comm_occupancy[year] = comm_occupancy_stable #稳定期出租率
         else: comm_occupancy[year] = 0.0 #防错
-        # 商业租金单价（递增逻辑）
+        # 商业租金单价（递增逻辑）设置一个让人填稳定的年份判断(总不能一直涨把是不)
         stable_index = operate_year_list.index(comm_rent_stable_start)
 
         for year in operate_year_list:
