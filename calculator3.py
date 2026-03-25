@@ -265,7 +265,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
         #第4行：1个参数
         col7, col8 = st.columns(2)
         # 核心：定义plot_ratio_area变量，默认值1（防除0），和原有输入框风格一致
-        plot_ratio_area = col9.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
+        plot_ratio_area = col7.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
         # col10留空，保持和其他行一样的2列排版
         col10.write("")
     
