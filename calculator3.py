@@ -359,7 +359,6 @@ if project_type != "出售类(配保房/可售型人才房等)":
 else:
     # 给默认值，防止后面计算报错
     land_area = 0
-    construction_cost = 0.0
 
 # 5. 全投资现金流量表参数
 with st.expander("5. 全投资现金流量表参数", expanded=True):
@@ -498,7 +497,6 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         tax1 = comm_income * (0.12 / 1.09)  # 房产税1
         tax2_base = land_cost + construction_cost + infra_cost + other_eng_cost + construction_cost * 0.02 * comm_area/(sale_area+comm_area) if (sale_area+comm_area)!=0 else 0
         tax2 = tax2_base * 0.7 * 0.012 * (1 - occ)  # 房产税2（防除0）
-        st.write("DEBUG:", land_cost, construction_cost, infra_cost, other_eng_cost, sale_area, comm_area)
         manage_comm = comm_income * 0.08  # 运营管理费（商业）
         manage_park = park_count * 80 * 12 / 10000  # 运营管理费（停车场）
         property_fund = (comm_area * occ * lease_months * 0.25) / 10000  # 物业专项维修金
