@@ -78,9 +78,9 @@ st.markdown("---")
 st.header("📝 请输入项目数据")
 
 # 定义年份范围（方便后续调整，可选但推荐）
-START_YEAR = 2025
+START_YEAR = 2000
 END_YEAR = 2200
-year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2025~2200的年份列表
+year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2000~2200的年份列表
 
 
 # 1. 项目基本信息（完整正确版，确保build_years、operate_years全局可访问）
