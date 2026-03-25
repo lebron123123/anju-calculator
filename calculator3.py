@@ -457,7 +457,6 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {} #创造空字典储存商业出租率、单价、收入
     remaining_input = 0 #增值税的2个临时变量
     total_input_tax_calc = 0
-    lease_months = 12
     for year in operate_year_list:
         # 商业出租率（爬坡期+稳定期）
         if year in comm_occupancy_ramp_dict: comm_occupancy[year] = comm_occupancy_ramp_dict[year] #爬坡期出租率
@@ -1254,7 +1253,7 @@ if calc_button:
             infra_cost=infra_cost,
             other_eng_cost=other_eng_cost,
             peibao_area=peibao_area,
-            lease_months=lease_months,
+            lease_months=lease_months if 'lease_months' in locals() else 12,
             land_use_area=land_use_area,
             plot_ratio_area=plot_ratio_area
         )
