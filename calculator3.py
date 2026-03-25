@@ -1253,7 +1253,6 @@ if calc_button:
             infra_cost=infra_cost,
             other_eng_cost=other_eng_cost,
             peibao_area=peibao_area,
-            rent_area=rent_area,
             land_use_area=land_use_area,
             lease_months=lease_months,
             plot_ratio_area=plot_ratio_area
