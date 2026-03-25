@@ -216,7 +216,8 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
             col_comm_rent1, col_comm_rent2 = st.columns(2)
             comm_rent_increase_span = col_comm_rent1.number_input("商业租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
             comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
-        
+            comm_rent_stable_start = st.number_input("商业租金稳定起始年", min_value=operate_years[0], max_value=operate_years[-1],value=operate_years[0], step=1, help="从该年开始租金不再递增，保持稳定")
+            
             # 商业出租率设置（和住宅完全一致，仅改名称）
             if 'operate_years' in locals() and operate_years:
                 # 商业爬坡期设置
@@ -456,8 +457,14 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         elif comm_stable_start <= year <= comm_stable_end: comm_occupancy[year] = comm_occupancy_stable #稳定期出租率
         else: comm_occupancy[year] = 0.0 #防错
         # 商业租金单价（递增逻辑）
-        increase_times = list(operate_year_list).index(year) // comm_rent_increase_span #递增次数计算
-        comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
+        stable_index = operate_year_list.index(comm_rent_stable_start)
+
+        for year in operate_year_list:
+            year_index = operate_year_list.index(year)
+            effective_index = min(year_index, stable_index)
+            increase_times = effective_index // comm_rent_increase_span
+
+            comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
 
     # ===================== 新增：初始化进项税缓存（处理前一年逻辑） ======================
     total_input_tax_init = 0  # 建设期首年的"前一年合计进项税"初始值
