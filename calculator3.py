@@ -261,14 +261,9 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
         peibao_area = col5.number_input("配保房面积（㎡）", min_value=0, value=0, step=100)
         land_use_area = col6.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
         st.markdown("")  # 换行
-    
-        # 第4行：2个参数
-        col7, col8 = st.columns(2)
-        lease_months = col7.number_input("租赁月数", min_value=0, value=12, step=1)
-        rent_area = col8.number_input("出租面积（㎡）", min_value=0, value=0, step=100) 
 
-        #第5行：1个参数
-        col9, col10 = st.columns(2)
+        #第4行：1个参数
+        col7, col8 = st.columns(2)
         # 核心：定义plot_ratio_area变量，默认值1（防除0），和原有输入框风格一致
         plot_ratio_area = col9.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
         # col10留空，保持和其他行一样的2列排版
