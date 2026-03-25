@@ -891,6 +891,15 @@ if calc_button:
     # ========== 【新增1行，仅此改动】定义operate_year_list，修复未定义报错 ==========
     operate_year_list = [y for y in all_years if is_operate[y]]
 
+    show_park = st.session_state.get("show_park", True)
+    if not show_park: #防止不选车位后报错
+        park_count = 0
+        park_rent_start_price = 0
+        park_income_ratio = 0
+        park_occupancy_ramp_dict = {}
+        park_stable_start = 0
+        park_stable_end = 0
+        park_occupancy_stable = 0
     
     # 2. 收入测算（原有逻辑完全不变）
     income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = calc_income(
