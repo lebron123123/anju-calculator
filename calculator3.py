@@ -496,7 +496,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         
         # 按公式计算各项成本（严格匹配需求，单位统一为万元）
         tax1 = comm_income * (0.12 / 1.09)  # 房产税1
-        tax2_base = land_cost + construction_cost + infra_cost + other_eng_cost + construction_cost * 0.02 * comm_area/(sale_area+comm_area) if (sale_area+comm_area)!=0 else 0)
+        tax2_base = land_cost + construction_cost + infra_cost + other_eng_cost + construction_cost * 0.02 * comm_area/(sale_area+comm_area) if (sale_area+comm_area)!=0 else 0
         tax2 = tax2_base * 0.7 * 0.012 * (1 - occ)  # 房产税2（防除0）
         manage_comm = comm_income * 0.08  # 运营管理费（商业）
         manage_park = park_count * 80 * 12 / 10000  # 运营管理费（停车场）
