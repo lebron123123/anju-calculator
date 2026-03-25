@@ -349,12 +349,17 @@ with st.expander("3. 总成本费用参数", expanded=True):
             for idx, year in enumerate(repay_years):
                 repay_plan_dict[year] = col_repay_year[idx].number_input(f"{year}年还款本金（万元）", min_value=0.0, value=0.0, step=100.0)
 
-# 4. 税金及其附加参数
-with st.expander("4. 税金及其附加参数", expanded=True):
-    st.subheader("📝 税金核心参数")
-    col_tax1, col_tax2 = st.columns(2)
-    land_area = col_tax1.number_input("用地面积（㎡）", min_value=0, value=10000, step=100)
-    construction_cost = col_tax2.number_input("建安工程费（万元）", min_value=0.0, value=30000.0, step=1000.0)
+# 4. 税金及其附加参数（出售类不显示）
+if project_type != "出售类(配保房/可售型人才房等)":
+    with st.expander("4. 税金及其附加参数", expanded=True):
+        st.subheader("📝 税金核心参数")
+        col_tax1, col_tax2 = st.columns(2)
+        land_area = col_tax1.number_input("用地面积（㎡）", min_value=0, value=10000, step=100)
+        construction_cost = col_tax2.number_input("建安工程费（万元）", min_value=0.0, value=30000.0, step=1000.0)
+else:
+    # 给默认值，防止后面计算报错
+    land_area = 0
+    construction_cost = 0.0
 
 # 5. 全投资现金流量表参数
 with st.expander("5. 全投资现金流量表参数", expanded=True):
