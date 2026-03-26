@@ -477,6 +477,18 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     total_input_tax_calc = 0  # 全周期进项税合计（初始化）
     total_manage_ins = 0      #管理费+保险费累计
     total_vacancy = 0         #空置费用累计
+
+    # ===================== 【仅新增】预循环算全周期累计（不填表，不影响其他） ======================
+    total_manage_ins, total_vacancy = 0, 0
+    for year in operate_year_list:
+        occ = comm_occupancy[year] if year in comm_occupancy else 0.0
+        cr_price = comm_rent_price[year] if year in comm_rent_price else 0.0
+        comm_income = comm_area * cr_price * occ * lease_months / 10000
+        total_manage_ins += comm_income * 0.08 + (comm_area * 1.86) / 10000
+        total_vacancy += (comm_area * (1 - occ) * 8 * 12 ) / 10000
+    total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + ((construction_cost + other_eng_cost) / plot_ratio_area * 900 * (0.09 / 1.09))
+    remaining_input = total_input_tax_calc
+    # ===================== 预循环结束，下面原代码完全不动 ======================
     
     # （2）. 逐年份计算各项成本/税费
     for year in all_years:
@@ -511,19 +523,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
 
         # ===================== 新增：出租经营税金计算逻辑 ======================
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
-        if year == operate_year_list[-1] and total_input_tax_calc == 0:
-            # 全周期合计管理费用manage_comm+保险费insurance_fee(各年累加)
-            # 全周期合计空置物业服务费total_vacancy(各年累加)
-            if 'total_manage_ins' not in locals(): #检查变量是否初次存在(local)
-                total_manage_ins = 0
-                total_vacancy = 0
-            total_manage_ins += manage_comm + insurance_fee
-            total_vacancy += vacancy_service
-            # 进项税合计total_input_tax_calc
-            total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + ((construction_cost + other_eng_cost) / plot_ratio_area * 900 * (0.09 / 1.09))
-            # 初始化剩余进项税（首年的"前一年"是这个合计）
-            remaining_input = total_input_tax_calc
-            # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
+        # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
         output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
         input_before = remaining_input
         vat = max(output_tax - input_before, 0.0)
