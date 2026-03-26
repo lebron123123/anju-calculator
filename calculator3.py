@@ -527,6 +527,8 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
         input_before = remaining_input
         vat = max(output_tax - input_before, 0.0)
+        rental_table.loc[year, "销项税(万元)"] = round(output_tax, 4)
+        rental_table.loc[year, "进项税(万元)"] = round(input_before, 4)
         remaining_input = max(input_before - output_tax, 0.0)
         # 4. 增值税附加：当年的增值税×12%
         cum_vat.append(vat) #累加函数
@@ -553,8 +555,6 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         rental_table.loc[year, "土地使用税(万元)"] = round(land_tax, 4)
         rental_table.loc[year, "出租营运成本合计(万元)"] = round(total_cost, 4)
         # ===================== 新增：填入税金列 ======================
-        rental_table.loc[year, "销项税(万元)"] = round(output_tax, 4)
-        rental_table.loc[year, "进项税(万元)"] = round(input_before, 4)
         rental_table.loc[year, "增值税(一般计税)(万元)"] = round(vat, 4)
         rental_table.loc[year, "增值税附加(万元)"] = round(vat_surcharge, 4)
         rental_table.loc[year, "印花税(万元)"] = round(stamp_tax, 4)
