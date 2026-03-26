@@ -500,7 +500,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
             rental_table.loc[year, ["商业出租率", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
                                    "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", "物业专项维修金(万元)", 
                                    "维修费用(万元)", "空置物业服务费(万元)", "保险费用(万元)", "土地使用税(万元)", 
-                                   "出租营运成本合计(万元)","销项税(万元)","增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"]] = 0.0
+                                   "出租营运成本合计(万元)","销项税(万元)","进项税","增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"]] = 0.0
             # 仅新增这2行（初始化累计缓存）
             if 'cum_vat' not in locals(): cum_vat, cum_rent = [], []
             cum_vat.append(0.0); cum_rent.append(0.0) #累计列表中加0，保持长度一致
@@ -1216,6 +1216,15 @@ if calc_button:
             lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
         )
 
+        # 1. 直接从表格里取已有的各年数据，算累计
+        total_manage = rental_cost_df.loc[:, "运营管理费用（商业）(万元)"].sum()
+        total_insurance = rental_cost_df.loc[:, "保险费用(万元)"].sum()
+        total_vacancy = rental_cost_df.loc[:, "空置物业服务费(万元)"].sum()
+        # 2. 严格按你的公式算合计
+        input_tax_total = (total_manage + total_insurance) * (0.06 / 1.06) + total_vacancy * (0.09 / 1.09) + project_input_tax
+        # 3. 直接填到合计列
+        rental_cost_df_T.loc["进项税(万元)", "全周期合计(万元)"] = round(input_tax_total, 4)
+        
         #（4）. 调整列顺序：合计列放最前面，和其他表格格式完全统一
         rental_cost_df_T = rental_cost_df_T[ ["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"] ]
     
