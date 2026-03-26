@@ -490,6 +490,21 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 运营期核心参数
         occ = comm_occupancy[year] #该年出租率
         cr_price = comm_rent_price[year] #该年出租单价
+        # 🚨 新增：出租率为0 → 本年不发生经营（为了匹配乌坭浪那项目,刚运营1年就涨价了晕）
+        if occ == 0:
+            rental_table.loc[year, [
+                "商业出租率", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
+                "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", "物业专项维修金(万元)", 
+                "维修费用(万元)", "空置物业服务费(万元)", "保险费用(万元)", "土地使用税(万元)", 
+                "出租营运成本合计(万元)", "增值税(一般计税)(万元)", "增值税附加(万元)", 
+                "印花税(万元)", "出租经营税金合计(万元)"
+        ]] = 0.0
+
+        # 累计数组也要补0（非常关键，不然后面会错位）
+        cum_vat.append(0.0)
+        cum_rent.append(0.0)
+
+    continue  # 🔥 直接跳过后面所有计算
         comm_income = comm_area * cr_price * occ * lease_months / 10000  # 该年商业出租收入（万元）
         
         # 按公式计算各项成本（严格匹配需求，单位统一为万元）
