@@ -261,6 +261,10 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
         plot_ratio_area = col5.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
         land_use_area = col6.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
         st.markdown("")  # 换行
+
+        # 第4行：新增工程进项税（单独一行）
+        project_input_tax = st.number_input("工程进项税（万元）", min_value=0.0, value=0.0, step=0.01, help="直接填入工程类合计进项税，用于增值税迭代计算")
+        st.markdown("")  # 换行
     
     # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
     st.markdown("---")
@@ -447,7 +451,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
 #(备注防忘)年份列表all_years，建设运营期判断is_operate，运营期年份列表operate_year_list，商业面积comm_area，商业起始租金comm_rent_start_price，商业租金递增跨度comm_rent_increase_span，爬坡期每年的商业出租率字典comm_occupancy_ramp_dict
 #商业稳定期起始年comm_stable_start，商业稳定期结束年comm_stable_end，商业稳定期固定出租率comm_occupancy_stable，车位个数park_count，土地成本land_cost，建安工程费construction_cost，基础设施建设费infra_cost，工程建设其他费用other_eng_cost
 #用地面积land_use_area，租赁月数lease_months，计容建筑面积plot_ratio_area
-def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost,land_use_area, lease_months, plot_ratio_area=1):
+def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost,land_use_area, lease_months, plot_ratio_area=1,project_input_tax=0.0):
     """计算出租营运成本明细表（出租情况表），复用现有参数，最小改动"""
     rental_table = pd.DataFrame(index=all_years)
     # （1）. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
@@ -486,7 +490,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         comm_income = comm_area * cr_price * occ * lease_months / 10000
         total_manage_ins += comm_income * 0.08 + (comm_area * 1.86) / 10000
         total_vacancy += (comm_area * (1 - occ) * 8 * 12 ) / 10000
-    total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + ((construction_cost + other_eng_cost) / plot_ratio_area * 900 * (0.09 / 1.09))
+    total_input_tax_calc = (total_manage_ins * (0.06 / 1.06)) + (total_vacancy * (0.09 / 1.09)) + project_input_tax
     remaining_input = total_input_tax_calc
     # ===================== 预循环结束，下面原代码完全不动 ======================
     
@@ -1195,7 +1199,8 @@ if calc_button:
             other_eng_cost=other_eng_cost,
             lease_months=lease_months if 'lease_months' in locals() else 12,
             land_use_area=land_use_area,
-            plot_ratio_area=plot_ratio_area
+            plot_ratio_area=plot_ratio_area,
+            project_input_tax=project_input_tax
         )
         rental_cost_df_T = rental_cost_df.T
         # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
