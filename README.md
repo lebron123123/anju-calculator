@@ -2,7 +2,7 @@
 这是一个用来进行安居房财务测算的仓库
 
 一、“配置表”用于对不同计算规则的项目类型进行调用  
-PROJECT_CONFIG{{}} 
+PROJECT_CONFIG{{}}   
 （一）项目专属的输入框（extra_inputs）  
 （二）项目在界面上多的显示特殊区域（ui_components）    
        1.if "" in current_config.get("ui_components", []): #这个来判断是否调用  
@@ -22,4 +22,11 @@ PROJECT_CONFIG{{}}
 三、测算逻辑
 （一）pandas库
       pd.DataFrame()生成表格
+
+（二）储值基础
+      1.创造空字典：comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {}
+      2.赋值:remaining_input = 0
+（三）累加基础
+      1.函数.append()
+      
       
