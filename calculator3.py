@@ -216,7 +216,6 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
             col_comm_rent1, col_comm_rent2 = st.columns(2)
             comm_rent_increase_span = col_comm_rent1.number_input("商业租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
             comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
-            comm_rent_stable_start = st.number_input("商业租金稳定起始年", min_value=operate_years[0], max_value=operate_years[-1],value=operate_years[0], step=1, help="从该年开始租金不再递增，保持稳定")
             
             # 商业出租率设置（和住宅完全一致，仅改名称）
             if 'operate_years' in locals() and operate_years:
@@ -234,7 +233,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
                 comm_stable_start = col_comm_stable1.number_input("商业稳定期起始年", min_value=operate_years[0], max_value=operate_years[-1], value=comm_default_stable_start, step=1)
                 comm_stable_end = col_comm_stable2.number_input("商业稳定期结束年", min_value=comm_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
                 comm_occupancy_stable = col_comm_stable3.number_input("商业稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
-        
+            comm_rent_stable_start = st.number_input("商业租金稳定年", min_value=operate_years[0], max_value=operate_years[-1],value=operate_years[0], step=1, help="从该年开始租金不再递增，保持稳定")
         else:
         # 隐藏时赋默认值（仅5行）
             comm_area, comm_rent_start_price = 0, 0.0
