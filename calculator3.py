@@ -505,22 +505,20 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
             cum_vat.append(0.0)
             cum_rent.append(0.0)
         else:  # 🔥 直接跳过后面所有计算
-            pass
-  
-        comm_income = comm_area * cr_price * occ * lease_months / 10000  # 该年商业出租收入（万元）
+            comm_income = comm_area * cr_price * occ * lease_months / 10000  # 该年商业出租收入（万元）
         
-        # 按公式计算各项成本（严格匹配需求，单位统一为万元）
-        tax1 = comm_income * (0.12 / 1.09)  # 房产税1
-        tax2_base = land_cost + construction_cost + infra_cost + other_eng_cost + construction_cost * 0.02 * comm_area/(sale_area+comm_area) if (sale_area+comm_area)!=0 else 0
-        tax2 = tax2_base * 0.7 * 0.012 * (1 - occ)  # 房产税2（防除0）
-        manage_comm = comm_income * 0.08  # 运营管理费（商业）
-        manage_park = park_count * 80 * 12 / 10000  # 运营管理费（停车场）
-        property_fund = (comm_area * lease_months * 0.25) / 10000  # 物业专项维修金
-        repair_fee = comm_income * 0.02  # 维修费用
-        vacancy_service = (comm_area * (1 - occ) * 8 * 12 ) / 10000  # 空置物业服务费 为啥表格×0.88/0.98搞不懂？
-        insurance_fee = (comm_area * 1.86) / 10000  # 保险费用
-        land_tax = (land_use_area * comm_area/(sale_area+comm_area) * 3) / 10000  # 土地使用税
-        total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 成本合计
+            # 按公式计算各项成本（严格匹配需求，单位统一为万元）
+            tax1 = comm_income * (0.12 / 1.09)  # 房产税1
+            tax2_base = land_cost + construction_cost + infra_cost + other_eng_cost + construction_cost * 0.02 * comm_area/(sale_area+comm_area) if (sale_area+comm_area)!=0 else 0
+            tax2 = tax2_base * 0.7 * 0.012 * (1 - occ)  # 房产税2（防除0）
+            manage_comm = comm_income * 0.08  # 运营管理费（商业）
+            manage_park = park_count * 80 * 12 / 10000  # 运营管理费（停车场）
+            property_fund = (comm_area * lease_months * 0.25) / 10000  # 物业专项维修金
+            repair_fee = comm_income * 0.02  # 维修费用
+            vacancy_service = (comm_area * (1 - occ) * 8 * 12 ) / 10000  # 空置物业服务费 为啥表格×0.88/0.98搞不懂？
+            insurance_fee = (comm_area * 1.86) / 10000  # 保险费用
+            land_tax = (land_use_area * comm_area/(sale_area+comm_area) * 3) / 10000  # 土地使用税
+            total_cost = tax1 + tax2 + manage_comm + manage_park + property_fund + repair_fee + vacancy_service + insurance_fee + land_tax  # 成本合计
 
         # ===================== 新增：出租经营税金计算逻辑 ======================
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
