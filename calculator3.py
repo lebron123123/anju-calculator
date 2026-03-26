@@ -523,6 +523,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
         # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
         output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
+        input_before = remaining_input
         vat = max(output_tax - input_before, 0.0)
         remaining_input = max(input_before - output_tax, 0.0)
         # 4. 增值税附加：当年的增值税×12%
