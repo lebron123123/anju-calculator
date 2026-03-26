@@ -494,7 +494,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
             rental_table.loc[year, ["商业出租率", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
                                    "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", "物业专项维修金(万元)", 
                                    "维修费用(万元)", "空置物业服务费(万元)", "保险费用(万元)", "土地使用税(万元)", 
-                                   "出租营运成本合计(万元)","销项税(万元)","增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"]] = 0.0
+                                   "出租营运成本合计(万元)","销项税(万元)","销项税(万元)","增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"]] = 0.0
             # 仅新增这2行（初始化累计缓存）
             if 'cum_vat' not in locals(): cum_vat, cum_rent = [], []
             cum_vat.append(0.0); cum_rent.append(0.0) #累计列表中加0，保持长度一致
@@ -557,7 +557,14 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         rental_table.loc[year, "增值税附加(万元)"] = round(vat_surcharge, 4)
         rental_table.loc[year, "印花税(万元)"] = round(stamp_tax, 4)
         rental_table.loc[year, "出租经营税金合计(万元)"] = round(total_rental_tax, 4)
-        
+ 
+        # ===================== 【仅加这3行】单独给进项税列从建设期开始迭代，其他所有列完全不动 ======================
+        temp_remaining = total_input_tax_calc
+        for year in all_years:
+            rental_table.loc[year, "进项税(万元)"] = round(temp_remaining, 4)
+            temp_remaining = max(temp_remaining - (rental_table.loc[year, "销项税(万元)"] if pd.notna(rental_table.loc[year, "销项税(万元)"]) else 0), 0)
+        # ===================== 结束 ======================
+    
     return rental_table
   
 # ===================== 经营成本测算函数（原calc_cost，适配新命名）=====================
