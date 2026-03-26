@@ -247,13 +247,13 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
         # 第1行：2个参数
         col1, col2 = st.columns(2)
         land_cost = col1.number_input("土地成本费（万元）", min_value=0.0, value=0.0, step=10.0)
-        construction_cost = col2.number_input("建安工程费（万元）", min_value=0.0, value=0.0, step=10.0)
+        construction_cost = col2.number_input("(非配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0)
         st.markdown("")  # 换行
     
         # 第2行：2个参数
         col3, col4 = st.columns(2)
         infra_cost = col3.number_input("基础设施建设费（万元）", min_value=0.0, value=0.0, step=10.0)
-        other_eng_cost = col4.number_input("工程建设其他费用（万元）", min_value=0.0, value=0.0, step=10.0)
+        other_eng_cost = col4.number_input("(非配售)工程建设其他费用（万元）", min_value=0.0, value=0.0, step=10.0)
         st.markdown("")  # 换行
     
         # 第3行：2个参数
