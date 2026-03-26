@@ -476,12 +476,6 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
 
         comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
 
-    # ===================== 新增：初始化进项税缓存（处理前一年逻辑） ======================
-    total_input_tax_init = 0  # 建设期首年的"前一年合计进项税"初始值
-    total_input_tax_calc = 0  # 全周期进项税合计（初始化）
-    total_manage_ins = 0      #管理费+保险费累计
-    total_vacancy = 0         #空置费用累计
-
     # ===================== 【仅新增】预循环算全周期累计（不填表，不影响其他） ======================
     total_manage_ins, total_vacancy = 0, 0
     for year in operate_year_list:
@@ -529,7 +523,6 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 1. 首次循环时计算全周期进项税合计（仅算1次）
         # 2. 单年销项税（严格按你的公式：单年租金×9%/(1+9%)）
         output_tax = comm_income * (0.09 / 1.09) if comm_income > 0 else 0.0
-        input_before = remaining_input
         vat = max(output_tax - input_before, 0.0)
         remaining_input = max(input_before - output_tax, 0.0)
         # 4. 增值税附加：当年的增值税×12%
