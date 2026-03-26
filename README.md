@@ -16,7 +16,7 @@ PROJECT_CONFIG{{}}
       st.title()页面大标题    
       st.subheader（）创建栏目标题    
       st.selectbox（）创建下拉菜单    
-（二）其他功能
+（二）其他功能  
       st.session_state()功能盒子    
 
 三、测算逻辑  
@@ -26,7 +26,7 @@ PROJECT_CONFIG{{}}
 （二）储值基础  
       1.创造空字典：comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {}  
       2.赋值:remaining_input = 0
-（三）累加基础  
+（三）累加基础    
       1.函数.append()
       
       
