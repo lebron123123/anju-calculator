@@ -1216,7 +1216,7 @@ if calc_button:
         # （5）. 展示转置后的表格
         # 表格展示放在if块内，仅出售类执行，非出售类不运行，彻底避免变量未定义
         st.subheader("📊 出租情况表")
-        st.dataframe(rental_table.style.apply(lambda row: ['font-weight: bold' if row.name == "出租营运成本合计(万元)" else '' for _ in row],axis=1))
+        st.dataframe(rental_cost_df_T.style.apply(lambda col: ['font-weight: bold' if col.name == "出租营运成本合计(万元)" else '' for _ in col], axis=0), use_container_width=True)
     # --- 收入明细 ---
     st.subheader("📋 收入明细表")
     st.dataframe(income_df_T, use_container_width=True)
