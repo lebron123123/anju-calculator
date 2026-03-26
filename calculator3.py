@@ -494,8 +494,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         occ = comm_occupancy[year] #该年出租率
         cr_price = comm_rent_price[year] #该年出租单价
         # 🚨 新增：出租率为0 → 本年不发生经营（为了匹配乌坭浪那项目,刚运营1年就涨价了晕）
-        first_operate_year = [y for y in all_years if is_operate[y]][0]
-        if year == first_operate_year and occ == 0:
+        if occ == 0 and is_operate[year] and sum(is_operate[y] for y in all_years if y < year) == 0:
             rental_table.loc[year, [
                 "商业出租率", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
                 "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", "物业专项维修金(万元)", 
