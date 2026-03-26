@@ -460,14 +460,17 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         elif comm_stable_start <= year <= comm_stable_end: comm_occupancy[year] = comm_occupancy_stable #稳定期出租率
         else: comm_occupancy[year] = 0.0 #防错
         # 商业租金单价（递增逻辑）设置一个让人填稳定的年份判断(总不能一直涨把是不)
+    if comm_rent_stable_start in operate_year_list:
         stable_index = operate_year_list.index(comm_rent_stable_start)
+    else:
+        stable_index = len(operate_year_list) - 1  # 默认最后一年
 
-        for year in operate_year_list:
-            year_index = operate_year_list.index(year)
-            effective_index = min(year_index, stable_index)
-            increase_times = effective_index // comm_rent_increase_span
+    for year in operate_year_list: #year改成y防止错误
+        year_index = operate_year_list.index(year)
+        effective_index = min(year_index, stable_index)
+        increase_times = effective_index // comm_rent_increase_span
 
-            comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
+        comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
 
     # ===================== 新增：初始化进项税缓存（处理前一年逻辑） ======================
     total_input_tax_init = 0  # 建设期首年的"前一年合计进项税"初始值
