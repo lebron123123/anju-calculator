@@ -503,8 +503,6 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 累计数组也要补0（非常关键，不然后面会错位）
         cum_vat.append(0.0)
         cum_rent.append(0.0)
-
-        continue  # 🔥 直接跳过后面所有计算
         
         comm_income = comm_area * cr_price * occ * lease_months / 10000  # 该年商业出租收入（万元）
         
