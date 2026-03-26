@@ -559,10 +559,11 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         rental_table.loc[year, "出租经营税金合计(万元)"] = round(total_rental_tax, 4)
  
         # ===================== 【仅加这3行】单独给进项税列从建设期开始迭代，其他所有列完全不动 ======================
-        temp_remaining = total_input_tax_calc
+        temp_remaining = total_input_tax_calc  # 迭代起点=进项税合计
         for year in all_years:
-            rental_table.loc[year, "进项税(万元)"] = round(temp_remaining, 4)
-            temp_remaining = max(temp_remaining - (rental_table.loc[year, "销项税(万元)"] if pd.notna(rental_table.loc[year, "销项税(万元)"]) else 0), 0)
+            rental_table.loc[year, "进项税(万元)"] = round(temp_remaining, 4)  # 先填当年进项税
+            current_output = rental_table.loc[year, "销项税(万元)"] if pd.notna(rental_table.loc[year, "销项税(万元)"]) else 0.0  # 空值自动转0，彻底解决报错
+            temp_remaining = max(temp_remaining - current_output, 0.0)  # 按规则迭代下一年基数
         # ===================== 结束 ======================
     
     return rental_table
