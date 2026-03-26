@@ -1215,8 +1215,6 @@ if calc_button:
         rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
             lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
         )
-        # 【仅新增这1行】单独给进项税行的合计列，赋值为初始总进项税（迭代起点）
-        rental_cost_df_T.loc["进项税(万元)", "全周期合计(万元)"] = round(total_input_tax_calc, 4)
 
         #（4）. 调整列顺序：合计列放最前面，和其他表格格式完全统一
         rental_cost_df_T = rental_cost_df_T[ ["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"] ]
