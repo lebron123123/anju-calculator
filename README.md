@@ -27,6 +27,14 @@ PROJECT_CONFIG{{}}
       1.创造空字典：comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {}  
       2.赋值:remaining_input = 0
 （三）累加基础    
-      1.函数.append()
-      
+      1.函数.append()  
+
+四、表格计算
+（一）增减表格  
+      1.增加1行:rental_table.loc[]  
+      2.增加合计:rental_sum_rows[]  
+ 
+（二）表格计算  
+      1.公式计算:
+      2.表格内加减:a = rental_table.loc[第一个]-rental_table.loc[第二个]
       
