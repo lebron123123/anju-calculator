@@ -884,13 +884,7 @@ if calc_button:
         )
         income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
         
-        # 2. 配保房销售收入：原有逻辑完全不动
-        for year in all_years:
-            #只有我选的销售期年份有销售率，其他所有年份默认0
-            sale_rate = sale_ramp_dict.get(year, 0.0)
-            income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
-        
-        # 3. 更新总收入：原有逻辑完全不动
+        # 2. 更新总收入：原有逻辑完全不动
         income_df["总收入(万元)"] = income_df["总收入(万元)"] + income_df["配保房销售收入(万元)"] + income_df["商业出租收入(万元)"]
     
     # 3. 经营成本测算
@@ -987,9 +981,22 @@ if calc_button:
     # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
     # --- 收入表处理 ---
     income_df_T = income_df.T
-    income_sum_rows = ["住宅租金收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
-    income_df_T["全周期合计(万元)"] = income_df_T.apply(
-        lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
+   # 【最小改动：仅加if判断，分项目类型处理】
+    if project_type == "出售类(配保房/可售型人才房等)":
+     # 仅出售类：配保房+商业+住宅的顺序，且都算合计
+        for year in all_years:
+        sale_rate = sale_ramp_dict.get(year, 0.0)
+        income_sum_rows = ["配保房销售收入(万元)", "住宅租金收入(万元)", "商业出租收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
+        income_df_T["全周期合计(万元)"] = income_df_T.apply(
+            lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
+    )
+    # 仅出售类：调整行顺序
+        income_df_T = income_df_T.reindex(income_sum_rows + [idx for idx in income_df_T.index if idx not in income_sum_rows])
+    else:
+    # 出租型：完全保持你原来的逻辑，一丝不动
+        income_sum_rows = ["住宅租金收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
+        income_df_T["全周期合计(万元)"] = income_df_T.apply(
+            lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
     )
     income_df_T = income_df_T[ ["全周期合计(万元)"] + [col for col in income_df_T.columns if col != "全周期合计(万元)"] ]
     income_df_T = income_df_T.fillna("/")
