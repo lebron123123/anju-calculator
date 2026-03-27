@@ -557,6 +557,9 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         rental_table.loc[year, "增值税附加(万元)"] = round(vat_surcharge, 4)
         rental_table.loc[year, "印花税(万元)"] = round(stamp_tax, 4)
         rental_table.loc[year, "出租经营税金合计(万元)"] = round(total_rental_tax, 4)
+        # 【新增】出租净收入=商业出租收入-出租营运成本合计-出租经营税金合计
+        net_rental_income = rental_table.loc[year, "商业出租收入(万元)"] - rental_table.loc[year, "出租营运成本合计(万元)"] - rental_table.loc[year, "出租经营税金合计(万元)"]
+        rental_table.loc[year, "出租净收入(万元)"] = round(net_rental_income, 4)
 
         if "销项税(万元)" not in rental_table.columns: rental_table["销项税(万元)"] = 0.0
         rental_table["销项税(万元)"] = rental_table["销项税(万元)"].fillna(0.0)
@@ -1215,7 +1218,8 @@ if calc_button:
             "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
             "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
             "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)","销项税(万元)",
-            "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"
+            "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)",
+            "出租净收入(万元)"
         ]
         # （3）. 新增全周期合计列
         rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
