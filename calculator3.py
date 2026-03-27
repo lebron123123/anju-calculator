@@ -883,8 +883,13 @@ if calc_button:
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
         )
         income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
+
+        #2.配保房销售逻辑
+        for year in all_years:
+            sale_rate = sale_ramp_dict.get(year, 0.0)  # 只有你选的销售年份有销售率，其他年份0
+            income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
         
-        # 2. 更新总收入：原有逻辑完全不动
+        # 3. 更新总收入：原有逻辑完全不动
         income_df["总收入(万元)"] = income_df["总收入(万元)"] + income_df["配保房销售收入(万元)"] + income_df["商业出租收入(万元)"]
     
     # 3. 经营成本测算
@@ -984,8 +989,6 @@ if calc_button:
    # 【最小改动：仅加if判断，分项目类型处理】
     if project_type == "出售类(配保房/可售型人才房等)":
      # 仅出售类：配保房+商业+住宅的顺序，且都算合计
-        for year in all_years:
-        sale_rate = sale_ramp_dict.get(year, 0.0)
         income_sum_rows = ["配保房销售收入(万元)", "住宅租金收入(万元)", "商业出租收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
         income_df_T["全周期合计(万元)"] = income_df_T.apply(
             lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
