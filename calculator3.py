@@ -886,7 +886,8 @@ if calc_button:
         
         # 2. 配保房销售收入：原有逻辑完全不动
         for year in all_years:
-            sale_rate = sale_ramp_dict.get(year, 1.0 if year >= max(sale_ramp_dict, default=year) else 0.0)
+            #只有我选的销售期年份有销售率，其他所有年份默认0
+            sale_rate = sale_ramp_dict.get(year, 0.0)
             income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
         
         # 3. 更新总收入：原有逻辑完全不动
