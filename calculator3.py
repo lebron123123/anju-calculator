@@ -458,6 +458,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {} #创造空字典储存商业出租率、单价、收入
     remaining_input = 0 #增值税的2个临时变量
     total_input_tax_calc = 0
+    n = 0  # 【仅新增这1行】现值计算的年份序号，从0开始
     for year in operate_year_list:
         # 商业出租率（爬坡期+稳定期）
         if year in comm_occupancy_ramp_dict: comm_occupancy[year] = comm_occupancy_ramp_dict[year] #爬坡期出租率
@@ -560,6 +561,10 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         # 【新增】出租净收入=商业出租收入-出租营运成本合计-出租经营税金合计
         net_rental_income = rental_table.loc[year, "商业出租收入(万元)"] - rental_table.loc[year, "出租营运成本合计(万元)"] - rental_table.loc[year, "出租经营税金合计(万元)"]
         rental_table.loc[year, "出租净收入(万元)"] = round(net_rental_income, 4)
+
+        pv_net_rental = net_rental_income / ((1 + 0.035) ** n)
+        rental_table.loc[year, "出租净收益现值(万元)"] = round(pv_net_rental, 4)
+        n += 1  # 年份序号每年+1
 
         if "销项税(万元)" not in rental_table.columns: rental_table["销项税(万元)"] = 0.0
         rental_table["销项税(万元)"] = rental_table["销项税(万元)"].fillna(0.0)
