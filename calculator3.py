@@ -882,7 +882,7 @@ if calc_button:
             comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable,
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
         )
-        income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
+        #income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
 
         #2.配保房销售逻辑
         for year in all_years:
@@ -1228,6 +1228,12 @@ if calc_button:
             land_use_area=land_use_area,
             project_input_tax=project_input_tax,
         )   #plot_ratio_area=plot_ratio_area,
+        # 1. 用出租情况表的正确商业收入，覆盖收入明细表的错误数据
+        if "商业出租收入(万元)" in rental_cost_df.columns and "商业出租收入(万元)" in income_df.columns:
+            income_df["商业出租收入(万元)"] = rental_cost_df["商业出租收入(万元)"]
+            # 2. 同步更新总收入，确保总收入和商业收入匹配
+            income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"] + income_df["配保房销售收入(万元)"] + income_df["商业出租收入(万元)"]
+        
         rental_cost_df_T = rental_cost_df.T
         # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
         rental_sum_rows = [
