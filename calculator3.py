@@ -1177,9 +1177,6 @@ if calc_button:
     # 8. 页面结果展示
     st.header("📊 测算结果")
     st.markdown("---")
-
-    # 【终极1行！直接用表格里算对的总收入，覆盖顶部展示值】
-    if project_type == "出售类(配保房/可售型人才房等)": total_income = round(income_df["总收入(万元)"].sum(), 2)    
     
     # --- 核心指标汇总 ---
     st.subheader("🎯 最终财务结果汇总")
