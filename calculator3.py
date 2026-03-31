@@ -882,7 +882,6 @@ if calc_button:
             comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable,
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
         )
-    if project_type == "出售类(配保房/可售型人才房等)" and "商业出租收入(万元)" in rental_cost_df.columns and "商业出租收入(万元)" in income_df.columns:
         income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
 
         #2.配保房销售逻辑
