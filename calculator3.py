@@ -1267,6 +1267,7 @@ if calc_button:
     if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df.T; income_df_T["全周期合计(万元)"] = income_df_T.apply(lambda r: round(r.sum(),4) if r.name in income_sum_rows else "/", axis=1); income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
     # 第3行：【核心1行】把指定行强制放到最前面
     if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.reindex(["配保房销售收入(万元)", "出租净收益现值(万元)"] + [idx for idx in income_df_T.index if idx not in ["配保房销售收入(万元)", "出租净收益现值(万元)"]])
+    if project_type == "出售类(配保房/可售型人才房等)": total_income = round(income_df["总收入(万元)"].sum(),2)
     
     # --- 收入明细 ---
     st.subheader("📋 收入明细表")
