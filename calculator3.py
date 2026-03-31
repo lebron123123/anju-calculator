@@ -872,7 +872,7 @@ if calc_button:
         other_income_name, other_income_total
     )
 
-    # ===================== 【仅改参数·100%复用】出售类新增收入 ======================
+    # ===================== 【仅改参数·100%复用】出售类新增收入项 ======================
     if "sale_and_commercial" in PROJECT_CONFIG[project_type].get("ui_components", []):
         # 1. 商业出租：完全复用calc_income函数，传入商业专属参数，零重复代码
         comm_income_df, _, _, _, _ = calc_income(
@@ -883,13 +883,13 @@ if calc_button:
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
          )
         income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
+        income_df.loc["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].iloc[0]
         #2.配保房销售逻辑
         for year in all_years:
             sale_rate = sale_ramp_dict.get(year, 0.0)  # 只有你选的销售年份有销售率，其他年份0
             income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
         
         # 3. 更新总收入：原有逻辑完全不动
-        income_df["出租净收益现值(万元)"] = income_df["出租净收益现值(万元)"]
         income_df["总收入(万元)"] = income_df["总收入(万元)"] + income_df["配保房销售收入(万元)"] #+ income_df["商业出租收入(万元)"]
     
     # 3. 经营成本测算
