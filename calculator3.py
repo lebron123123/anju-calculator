@@ -1231,8 +1231,6 @@ if calc_button:
         # 1. 用出租情况表的正确商业收入，覆盖收入明细表的错误数据
         if "商业出租收入(万元)" in rental_cost_df.columns and "商业出租收入(万元)" in income_df.columns:
             income_df["商业出租收入(万元)"] = rental_cost_df["商业出租收入(万元)"]
-            # 2. 同步更新总收入，确保总收入和商业收入匹配
-            income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"] + income_df["配保房销售收入(万元)"] + income_df["商业出租收入(万元)"]
         
         rental_cost_df_T = rental_cost_df.T
         # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
