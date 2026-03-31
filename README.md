@@ -29,7 +29,7 @@ PROJECT_CONFIG{{}}
 （三）累加基础    
       1.函数.append()  
 
-四、表格计算
+四、表格计算  
 （一）增减表格  
       1.增加1行:rental_table.loc[]  
       2.增加合计:rental_sum_rows[]  
