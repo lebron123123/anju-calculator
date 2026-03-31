@@ -883,7 +883,7 @@ if calc_button:
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
          )
         income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
-
+        #不加下面的这部分 就会报错(出租净收益现值)
         rental_cost_df = calc_rental_operation_table(
             all_years=all_years,
             is_operate=is_operate,
