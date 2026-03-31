@@ -883,6 +883,30 @@ if calc_button:
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
          )
         income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
+
+        rental_cost_df = calc_rental_operation_table(
+            all_years=all_years,
+            is_operate=is_operate,
+            operate_year_list=operate_year_list,
+            comm_area=comm_area,
+            comm_rent_start_price=comm_rent_start_price,
+            comm_rent_increase_span=comm_rent_increase_span,
+            comm_rent_increase_rate=comm_rent_increase_rate,
+            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
+            comm_stable_start=comm_stable_start,
+            comm_stable_end=comm_stable_end,
+            comm_occupancy_stable=comm_occupancy_stable,
+            park_count=park_count,
+            land_cost=land_cost,
+            construction_cost=construction_cost,
+            infra_cost=infra_cost,
+            other_eng_cost=other_eng_cost,
+            lease_months=lease_months if 'lease_months' in locals() else 12,
+            land_use_area=land_use_area,
+            project_input_tax=project_input_tax,
+        )
+        # 【核心】顺便把现值赋给 income_df
+        income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
         #2.配保房销售逻辑
         for year in all_years:
             sale_rate = sale_ramp_dict.get(year, 0.0)  # 只有你选的销售年份有销售率，其他年份0
