@@ -882,6 +882,7 @@ if calc_button:
             comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable,
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
         )
+    if project_type == "出售类(配保房/可售型人才房等)" and "商业出租收入(万元)" in rental_cost_df.columns and "商业出租收入(万元)" in income_df.columns:
         income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
 
         #2.配保房销售逻辑
@@ -1204,6 +1205,7 @@ if calc_button:
 
     # ===================== ✅ 出售类：插入出租营运成本表 =====================
     # 仅出售类项目显示该表，非出售类完全不执行，避免报错
+    rental_cost_df = pd.DataFrame()
     if project_type == "出售类(配保房/可售型人才房等)":
         # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
         rental_cost_df = calc_rental_operation_table(
@@ -1225,7 +1227,7 @@ if calc_button:
             other_eng_cost=other_eng_cost,
             lease_months=lease_months if 'lease_months' in locals() else 12,
             land_use_area=land_use_area,
-            project_input_tax=project_input_tax
+            project_input_tax=project_input_tax,
         )   #plot_ratio_area=plot_ratio_area,
         rental_cost_df_T = rental_cost_df.T
         # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
