@@ -1182,7 +1182,7 @@ if calc_button:
     st.subheader("🎯 最终财务结果汇总")
     # 第一行：总收入、总成本
     col1, col2 = st.columns(2)
-    with col1: st.metric("项目全周期总收入", f"{round(income_df['总收入(万元)'].sum(),2)} 万元")
+    with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
     with col2: st.metric(":red[项目全周期总成本费用]", f"{total_cost} 万元")
     
     # 第二行：总付息、净利润
