@@ -889,7 +889,7 @@ if calc_button:
             income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
         
         # 3. 更新总收入：原有逻辑完全不动
-        income_df["总收入(万元)"] = income_df["总收入(万元)"] + income_df["配保房销售收入(万元)"] #+ income_df["商业出租收入(万元)"]
+        income_df["总收入(万元)"] = income_df["总收入(万元)"] + income_df["配保房销售收入(万元)"] + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"]
     
     # 3. 经营成本测算
     park_income_dict = income_df["车位收入(万元)"].to_dict()
