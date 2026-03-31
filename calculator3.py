@@ -1265,8 +1265,11 @@ if calc_button:
     if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df.T; income_df_T["全周期合计(万元)"] = income_df_T.apply(lambda r: round(r.sum(),4) if r.name in income_sum_rows else "/", axis=1); income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
     # 第3行：【核心1行】把指定行强制放到最前面
     if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.reindex(["配保房销售收入(万元)", "出租净收益现值(万元)"] + [idx for idx in income_df_T.index if idx not in ["配保房销售收入(万元)", "出租净收益现值(万元)"]])
+    
     # --- 收入明细 ---
     st.subheader("📋 收入明细表")
+    # 出售类自动隐藏指定行，非出售类正常显示
+    if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.drop(["计算过程说明", "住宅租金单价(元/㎡/月)", "住宅出租率", "车位租金单价(元/个/月)", "车位出租率"], errors="ignore")
     st.dataframe(income_df_T, use_container_width=True)
     
     st.markdown("---")
