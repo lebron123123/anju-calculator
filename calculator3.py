@@ -882,11 +882,7 @@ if calc_button:
             comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable,
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
         )
-        st.write("==== rental_cost_df columns ====")
-        st.write(list(rental_cost_df.columns))
-
-        st.write("==== income_df columns ====")
-        st.write(list(income_df.columns))
+        income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
         #2.配保房销售逻辑
         for year in all_years:
             sale_rate = sale_ramp_dict.get(year, 0.0)  # 只有你选的销售年份有销售率，其他年份0
