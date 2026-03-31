@@ -1271,7 +1271,7 @@ if calc_button:
     # --- 收入明细 ---
     st.subheader("📋 收入明细表")
     # 出售类自动隐藏指定行，非出售类正常显示
-    if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.drop(["计算过程说明", "住宅租金单价(元/㎡/月)", "住宅出租率", "车位租金单价(元/个/月)", "车位出租率","商业出租收入(万元)"], errors="ignore")
+    #if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.drop(["计算过程说明", "住宅租金单价(元/㎡/月)", "住宅出租率", "车位租金单价(元/个/月)", "车位出租率","商业出租收入(万元)"], errors="ignore")
     st.dataframe(income_df_T, use_container_width=True)
     
     st.markdown("---")
