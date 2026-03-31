@@ -882,7 +882,7 @@ if calc_button:
             comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable,
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
         )
-        income_df["商业出租收入(万元)"] = rental_table["商业出租收入(万元)"]
+        income_df.loc["商业出租收入(万元)"] = rental_table.loc[:, "商业出租收入(万元)"]
 
         #2.配保房销售逻辑
         for year in all_years:
