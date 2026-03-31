@@ -883,7 +883,8 @@ if calc_button:
             0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
         )
         #income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
-        income_df["商业出租收入(万元)"] = rental_cost_df["商业出租收入(万元)"]
+        col_name = [c for c in rental_cost_df.columns if "商业出租收入" in c][0]
+        income_df["商业出租收入(万元)"] = rental_cost_df[col_name]
         #2.配保房销售逻辑
         for year in all_years:
             sale_rate = sale_ramp_dict.get(year, 0.0)  # 只有你选的销售年份有销售率，其他年份0
