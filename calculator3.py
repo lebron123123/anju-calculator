@@ -1258,6 +1258,8 @@ if calc_button:
         # 表格展示放在if块内，仅出售类执行，非出售类不运行，彻底避免变量未定义
         st.subheader("📊 出租情况表")
         st.dataframe(rental_cost_df_T, use_container_width=True)
+        if project_type == "出售类(配保房/可售型人才房等)": income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+        
     # --- 收入明细 ---
     st.subheader("📋 收入明细表")
     st.dataframe(income_df_T, use_container_width=True)
