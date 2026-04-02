@@ -8,7 +8,7 @@ from datetime import datetime
 PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
     "出租型(协议出让/合作类等)": {
-        "extra_inputs": [],
+        "extra_inputs": ["装修标准", "土地年限", "物业费"],
         "ui_components": ["rent_basic"],  # 前端专属组件
         "calc_rules": {
             # 出租型规则：自动递增还款
