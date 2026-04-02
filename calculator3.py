@@ -8,7 +8,15 @@ from datetime import datetime
 PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
     "出租型(协议出让/合作类等)": {
-        "extra_inputs": [{"label": "测试参数", "min_value": 0, "value": 100, "step": 1}],  # 单位：元/㎡/月,
+        "extra_inputs": [ 
+            {
+                "type": "number",
+                "name": "装修标准",
+                "min": 0,
+                "default": 1000,
+                "step": 10
+            }
+        ],  # 单位：元/㎡/月,
         "ui_components": ["rent_basic"],  # 前端专属组件
         "calc_rules": {
             # 出租型规则：自动递增还款
