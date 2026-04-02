@@ -5,7 +5,9 @@
 PROJECT_CONFIG{{}}   
 （一）项目专属的输入框（extra_inputs）  
 （二）项目在界面上多的显示特殊区域（ui_components）    
-       1.if "" in current_config.get("ui_components", []): #这个来判断是否调用  
+       1.if "" in current_config.get("ui_components", []): #这个来判断是否调用    
+       2.if (project_type != "") or st.session_state["show_resi"] :#这个也来判断调用
+       
 （三）项目的计算规则是什么（calc_rules）  
 （四）这种项目的结果页额外显示指标（show_metrics）    
 
