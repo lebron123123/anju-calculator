@@ -9,9 +9,27 @@ PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
     "出租型(协议出让/合作类等)": {
         "extra_inputs": [
-          {"type": "number", "name": "装修标准", "min": 0, "default": 1000, "step": 10},
-            {"type": "number", "name": "土地年限", "min": 1, "default": 70, "step": 1},
-            {"type": "number", "name": "物业费", "min": 0.0, "default": 2.5, "step": 0.1}
+          {
+                "label": "装修标准（元/㎡）",
+                "min_value": 0,
+                "max_value": 10000,
+                "value": 1000,
+                "step": 10
+            },
+            {
+                "label": "土地剩余年限（年）",
+                "min_value": 1,
+                "max_value": 70,
+                "value": 40,
+                "step": 1
+            },
+            {
+                "label": "物业费（元/㎡/月）",
+                "min_value": 0.0,
+                "max_value": 20.0,
+                "value": 2.5,
+                "step": 0.1
+            }
         ],  # 单位：元/㎡/月,
         "ui_components": ["rent_basic"],  # 前端专属组件
         "calc_rules": {
