@@ -11,7 +11,7 @@ PROJECT_CONFIG = {
         "extra_inputs": [],  # 单位：元/㎡/月,
         "ui_components": ["rent_basic"],  # 前端(出租基本信息模块显示)
         "calc_rules": {
-            # 出租型规则：自动递增还款
+            # 出租型规则：自动递增还款(还款模式、首期还款率、还款递增率)
             "repay_plan_mode": "auto",
             "first_repay_ratio": 3.0,
             "repay_increase_rate": 4.5
