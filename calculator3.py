@@ -9,7 +9,7 @@ PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
     "出租型(协议出让/合作类等)": {
         "extra_inputs": [],  # 单位：元/㎡/月,
-        "ui_components": ["rent_basic"],  # 前端专属组件
+        "ui_components": ["rent_basic"],  # 前端(出租基本信息模块显示)
         "calc_rules": {
             # 出租型规则：自动递增还款
             "repay_plan_mode": "auto",
@@ -21,7 +21,7 @@ PROJECT_CONFIG = {
     # 类型2：出售类(配保房/可售型人才房等)
     "出售类(配保房/可售型人才房等)": {
         "extra_inputs": [],
-        "ui_components": ["custom_repay_plan", "sale_and_commercial"],  # 合并成1个标记 #前端专属:显示自定义还款计划
+        "ui_components": ["custom_repay_plan", "sale_and_commercial"],  # 合并成1个标记 #前端(显示自定义还款计划、销售模块)
         "calc_rules": {"repay_plan_mode": "custom"}, #出售型规则:用户自定义还款
         "show_metrics": []
     },
