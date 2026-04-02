@@ -11,7 +11,7 @@ PROJECT_CONFIG = {
         "extra_inputs": [
             {"type": "number", "name": "装修标准", "min": 0, "default": 1000, "step": 10},  # 单位：元/㎡（可根据需求调整默认值/步长）
             {"type": "number", "name": "土地年限", "min": 1, "default": 70, "step": 1},      # 单位：年
-            {"type": "number", "name": "物业费", "min": 0.0, "default": 2.5, "step": 0.1}   # 单位：元/㎡/月],
+            {"type": "number", "name": "物业费", "min": 0.0, "default": 2.5, "step": 0.1} ]  # 单位：元/㎡/月,
         "ui_components": ["rent_basic"],  # 前端专属组件
         "calc_rules": {
             # 出租型规则：自动递增还款
