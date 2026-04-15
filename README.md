@@ -6,7 +6,7 @@ PROJECT_CONFIG{{}}
 （一）项目专属的输入框（extra_inputs）  
 （二）项目在界面上多的显示特殊区域（ui_components）    
        1.if "" in current_config.get("ui_components", []): #这个来判断是否调用    
-       2.if (project_type != "") :#这个也来判断调用
+       2.if (project_type != "类") :#这个也来判断调用
        
 （三）项目的计算规则是什么（calc_rules）  
 （四）这种项目的结果页额外显示指标（show_metrics）    
@@ -17,9 +17,16 @@ PROJECT_CONFIG{{}}
       st.set_page_config()网页标题     
       st.title()页面大标题    
       st.subheader（）创建栏目标题    
-      st.selectbox（）创建下拉菜单    
+      st.selectbox（）创建下拉菜单   
+      st.info()在外部显示
 （二）其他功能  
-      st.session_state()功能盒子    
+      st.session_state()功能盒子  
+（三）内容输入
+      st.text_input（）文本输入  
+      col1, col2 = st.columns(2)→col1.number_input()按排输入值  
+      st.multiselect（）多选  
+      st.radio（）多选  
+      
 
 三、测算逻辑  
 （一）pandas库  
