@@ -94,9 +94,9 @@ with st.expander("1. 项目基本信息", expanded=True):
     # 建设期年份：原有代码完全不动
     build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
     
-    # ---------------------- 运营期年份区间选择（修复警告+缩进正确版）----------------------
+    # ---------------------- 运营期年份区间选择----------------------
     st.subheader("运营期年份（区间选择）")
-    # 初始化session_state（仅第一次运行设置默认值）
+    # 初始化session_state（仅第一次运行设置默认值/session_state是网页小本本）
     if "operate_start" not in st.session_state: st.session_state["operate_start"] = 2027
     if "operate_end" not in st.session_state: st.session_state["operate_end"] = 2029
     
@@ -135,7 +135,7 @@ with st.expander("2. 收入计算参数", expanded=True):
         sale_ramp_years = st.multiselect("销售年份", operate_years, operate_years[:3])
         if sale_ramp_years:
             cols = st.columns(len(sale_ramp_years))
-            for idx, y in enumerate(sale_ramp_years):
+            for idx, y in enumerate(sale_ramp_years):  #用enmerate自动生成序号
                 sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
         st.markdown("---")
    # 出售类专属：有/无收入双按钮（点击“无”全隐藏，点击“有”全显示）
@@ -168,7 +168,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
     
         # ---------------------- 新增需求②：出租率爬坡期+稳定期 ----------------------
         # 先获取运营期年份作为可选范围（联动之前的operate_years）
-        if 'operate_years' in locals() and operate_years:
+        if 'operate_years' in locals() and operate_years: #locals()代码花名册
             # 1. 爬坡期设置：让用户选年份，动态生成输入框
             ramp_years = st.multiselect("请选择爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
             # 动态生成爬坡期每年的出租率输入框（一行排版）
@@ -198,7 +198,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
         rent_increase_span, rent_increase_rate = 3, 2.0
         occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0.0
     
-    # ===================== 【出售类专属】商业出租设置（1:1复刻住宅出租，零重复逻辑）======================
+    # ===================== 【出售类专属】商业出租设置（1:1复刻住宅出租）======================
     # 先初始化商业所有变量，非出售类自动赋默认值，避免NameError
     comm_area, comm_rent_start_price = 0, 0.0
     comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
@@ -340,7 +340,7 @@ with st.expander("3. 总成本费用参数", expanded=True):
         col_loan_year = st.columns(len(loan_years))
         for idx, year in enumerate(loan_years):
             loan_plan_dict[year] = col_loan_year[idx].number_input(f"{year}年借款额（万元）", min_value=0.0, value=0.0, step=100.0)
-    # ===================== 【完全基于配置】动态生成项目类型专属UI组件 ======================
+    # =====================出售型增加还款计划======================
     repay_plan_dict = {}
     current_config = PROJECT_CONFIG[project_type]
     if "custom_repay_plan" in current_config.get("ui_components", []):
