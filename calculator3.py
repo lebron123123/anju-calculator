@@ -264,6 +264,11 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
         land_use_area = col6.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
         st.markdown("")  # 换行
 
+        # 第4行：公式必填参数（一行2个）
+        col7, col8 = st.columns(2)
+        land_floor_price = col7.number_input("划拨土地楼面价（元/㎡）", min_value=0.0, value=0.0, step=10.0, help="配保房地价抵减计算用")
+        stamp_tax_rate = col8.number_input("印花税率（‰）", min_value=0.0, max_value=10.0, value=0.5, step=0.1, help="默认0.5‰，即0.05%") / 1000  # 转成小数
+
         # 第4行：新增工程进项税（单独一行）
         #plot_ratio_area = col5.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
         #st.markdown("")  # 换行
@@ -950,6 +955,69 @@ if calc_button:
     # 总成本费用：仅含经营成本+运营期财务费用，不含税金、不含建设期财务费用
     total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
 
+    # ===================== 【最小新增】出售类专属总成本费用表重写 =====================
+    if project_type == "出售类(配保房/可售型人才房等)":
+        # 初始化出售类总成本表，index和原有表完全一致
+        sale_cost_df = pd.DataFrame(index=all_years)
+        # 基础参数预计算（一行搞定，防除0）
+        area_total = sale_area + comm_area
+        area_ratio_sale = sale_area / area_total if area_total != 0 else 0.0
+        area_ratio_comm = 1 - area_ratio_sale
+        land_deduct_total = sale_area * land_floor_price / 10000  # 地价抵减总额（转万元）
+        non_sale_dev_cost = land_cost + construction_cost + infra_cost + other_eng_cost  # 非配售开发成本
+        build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
+        
+        # 预计算累计值变量
+        cum_output_vat = 0.0
+        cum_input_vat = 0.0
+        cum_vat_total = 0.0
+        cum_vat_surcharge_total = 0.0
+        
+        # 按年份循环计算所有指标（一行公式，严格匹配你的要求）
+        for year in all_years:
+            # 1. 基础当年值
+            sale_income_year = income_df.loc[year, "配保房销售收入(万元)"]
+            sale_rate_year = sale_ramp_dict.get(year, 0.0)
+            # 2. 销售费用=当年配保房销售收入×1.5%
+            sale_fee_year = sale_income_year * 0.015
+            # 3. 增值税销项税=(当年销售款-地价抵减总额×当年销售率)×9%/(1+9%)
+            output_vat_year = (sale_income_year - land_deduct_total * sale_rate_year) * (0.09 / 1.09) if sale_income_year > 0 else 0.0
+            # 4. 增值税进项税（修正公式笔误，一行搞定）
+            input_vat_6 = (other_eng_cost * (area_total/comm_area if comm_area!=0 else 0) + sale_fee_year) * sale_rate_year * (0.06 / 1.06)
+            input_vat_9 = (construction_cost + infra_cost) * (area_total/comm_area if comm_area!=0 else 0) * sale_rate_year * (0.09 / 1.09)
+            input_vat_year = input_vat_6 + input_vat_9
+            # 5. 累计值计算
+            cum_output_vat += output_vat_year
+            cum_input_vat += input_vat_year
+            vat_year = max(cum_output_vat - cum_input_vat - cum_vat_total, 0.0)
+            cum_vat_total += vat_year
+            vat_surcharge_year = vat_year * 0.12
+            cum_vat_surcharge_total += vat_surcharge_year
+            # 6. 印花税=当期销售款×印花税率/(1+9%)
+            stamp_year = sale_income_year * stamp_tax_rate / 1.09 if sale_income_year > 0 else 0.0
+            # 7. 销售税金及其附加=增值税+增值税附加+印花税
+            sale_tax_total_year = vat_year + vat_surcharge_year + stamp_year
+            # 8. 累计开发成本（销售部分）=总投资-建设期财务费用×销售面积占比-累计销售收入×1.5%
+            cum_sale_income = income_df.loc[:year, "配保房销售收入(万元)"].sum()
+            dev_cost_sale_year = total_investment - build_fin_total * area_ratio_sale - cum_sale_income * 0.015
+            # 9. 累计开发成本（折旧摊销部分）=[非配售开发成本-建设期财务费用×(1-销售面积占比)]×0.8
+            dev_cost_dep_year = (non_sale_dev_cost - build_fin_total * area_ratio_comm) * 0.8
+            
+            # 填入表格（和原有财务费用、总成本列完全对齐）
+            sale_cost_df.loc[year, "累计开发成本（销售部分）(万元)"] = round(dev_cost_sale_year, 4)
+            sale_cost_df.loc[year, "累计开发成本（折旧摊销部分）(万元)"] = round(dev_cost_dep_year, 4)
+            sale_cost_df.loc[year, "销售费用(万元)"] = round(sale_fee_year, 4)
+            sale_cost_df.loc[year, "销售税金及其附加(万元)"] = round(sale_tax_total_year, 4)
+            sale_cost_df.loc[year, "财务费用(建设期)(万元)"] = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
+            sale_cost_df.loc[year, "财务费用(运营期)(万元)"] = total_cost_df.loc[year, "财务费用(运营期)(万元)"]
+            # 总成本费用=销售部分开发成本+折旧摊销+销售费用+销售税金+运营期财务费用
+            total_cost_year = dev_cost_sale_year + dev_cost_dep_year + sale_fee_year + sale_tax_total_year + total_cost_df.loc[year, "财务费用(运营期)(万元)"]
+            sale_cost_df.loc[year, "总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_year, 4)
+        
+        # 替换原有总成本表，仅出售类生效
+        total_cost_df = sale_cost_df
+    # ===================== 出售类总成本表重写结束 =====================
+    
     # 提前计算损益表，用于核心指标的净利润
     profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
 
@@ -1029,7 +1097,13 @@ if calc_button:
 
      # --- 总成本费用表处理 ---
     cost_df_T = total_cost_df.T
-    cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
+     if project_type == "出售类(配保房/可售型人才房等)":
+        # 出售类：仅对数值行求和，严格匹配新的行
+        cost_sum_rows = ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)", "销售费用(万元)", "销售税金及其附加(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
+    else:
+        # 出租型：完全保留原有逻辑，一丝不动
+        cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
+    #cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
     cost_df_T["全周期合计(万元)"] = cost_df_T.apply(lambda row: round(row.sum(), 4) if row.name in cost_sum_rows else "/", axis=1)
     cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
 
