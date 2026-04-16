@@ -1009,12 +1009,20 @@ if calc_button:
             dev_cost_sale_year = total_dev_cost_sale_base * sale_rate_year
             # 9. 当年开发成本（折旧摊销部分）= 全周期合计基数 × 当年销售率
             dev_cost_dep_year = total_dev_cost_dep_base * sale_rate_year
-            
+
+            # 当年地价款抵减额（匹配销售率）
+            land_deduct_year = land_deduct_total * sale_rate_year
             # 填入表格（和原有财务费用、总成本列完全对齐）
             sale_cost_df.loc[year, "累计开发成本（销售部分）(万元)"] = round(dev_cost_sale_year, 4)
             sale_cost_df.loc[year, "累计开发成本（折旧摊销部分）(万元)"] = round(dev_cost_dep_year, 4)
             sale_cost_df.loc[year, "销售费用(万元)"] = round(sale_fee_year, 4)
             sale_cost_df.loc[year, "销售税金及其附加(万元)"] = round(sale_tax_total_year, 4)
+            # 新增税金核对行（复用循环内已计算的变量，无额外计算）
+            sale_cost_df.loc[year, "增值税(万元)"] = round(vat_year, 4)
+            sale_cost_df.loc[year, "增值税销项税额(万元)"] = round(output_vat_year, 4)
+            sale_cost_df.loc[year, "增值税进项税额(万元)"] = round(input_vat_year, 4)
+            sale_cost_df.loc[year, "地价款抵减(万元)"] = round(land_deduct_year, 4)
+            sale_cost_df.loc[year, "增值税附加(万元)"] = round(vat_surcharge_year, 4)
             sale_cost_df.loc[year, "财务费用(建设期)(万元)"] = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
             sale_cost_df.loc[year, "财务费用(运营期)(万元)"] = total_cost_df.loc[year, "财务费用(运营期)(万元)"]
             # 总成本费用=销售部分开发成本+折旧摊销+销售费用+销售税金+运营期财务费用
