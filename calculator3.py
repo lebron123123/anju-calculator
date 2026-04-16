@@ -966,6 +966,10 @@ if calc_button:
         land_deduct_total = sale_area * land_floor_price / 10000  # 地价抵减总额（转万元）
         non_sale_dev_cost = land_cost + construction_cost + infra_cost + other_eng_cost  # 非配售开发成本
         build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
+         # 销售部分全周期合计
+        total_dev_cost_sale_base = total_investment - build_fin_total * area_ratio_sale
+         # 折旧摊销部分全周期合计
+        total_dev_cost_dep_base = (non_sale_dev_cost - build_fin_total * area_ratio_comm) * 0.8
         
         # 预计算累计值变量
         cum_output_vat = 0.0
@@ -997,11 +1001,10 @@ if calc_button:
             stamp_year = sale_income_year * stamp_tax_rate / 1.09 if sale_income_year > 0 else 0.0
             # 7. 销售税金及其附加=增值税+增值税附加+印花税
             sale_tax_total_year = vat_year + vat_surcharge_year + stamp_year
-            # 8. 累计开发成本（销售部分）=总投资-建设期财务费用×销售面积占比-累计销售收入×1.5%
-            cum_sale_income = income_df.loc[:year, "配保房销售收入(万元)"].sum()
-            dev_cost_sale_year = total_investment - build_fin_total * area_ratio_sale - cum_sale_income * 0.015
-            # 9. 累计开发成本（折旧摊销部分）=[非配售开发成本-建设期财务费用×(1-销售面积占比)]×0.8
-            dev_cost_dep_year = (non_sale_dev_cost - build_fin_total * area_ratio_comm) * 0.8
+            # 8. 当年开发成本（销售部分）= 全周期合计基数 × 当年销售率
+            dev_cost_sale_year = total_dev_cost_sale_base * sale_rate_year
+            # 9. 当年开发成本（折旧摊销部分）= 全周期合计基数 × 当年销售率
+            dev_cost_dep_year = total_dev_cost_dep_base * sale_rate_year
             
             # 填入表格（和原有财务费用、总成本列完全对齐）
             sale_cost_df.loc[year, "累计开发成本（销售部分）(万元)"] = round(dev_cost_sale_year, 4)
