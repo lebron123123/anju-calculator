@@ -382,12 +382,11 @@ with st.expander("5. 全投资现金流量表参数", expanded=True):
 # 6. 一键测算按钮
 calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
-# ===================== 核心测算函数（仅加车位+其他收入逻辑，无其他改动）=====================
-# ===================== 核心测算函数（极简修改版，完全匹配需求）=====================
+# ===================== 核心测算函数=====================
 def generate_year_list(build_yrs, operate_yrs):
     all_years = sorted(list(set(build_yrs + operate_yrs)))
-    month_dict = {year: 0 if year in build_yrs else 12 for year in all_years}
-    is_operate = {year: year in operate_yrs for year in all_years}
+    month_dict = {year: 0 if year in build_yrs else 12 for year in all_years} #建设年算0/否则算12
+    is_operate = {year: year in operate_yrs for year in all_years} #判断运营年
     return all_years, month_dict, is_operate
 
 def calc_income(all_years, month_dict, is_operate, area, price, increase_span, increase_rate, occupancy_ramp_dict, stable_start, stable_end, stable_occ, park_count, park_price, park_ratio, park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_stable_occ, other_name, other_total):
