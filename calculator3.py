@@ -423,7 +423,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
             income_df.loc[year, "住宅租金收入(万元)"] = 0
             income_df.loc[year, "车位收入(万元)"] = 0
             income_df.loc[year, f"{other_name}(万元)"] = 0
-            income_df.loc[year, "计算过程说明"] = "建设期，无收入"
+            #income_df.loc[year, "计算过程说明"] = "建设期，无收入"
         else:
             # 住宅收入
             resi_occ, resi_months, resi_rent = resi_occupancy[year], month_dict[year], resi_rent_price[year]
