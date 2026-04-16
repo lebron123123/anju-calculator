@@ -448,7 +448,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
     income_df["总收入(万元)"] = income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_name}(万元)"]
     return income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price
 
-# ===================== 新增：(出售型)出租情况表（营运成本）计算函数 ======================
+# ===================== 新增：(出售型)的出租情况表（营运成本）计算函数 ======================
 #(备注防忘)年份列表all_years，建设运营期判断is_operate，运营期年份列表operate_year_list，商业面积comm_area，商业起始租金comm_rent_start_price，商业租金递增跨度comm_rent_increase_span，爬坡期每年的商业出租率字典comm_occupancy_ramp_dict
 #商业稳定期起始年comm_stable_start，商业稳定期结束年comm_stable_end，商业稳定期固定出租率comm_occupancy_stable，车位个数park_count，土地成本land_cost，建安工程费construction_cost，基础设施建设费infra_cost，工程建设其他费用other_eng_cost
 #用地面积land_use_area，租赁月数lease_months，计容建筑面积plot_ratio_area
