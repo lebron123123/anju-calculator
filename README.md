@@ -31,7 +31,7 @@ PROJECT_CONFIG{{}}
 
 三、测算逻辑  
 （一）pandas库  
-      pd.DataFrame()生成表格→X.loc[行，列]生成数据  
+      pd.DataFrame()生成表格→X.loc[行，列]生成数据→X.T转置  
 
 （二）储值基础  
       1.创造空字典：comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {}  
