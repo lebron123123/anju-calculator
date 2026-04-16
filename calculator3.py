@@ -969,8 +969,9 @@ if calc_button:
         land_deduct_total = sale_area * land_floor_price / 10000  # 地价抵减总额（转万元）
         non_sale_dev_cost = land_cost + dev_cost  # 非配售开发成本=土地成本费+开发成本费
         build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
-         # 销售部分全周期合计
-        total_dev_cost_sale_base = total_investment - build_fin_total * area_ratio_sale
+        total_sale_income_all = income_df["配保房销售收入(万元)"].sum()
+         # 销售部分全周期合计(总投资-建设期财务费用×销售面积比-配保房收入×1.5%)
+        total_dev_cost_sale_base = total_investment - build_fin_total * area_ratio_sale-total_sale_income_all * 0.015
          # 折旧摊销部分全周期合计
         total_dev_cost_dep_base = (non_sale_dev_cost - build_fin_total * area_ratio_comm) * 0.8
         
