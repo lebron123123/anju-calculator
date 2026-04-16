@@ -1030,7 +1030,6 @@ if calc_button:
             sale_cost_df.loc[year, "销售费用(万元)"] = round(sale_fee_year, 4)
             sale_cost_df.loc[year, "销售税金及其附加(万元)"] = round(sale_tax_total_year, 4)
             # 新增税金核对行（复用循环内已计算的变量，无额外计算）
-            sale_cost_df.loc[year, "检查2"] = round(y, 4)
             sale_cost_df.loc[year, "增值税(万元)"] = round(vat_year, 4)
             sale_cost_df.loc[year, "增值税销项税额(万元)"] = round(output_vat_year, 4)
             sale_cost_df.loc[year, "增值税进项税额(万元)"] = round(input_vat_year, 4)
