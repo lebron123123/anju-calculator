@@ -1027,15 +1027,17 @@ if calc_button:
     cf_df["现金流入(万元)"] = income_df["总收入(万元)"]
 
     # 2. 现金流出：全调用现成表数据，按你的公式汇总
+    # 2. 现金流出：全调用现成表数据，按你的公式汇总
     for year in all_years:
         build_invest = invest_plan_dict.get(year, 0.0)
         tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
-        manage_total = total_cost_df.loc[year, "管理费用(住房)(万元)"] + total_cost_df.loc[year, "管理费用(停车位)(万元)"]
-        vacancy_fee = total_cost_df.loc[year, "空置期物业管理费(万元)"]
-        repair_fee = total_cost_df.loc[year, "维修费用(万元)"]
-        insurance_fee = total_cost_df.loc[year, "保险费(万元)"]
-        decoration_reset = total_cost_df.loc[year, "装修重置费(万元)"]
-        maintain_fund = total_cost_df.loc[year, "日常物业维修基金(万元)"]
+        # 【最小修复】用get方法兜底，出售类无对应列自动返回0，不触发KeyError
+        manage_total = total_cost_df.loc[year, :].get("管理费用(住房)(万元)", 0) + total_cost_df.loc[year, :].get("管理费用(停车位)(万元)", 0)
+        vacancy_fee = total_cost_df.loc[year, :].get("空置期物业管理费(万元)", 0)
+        repair_fee = total_cost_df.loc[year, :].get("维修费用(万元)", 0)
+        insurance_fee = total_cost_df.loc[year, :].get("保险费(万元)", 0)
+        decoration_reset = total_cost_df.loc[year, :].get("装修重置费(万元)", 0)
+        maintain_fund = total_cost_df.loc[year, :].get("日常物业维修基金(万元)", 0)
         income_tax = profit_df.loc[year, "所得税(万元)"]
         
         # 现金流出合计
