@@ -128,6 +128,7 @@ with st.expander("2. 收入计算参数", expanded=True):
     # 先初始化变量，非出售类自动赋默认值，避免NameError
     sale_area, sale_avg_price, sale_ramp_dict = 0, 0.0, {}
     comm_area, comm_rent_price = 0, 0.0
+    dev_cost = 0.0  # 非配售开发成本费默认值
     current_config = PROJECT_CONFIG[project_type]
     if "sale_and_commercial" in current_config.get("ui_components", []):
         st.subheader("🏠 配保房销售")
@@ -267,7 +268,9 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
         # 第4行：公式必填参数（一行2个）
         col7, col8 = st.columns(2)
         land_floor_price = col7.number_input("划拨土地楼面价（元/㎡）", min_value=0.0, value=0.0, step=10.0, help="配保房地价抵减计算用")
-        stamp_tax_rate = col8.number_input("印花税率（‰）", min_value=0.0, max_value=10.0, value=0.5, step=0.1, help="默认0.5‰，即0.05%") / 1000  # 转成小数
+        dev_cost = col8.number_input("(非配售)开发成本费（万元）", min_value=0.0, value=0.0, step=10.0, help="非配售部分开发成本，用于累计开发成本计算")
+        # 印花税率固定默认0‰，无需用户输入，需要时再用
+        stamp_tax_rate = 0 / 1000  # 固定0.5‰，转成小数
 
         # 第4行：新增工程进项税（单独一行）
         #plot_ratio_area = col5.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
@@ -964,7 +967,7 @@ if calc_button:
         area_ratio_sale = sale_area / area_total if area_total != 0 else 0.0
         area_ratio_comm = 1 - area_ratio_sale
         land_deduct_total = sale_area * land_floor_price / 10000  # 地价抵减总额（转万元）
-        non_sale_dev_cost = land_cost + construction_cost + infra_cost + other_eng_cost  # 非配售开发成本
+        non_sale_dev_cost = land_cost + dev_cost  # 非配售开发成本=土地成本费+开发成本费
         build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
          # 销售部分全周期合计
         total_dev_cost_sale_base = total_investment - build_fin_total * area_ratio_sale
