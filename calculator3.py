@@ -1040,7 +1040,7 @@ if calc_button:
     # 期初/期末借款的合计无意义，填/
     loan_no_sum_rows = ["期初借款本金(万元)", "期末借款累计(万元)"]
     loan_df_T.loc[:, "全周期合计(万元)"] = loan_df_T.apply(
-        lambda row: "/" if row.name in loan_no_sum_rows else row["全周期合计(万元)"], axis=1
+        lambda row: np.nan if row.name in loan_no_sum_rows else row["全周期合计(万元)"], axis=1
     )
     loan_df_T = loan_df_T[ ["全周期合计(万元)"] + [col for col in loan_df_T.columns if col != "全周期合计(万元)"] ]
 
