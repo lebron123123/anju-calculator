@@ -435,13 +435,13 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
             other_year_rent = other_total if year == operate_year_list[0] else 0
             
             # 填入表格
-            income_df.loc[year, "住宅租金单价(元/㎡/月)"] = round(resi_rent, 2)
-            income_df.loc[year, "住宅出租率"] = round(resi_occ, 4)
+            #income_df.loc[year, "住宅租金单价(元/㎡/月)"] = round(resi_rent, 2)
+            #income_df.loc[year, "住宅出租率"] = round(resi_occ, 4)
             income_df.loc[year, "住宅租金收入(万元)"] = round(resi_year_rent, 4)
             #income_df.loc[year, "车位租金单价(元/个/月)"] = round(park_rent, 2)
             #income_df.loc[year, "车位出租率"] = round(park_occ, 4)
-            #income_df.loc[year, "车位收入(万元)"] = round(park_year_rent, 4)
-            #income_df.loc[year, f"{other_name}(万元)"] = round(other_year_rent, 4)
+            income_df.loc[year, "车位收入(万元)"] = round(park_year_rent, 4)
+            income_df.loc[year, f"{other_name}(万元)"] = round(other_year_rent, 4)
             #income_df.loc[year, "计算过程说明"] = f"住宅:{area}×{round(resi_rent,2)}×{round(resi_occ,4)}×{resi_months}/10000 + 车位:{park_count}×{round(park_rent,2)}×{round(park_occ,4)}×{park_months}×{park_ratio}/10000 + {other_name}:{round(other_year_rent,4)}"
     
     # 总收入汇总(表格计算)
