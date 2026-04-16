@@ -1037,8 +1037,8 @@ if calc_button:
             sale_cost_df.loc[year, "增值税附加(万元)"] = round(vat_surcharge_year, 4)
             sale_cost_df.loc[year, "财务费用(建设期)(万元)"] = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
             sale_cost_df.loc[year, "财务费用(运营期)(万元)"] = total_cost_df.loc[year, "财务费用(运营期)(万元)"]
-            # 总成本费用=销售部分开发成本+折旧摊销+销售费用+销售税金+运营期财务费用
-            total_cost_year = dev_cost_sale_year + dev_cost_dep_year + sale_fee_year + sale_tax_total_year + total_cost_df.loc[year, "财务费用(运营期)(万元)"]
+            # 总成本费用=开发成本销售部分+开发成本折旧摊部分+销售费用+销售税金+运营期财务费用
+            total_cost_year = dev_cost_sale_year + dev_cost_dep_year + sale_fee_year + sale_tax_total_year + total_cost_df.loc[year, "财务费用(建设期)(万元)"]+total_cost_df.loc[year, "财务费用(运营期)(万元)"]
             sale_cost_df.loc[year, "总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_year, 4)
         
         # 替换原有总成本表，仅出售类生效
