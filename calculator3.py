@@ -122,6 +122,8 @@ with st.expander("1. 项目基本信息", expanded=True):
 
 # 2. 收入计算参数
 with st.expander("2. 收入计算参数", expanded=True):
+    lease_months = 12
+    sale_area = 0
     # ===================== 【出售类专属·移到最开头】配保房销售设置 ======================
     # 先初始化变量，非出售类自动赋默认值，避免NameError
     sale_area, sale_avg_price, sale_ramp_dict = 0, 0.0, {}
