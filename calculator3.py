@@ -971,9 +971,12 @@ if calc_button:
         build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
         total_sale_income_all = income_df["配保房销售收入(万元)"].sum()
          # 销售部分全周期合计(总投资-建设期财务费用×销售面积比-配保房收入×1.5%)
+        # 【新增1行】全周期销售费用合计（固定值）
+        total_sale_fee_all = total_sale_income_all * 0.015
         total_dev_cost_sale_base = total_investment - build_fin_total * area_ratio_sale-total_sale_income_all * 0.015
          # 折旧摊销部分全周期合计
         total_dev_cost_dep_base = (non_sale_dev_cost - build_fin_total * area_ratio_comm) * 0.8
+        
         
         # 预计算累计值变量
         cum_output_vat = 0.0
@@ -993,9 +996,9 @@ if calc_button:
             # 3. 增值税销项税=(当年销售款-地价抵减总额×当年销售率)×9%/(1+9%)
             output_vat_year = (sale_income_year + other_income_year - land_deduct_total * sale_rate_year) * (0.09 / 1.09) if sale_income_year > 0 else 0.0
             # 4. 增值税进项税（修正公式笔误，一行搞定）
-            input_vat_6 = (other_eng_cost /area_ratio_comm + sale_fee_year) * sale_rate_year * (0.06 / 1.06)
-            x=other_eng_cost /area_ratio_comm + sale_fee_year
-            z=sale_fee_year
+            input_vat_6 = (other_eng_cost /area_ratio_comm + total_sale_fee_all) * sale_rate_year * (0.06 / 1.06)
+            x=other_eng_cost /area_ratio_comm + total_sale_fee_all
+            z=total_sale_fee_all
             input_vat_9 = (construction_cost + infra_cost) /area_ratio_comm * sale_rate_year * (0.09 / 1.09)
             y=(construction_cost + infra_cost) /area_ratio_comm
             input_vat_year = input_vat_6 + input_vat_9
