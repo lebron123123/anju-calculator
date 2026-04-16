@@ -970,8 +970,6 @@ if calc_button:
         non_sale_dev_cost = land_cost + dev_cost  # 非配售开发成本=土地成本费+开发成本费
         build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
         total_sale_income_all = income_df["配保房销售收入(万元)"].sum()
-        # 【新增1行】取当年其他收入
-        other_income_year = income_df.loc[year, f"{other_income_name}(万元)"]
          # 销售部分全周期合计(总投资-建设期财务费用×销售面积比-配保房收入×1.5%)
         total_dev_cost_sale_base = total_investment - build_fin_total * area_ratio_sale-total_sale_income_all * 0.015
          # 折旧摊销部分全周期合计
@@ -988,6 +986,8 @@ if calc_button:
             # 1. 基础当年值
             sale_income_year = income_df.loc[year, "配保房销售收入(万元)"]
             sale_rate_year = sale_ramp_dict.get(year, 0.0)
+            # 【新增1行】取当年其他收入
+            other_income_year = income_df.loc[year, f"{other_income_name}(万元)"]
             # 2. 销售费用=当年配保房销售收入×1.5%
             sale_fee_year = sale_income_year * 0.015
             # 3. 增值税销项税=(当年销售款-地价抵减总额×当年销售率)×9%/(1+9%)
