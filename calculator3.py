@@ -129,6 +129,8 @@ with st.expander("2. 收入计算参数", expanded=True):
     sale_area, sale_avg_price, sale_ramp_dict = 0, 0.0, {}
     comm_area, comm_rent_price = 0, 0.0
     dev_cost = 0.0  # 非配售开发成本费默认值
+    sale_construction_cost = 0.0  # 配售建安工程费默认值
+    sale_infra_cost = 0.0  # 配售基础设施费默认值
     current_config = PROJECT_CONFIG[project_type]
     if "sale_and_commercial" in current_config.get("ui_components", []):
         st.subheader("🏠 配保房销售")
@@ -270,6 +272,11 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
         land_floor_price = col7.number_input("划拨土地楼面价（元/㎡）", min_value=0.0, value=0.0, step=10.0, help="配保房地价抵减计算用")
         dev_cost = col8.number_input("(非配售)开发成本费（万元）", min_value=0.0, value=0.0, step=10.0, help="非配售部分开发成本，用于累计开发成本计算")
         # 印花税率固定默认0‰，无需用户输入，需要时再用
+
+        # 第5行：配售专属参数（一行2个）
+        col9, col10 = st.columns(2)
+        sale_construction_cost = col9.number_input("(配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分建安工程费，用于增值税进项税计算")
+        sale_infra_cost = col10.number_input("(配售)基础设施费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分基础设施费，用于增值税进项税计算")
         stamp_tax_rate = 0 / 1000  # 固定0.5‰，转成小数
 
         # 第4行：新增工程进项税（单独一行）
@@ -997,8 +1004,7 @@ if calc_button:
             output_vat_year = (sale_income_year + other_income_year - land_deduct_total * sale_rate_year) * (0.09 / 1.09) if sale_income_year > 0 else 0.0
             # 4. 增值税进项税（修正公式笔误，一行搞定）
             input_vat_6 = (other_eng_cost /area_ratio_comm + total_sale_fee_all) * sale_rate_year * (0.06 / 1.06)
-            input_vat_9 = (construction_cost + infra_cost) /area_ratio_comm * sale_rate_year * (0.09 / 1.09)
-            y=construction_cost + infra_cost
+            input_vat_9 = (sale_construction_cost + sale_infra_cost) * sale_rate_year * (0.09 / 1.09)
             input_vat_year = input_vat_6 + input_vat_9
             # 5. 累计值计算
             cum_output_vat += output_vat_year
