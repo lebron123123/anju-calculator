@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
+pd.set_option('display.float_format', lambda x: f'{x:.4f}')
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
