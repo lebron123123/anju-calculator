@@ -15,18 +15,18 @@ PROJECT_CONFIG{{}}
 
 （一）页面显示  
       st.set_page_config()网页标题     
-      st.title()页面大标题    
-      st.subheader（）创建栏目标题    
-      st.selectbox（）创建下拉菜单   
-      st.info()在外部显示
-（二）其他功能  
-      st.session_state()功能盒子
-      st.button()测算按钮
-（三）内容输入
-      st.text_input（）文本输入  
-      col1, col2 = st.columns(2)→col1.number_input()按排输入值  
-      st.multiselect（）多选  
-      st.radio（）多选  
+      st.title()页面大标题     
+      st.subheader（）创建栏目标题      
+      st.selectbox（）创建下拉菜单    
+      st.info()在外部显示  
+（二）其他功能    
+      st.session_state()功能盒子  
+      st.button()测算按钮  
+（三）内容输入  
+      st.text_input（）文本输入    
+      col1, col2 = st.columns(2)→col1.number_input()按排输入值    
+      st.multiselect（）多选    
+      st.radio（）多选    
       
 
 三、测算逻辑  
