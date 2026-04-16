@@ -31,7 +31,7 @@ PROJECT_CONFIG{{}}
 
 三、测算逻辑  
 （一）pandas库  
-      pd.DataFrame()生成表格  
+      pd.DataFrame()生成表格→X.loc[行，列]生成数据  
 
 （二）储值基础  
       1.创造空字典：comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {}  
@@ -47,4 +47,5 @@ PROJECT_CONFIG{{}}
 （二）表格计算  
       1.公式计算:
       2.表格内加减:a = rental_table.loc[第一个]-rental_table.loc[第二个]
+      3.整行加减:表[A]=表[B]＋表[C]
       
