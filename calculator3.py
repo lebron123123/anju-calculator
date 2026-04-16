@@ -994,7 +994,7 @@ if calc_button:
             output_vat_year = (sale_income_year + other_income_year - land_deduct_total * sale_rate_year) * (0.09 / 1.09) if sale_income_year > 0 else 0.0
             # 4. 增值税进项税（修正公式笔误，一行搞定）
             input_vat_6 = (other_eng_cost * (area_total/comm_area if comm_area!=0 else 0) + sale_fee_year) * sale_rate_year * (0.06 / 1.06)
-            x=(other_eng_cost * (area_total/comm_area if comm_area!=0 else 0) 
+            x=other_eng_cost * (area_total/comm_area if comm_area!=0 else 0) 
             input_vat_9 = (construction_cost + infra_cost) * (area_total/comm_area if comm_area!=0 else 0) * sale_rate_year * (0.09 / 1.09)
             y=(construction_cost + infra_cost) * (area_total/comm_area if comm_area!=0 else 0)
             input_vat_year = input_vat_6 + input_vat_9
