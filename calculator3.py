@@ -997,9 +997,8 @@ if calc_button:
             output_vat_year = (sale_income_year + other_income_year - land_deduct_total * sale_rate_year) * (0.09 / 1.09) if sale_income_year > 0 else 0.0
             # 4. 增值税进项税（修正公式笔误，一行搞定）
             input_vat_6 = (other_eng_cost /area_ratio_comm + total_sale_fee_all) * sale_rate_year * (0.06 / 1.06)
-            x=other_eng_cost /area_ratio_comm + total_sale_fee_all
             input_vat_9 = (construction_cost + infra_cost) /area_ratio_comm * sale_rate_year * (0.09 / 1.09)
-            y=(construction_cost + infra_cost) 
+            y=construction_cost + infra_cost
             input_vat_year = input_vat_6 + input_vat_9
             # 5. 累计值计算
             cum_output_vat += output_vat_year
@@ -1025,7 +1024,6 @@ if calc_button:
             sale_cost_df.loc[year, "销售费用(万元)"] = round(sale_fee_year, 4)
             sale_cost_df.loc[year, "销售税金及其附加(万元)"] = round(sale_tax_total_year, 4)
             # 新增税金核对行（复用循环内已计算的变量，无额外计算）
-            sale_cost_df.loc[year, "检查1"] = round(x, 4)
             sale_cost_df.loc[year, "检查2"] = round(y, 4)
             sale_cost_df.loc[year, "增值税(万元)"] = round(vat_year, 4)
             sale_cost_df.loc[year, "增值税销项税额(万元)"] = round(output_vat_year, 4)
