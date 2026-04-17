@@ -150,6 +150,7 @@ if is_ai_mode:
     if st.session_state.get("calc_done", False):
         # 把AI生成的参数赋值给所有测算变量（这里和你原来的测算逻辑完全兼容）
         ai_params = st.session_state["ai_params"]
+        comm_rent_stable_start, resi_rent_start = 2027, 19.2
         comm_rent_stable_start, resi_rent_start = operate_start, resi_rent_start
         # 1. 住宅相关
         residential_area = ai_params.get("residential_area", total_build_area * 0.9)
