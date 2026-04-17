@@ -1216,7 +1216,11 @@ if calc_button:
     loan_df_T = loan_df_T[ ["全周期合计(万元)"] + [col for col in loan_df_T.columns if col != "全周期合计(万元)"] ]
 
     # 7. 计算最终核心指标
-    total_income = round(income_df["总收入(万元)"].sum(), 2)
+    if project_type == "出售类(配保房/可售型人才房等)":
+        total_income = round(income_df["配保房销售收入(万元)"].sum()+ income_df["出租净收益现值(万元)"].sum()+ income_df["住宅租金收入(万元)"].sum()+ income_df["车位收入(万元)"].sum()+ income_df[f"{other_income_name}(万元)"].sum(),2)
+    else:
+        total_income = round(income_df["总收入(万元)"].sum(), 2)
+    #total_income = round(income_df["总收入(万元)"].sum(), 2)
     total_cost = round(total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"].sum(), 2)
     total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
     total_net_profit = round(profit_df["净利润(万元)"].sum(), 2)
