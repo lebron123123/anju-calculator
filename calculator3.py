@@ -150,6 +150,7 @@ if is_ai_mode:
     if st.session_state.get("calc_done", False):
         # 把AI生成的参数赋值给所有测算变量（这里和你原来的测算逻辑完全兼容）
         ai_params = st.session_state["ai_params"]
+        comm_rent_stable_start, resi_rent_start = operate_start, resi_rent_start
         # 1. 住宅相关
         residential_area = ai_params.get("residential_area", total_build_area * 0.9)
         rent_start_price = resi_rent_start
@@ -227,6 +228,7 @@ if is_ai_mode:
                 # 2. 保存参数到session_state
                 st.session_state["ai_params"] = params
                 st.session_state["calc_done"] = True
+                st.session_state["calc_button"] = True
 
                 # 3. 关键：刷新界面，进入测算逻辑
                 st.rerun()
