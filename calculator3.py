@@ -783,7 +783,7 @@ def calc_taxes(all_years, month_dict, is_operate, income_df, resi_occupancy, ope
     return tax_df
 
 # ===================== 损益表测算函数（修复弥补亏损逻辑+新增净利润）=====================
-def calc_profit(all_years, income_df, total_cost_df, tax_df):
+def calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=False):
     profit_df = pd.DataFrame(index=all_years)
     
     # 1-3行：直接调用现成数据
