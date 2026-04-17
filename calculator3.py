@@ -150,6 +150,8 @@ if is_ai_mode:
     if st.session_state.get("calc_done", False):
         # 把AI生成的参数赋值给所有测算变量（这里和你原来的测算逻辑完全兼容）
         ai_params = st.session_state["ai_params"]
+        ai_sub_type = st.session_state.get("ai_sub_type", "出售类")
+        comm_rent_stable_start, resi_rent_start = operate_start, st.session_state.get("resi_rent_start", 19.2)
         comm_rent_stable_start, resi_rent_start = 2027, 19.2
         comm_rent_stable_start, resi_rent_start = operate_start, resi_rent_start
         # 1. 住宅相关
@@ -158,6 +160,7 @@ if is_ai_mode:
         rent_increase_span = ai_params.get("rent_increase_span", 3)
         rent_increase_rate = ai_params.get("rent_increase_rate", 2.0)
         occupancy_stable = ai_params.get("occupancy_stable", 0.9)
+        occupancy_ramp_dict = ai_params.get("occupancy_ramp_dict", {str(operate_start):0.7, str(operate_start+1):0.8})
         # 2. 商业/车位
         comm_area = ai_params.get("comm_area", total_build_area * 0.08)
         park_count = ai_params.get("park_count", int(total_build_area / 100))
