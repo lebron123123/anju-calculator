@@ -5,34 +5,49 @@ import numpy as np
 from datetime import datetime
 import json
 import pandas as pd
-from volcengine.maas import MaasService, MaasException, ChatRole
+# 👇 替换掉原来所有和volcengine相关的代码，只保留下面这些
+import json
+import pandas as pd
 
-# 初始化AI
-maas = MaasService('maas-api.cn-huabei-1.volces.com', 'cn-huabei-1')
-maas.set_ak("你的API_KEY")
-maas.set_sk("你的SECRET_KEY")
-
-# AI 自动补全参数（会参考你的历史项目）
+# 本地规则版参数生成（完全不依赖API，不会报错）
 def ai_fill_indicators(core_input, history_df=None):
-    history_example = ""
-    if history_df is not None and len(history_df) > 0:
-        history_example = "【历史项目参考】\n" + history_df.head(3).to_json(force_ascii=False)
-
-    prompt = f"""
-    你是安居房测算专家，根据核心指标+历史项目，生成合规测算参数，只输出JSON。
-    {history_example}
-    核心指标：{json.dumps(core_input)}
     """
-
-    try:
-        resp = maas.chat({
-            "model": "ep-20240801104313-jxqvh",
-            "messages": [{"role": ChatRole.USER, "content": prompt}],
-            "temperature": 0.2
-        })
-        return json.loads(resp.choices[0].message.content), "✅ AI补全完成"
-    except:
-        return None, "❌ 失败"
+    用行业常规值+固定规则生成参数，先让AI模式跑起来
+    """
+    core = core_input
+    # 核心规则：按安居房行业常规比例生成参数
+    params = {
+        # 住宅相关
+        "residential_area": core.get("总建筑面积", 50000) * 0.9,
+        "rent_increase_span": 3,
+        "rent_increase_rate": 2.0,
+        "ramp_years": core.get("运营期年份", [2027,2028])[:2],
+        "occupancy_ramp_dict": {str(y): 0.7 if i==0 else 0.8 for i,y in enumerate(core.get("运营期年份", [2027,2028])[:2])},
+        "stable_start": max(core.get("运营期年份", [2027,2028])[:2]) + 1 if len(core.get("运营期年份", [2027,2028])[:2])>0 else 2029,
+        "stable_end": core.get("运营期年份", [2027,2028,2029])[-1],
+        "occupancy_stable": 0.9,
+        # 商业相关
+        "comm_area": core.get("总建筑面积", 50000) * 0.08,
+        "comm_rent_start_price": 30.0,
+        "comm_rent_increase_span": 3,
+        "comm_rent_increase_rate": 3.0,
+        "comm_occupancy_stable": 0.85,
+        # 车位相关
+        "park_count": int(core.get("总建筑面积", 50000) / 100),
+        "park_rent_start_price": 300.0,
+        "park_income_ratio": 0.5,
+        "park_occupancy_stable": 0.9,
+        # 成本相关
+        "other_income_name": "其他收入",
+        "other_income_total": core.get("总投资", 50000) * 0.003,
+        "manage_coeff": 1.92,
+        "land_cost": core.get("总投资", 50000) * 0.25,
+        "construction_cost": core.get("总建筑面积", 50000) * 1000 / 10000,
+        "infra_cost": core.get("总建筑面积", 50000) * 80 / 10000,
+        "sale_area": core.get("总建筑面积", 50000) * 0.8,
+        "sale_ramp_dict": {"2030":0.3, "2031":0.4, "2032":0.3}
+    }
+    return params, "✅ 本地规则版参数生成完成"
 
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
