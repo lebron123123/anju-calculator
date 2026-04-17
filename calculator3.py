@@ -523,7 +523,8 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
             # 车位稳定期设置
             col_park_stable1, col_park_stable2, col_park_stable3 = st.columns(3)
             park_default_stable_start = max(park_ramp_years) + 1 if park_ramp_years else operate_years[0]
-            park_stable_start = col_park_stable1.number_input("车位稳定期起始年", min_value=operate_years[0], max_value=operate_years[-1], value=park_default_stable_start, step=1)
+            # 找到车位的那行number_input，同样给value加个min兜底
+            park_stable_start = col_park_stable1.number_input("车位稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
             park_stable_end = col_park_stable2.number_input("车位稳定期结束年", min_value=park_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
             park_occupancy_stable = col_park_stable3.number_input("车位稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
         else:
