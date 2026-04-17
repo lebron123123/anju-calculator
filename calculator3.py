@@ -145,54 +145,23 @@ invest_plan_dict, loan_plan_dict, repay_plan_dict = {}, {}, {}
 
 # ===================== 【AI模式：纯核心输入，无任何多余界面】 =====================
 # ===================== 【最终修复版】AI模式 =====================
+# ===================== 【最终极简修复】AI模式 =====================
 if is_ai_mode:
-    # 关键：如果已经点击过AI按钮，直接跳过输入，显示测算结果
+    # 从session_state取关键值，解决未定义报错
+    ai_sub_type = st.session_state.get("ai_sub_type", "出售类")
+    operate_start = st.session_state.get("operate_start", 2027)
+    operate_end = st.session_state.get("operate_end", 2057)
+    resi_rent_start = st.session_state.get("resi_rent_start", 19.2)
+
+    # AI已生成参数 → 直接触发原有测算，不写新测算逻辑
     if st.session_state.get("calc_done", False):
-        # 把AI生成的参数赋值给所有测算变量（这里和你原来的测算逻辑完全兼容）
-        ai_params = st.session_state["ai_params"]
-        ai_sub_type = st.session_state.get("ai_sub_type", "出售类")
-        operate_start = 2027
-        comm_rent_stable_start, resi_rent_start = operate_start, st.session_state.get("resi_rent_start", 19.2)
-        comm_rent_stable_start, resi_rent_start = 2027, 19.2
-        comm_rent_stable_start, resi_rent_start = operate_start, resi_rent_start
-        # 1. 住宅相关
-        residential_area = ai_params.get("residential_area", total_build_area * 0.9)
-        rent_start_price = resi_rent_start
-        rent_increase_span = ai_params.get("rent_increase_span", 3)
-        rent_increase_rate = ai_params.get("rent_increase_rate", 2.0)
-        occupancy_stable = ai_params.get("occupancy_stable", 0.9)
-        occupancy_ramp_dict = ai_params.get("occupancy_ramp_dict", {str(operate_start):0.7, str(operate_start+1):0.8})
-        # 2. 商业/车位
-        comm_area = ai_params.get("comm_area", total_build_area * 0.08)
-        park_count = ai_params.get("park_count", int(total_build_area / 100))
-        park_income_ratio = ai_params.get("park_income_ratio", 0.5)
-        # 3. 成本
-        land_cost = ai_params.get("land_cost", total_investment * 0.25)
-        construction_cost = ai_params.get("construction_cost", total_build_area * 1000 / 10000)
-        infra_cost = ai_params.get("infra_cost", construction_cost * 0.08)
-        # 4. 借款/销售
-        sale_area = ai_params.get("sale_area", total_build_area * 0.8 if ai_sub_type in ["出售类","租售结合类"] else 0)
-        sale_ramp_dict = ai_params.get("sale_ramp_dict", {"2030":0.3,"2031":0.4,"2032":0.3})
-        loan_plan_dict = ai_params.get("loan_plan_dict", {y: total_investment*0.7/len(build_years) for y in build_years})
-        invest_plan_dict = ai_params.get("invest_plan_dict", {y: total_investment/len(build_years) for y in build_years})
-
-        # 关键：直接显示测算结果，不显示任何输入界面
-        st.header("📊 测算结果（AI模式）")
-        st.info("✅ 参数已自动生成，正在测算...")
-        # 下面直接放你原来的「一键测算」逻辑（原来的测算代码完全不用改）
-        # 比如：income_df, profit_df, metrics = calculate_project(...)
-        # st.dataframe(income_df)
-        # st.dataframe(profit_df)
-        # st.write(metrics)
-
-        # 关键：停止执行，不显示普通模式的输入界面
+        st.header("📊 AI测算结果")
+        # 直接触发你原来的一键测算按钮
+        st.session_state["calc_button"] = True
         st.stop()
 
-    # 如果还没点击按钮，只显示核心输入+按钮
+    # 未生成参数 → 显示核心输入框
     st.header("🤖 AI智能测算（仅核心指标）")
-    st.markdown("填写核心指标，点击按钮一键出结果，无需其他操作")
-
-    # 核心输入框（和你原来的一样，不用改）
     with st.expander("核心指标", expanded=True):
         project_name = st.text_input("项目名称", value="安居项目-AI测算")
         ai_sub_type = st.radio("项目类型",["出售类","出租类","租售结合类"],horizontal=True)
@@ -207,44 +176,73 @@ if is_ai_mode:
         loan_annual_rate = st.number_input("借款年利率（%）",value=3.0)
         discount_rate = st.number_input("折现率（%）",value=8.0)
 
-    # 自动生成年份列表
+    # 保存关键值到session_state，防报错
+    st.session_state["ai_sub_type"] = ai_sub_type
+    st.session_state["operate_start"] = operate_start
+    st.session_state["operate_end"] = operate_end
+    st.session_state["resi_rent_start"] = resi_rent_start
+
+    # 自动生成年份
     build_years = list(range(build_start, build_end+1))
     operate_years = list(range(operate_start, operate_end+1))
 
-    # 【修复版按钮】加了错误捕获+状态保存，点了绝对有反应
+    # AI按钮
     if st.button("🤖 AI一键生成所有参数并测算", type="primary", use_container_width=True):
-        with st.spinner("正在生成参数..."):
-            try:
-                # 1. 调用AI生成参数
-                core_input = {
-                    "项目类型": ai_sub_type,
-                    "总建筑面积": total_build_area,
-                    "总投资": total_investment,
-                    "建设期": build_years,
-                    "运营期": operate_years,
-                    "售价": sale_avg_price,
-                    "租金": resi_rent_start,
-                    "利率": loan_annual_rate,
-                    "折现率": discount_rate
-                }
-                params, msg = ai_fill_indicators(core_input)
-                st.success(msg)
+        with st.spinner("AI生成参数中..."):
+            core_input = {
+                "项目类型": ai_sub_type,"总建筑面积": total_build_area,"总投资": total_investment,
+                "建设期": build_years,"运营期": operate_years,"售价": sale_avg_price,
+                "租金": resi_rent_start,"利率": loan_annual_rate,"折现率": discount_rate
+            }
+            params, msg = ai_fill_indicators(core_input)
+            # AI参数赋值 → 完全对接你原有变量
+            ai_p = params
+            residential_area = ai_p.get("residential_area", total_build_area*0.9)
+            rent_start_price = resi_rent_start
+            rent_increase_span = ai_p.get("rent_increase_span",3)
+            rent_increase_rate = ai_p.get("rent_increase_rate",2.0)
+            occupancy_ramp_dict = ai_p.get("occupancy_ramp_dict",{str(operate_start):0.7, str(operate_start+1):0.8})
+            stable_start = ai_p.get("stable_start",operate_start+2)
+            stable_end = ai_p.get("stable_end",operate_end)
+            occupancy_stable = ai_p.get("occupancy_stable",0.9)
+            comm_area = ai_p.get("comm_area",total_build_area*0.08)
+            comm_rent_start_price = ai_p.get("comm_rent_start_price",30.0)
+            comm_rent_increase_span = ai_p.get("comm_rent_increase_span",3)
+            comm_rent_increase_rate = ai_p.get("comm_rent_increase_rate",3.0)
+            comm_occupancy_ramp_dict = ai_p.get("comm_occupancy_ramp_dict",{})
+            comm_stable_start = ai_p.get("comm_stable_start",operate_start+2)
+            comm_stable_end = ai_p.get("comm_stable_end",operate_end)
+            comm_occupancy_stable = ai_p.get("comm_occupancy_stable",0.85)
+            park_count = ai_p.get("park_count",int(total_build_area/100))
+            park_rent_start_price = ai_p.get("park_rent_start_price",300.0)
+            park_income_ratio = ai_p.get("park_income_ratio",0.5)
+            park_occupancy_ramp_dict = ai_p.get("park_occupancy_ramp_dict",{})
+            park_stable_start = ai_p.get("park_stable_start",operate_start+2)
+            park_stable_end = ai_p.get("park_stable_end",operate_end)
+            park_occupancy_stable = ai_p.get("park_occupancy_stable",0.9)
+            other_income_name = ai_p.get("other_income_name","其他收入")
+            other_income_total = ai_p.get("other_income_total",total_investment*0.003)
+            manage_coeff = ai_p.get("manage_coeff",1.92)
+            land_cost = ai_p.get("land_cost",total_investment*0.25)
+            construction_cost = ai_p.get("construction_cost",total_build_area*1000/10000)
+            infra_cost = ai_p.get("infra_cost",construction_cost*0.08)
+            other_eng_cost = ai_p.get("other_eng_cost",construction_cost*0.05)
+            project_input_tax = ai_p.get("project_input_tax",construction_cost*0.09)
+            land_use_area = ai_p.get("land_use_area",total_build_area/3)
+            land_floor_price = ai_p.get("land_floor_price",1000.0)
+            dev_cost = ai_p.get("dev_cost",total_investment*0.1)
+            sale_area = ai_p.get("sale_area",total_build_area*0.8 if ai_sub_type in ["出售类","租售结合类"] else 0)
+            sale_ramp_dict = ai_p.get("sale_ramp_dict",{"2030":0.3,"2031":0.4,"2032":0.3})
+            loan_plan_dict = {y:total_investment*0.7/len(build_years) for y in build_years}
+            invest_plan_dict = {y:total_investment/len(build_years) for y in build_years}
 
-                # 2. 保存参数到session_state
-                st.session_state["ai_params"] = params
-                st.session_state["calc_done"] = True
-                st.session_state["calc_button"] = True
+            # 标记完成，刷新触发测算
+            st.session_state["ai_params"] = params
+            st.session_state["calc_done"] = True
+            st.success(msg)
+            st.rerun()
 
-                # 3. 关键：刷新界面，进入测算逻辑
-                st.rerun()
-
-            except Exception as e:
-                st.error(f"❌ 生成失败：{e}")
-                st.stop()
-
-    # 提示用户
-    st.info("请填写核心指标，点击上方按钮生成参数并测算")
-    st.stop()  # 关键：不执行普通模式的输入界面
+    st.stop()
 
 # ===================== 【普通模式：原来的完整手动输入界面】 =====================
 else:
