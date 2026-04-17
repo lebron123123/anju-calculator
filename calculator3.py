@@ -219,6 +219,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
             comm_rent_start_price = col_comm2.number_input("商业起始租金单价（元/㎡/月）", value=0.0, min_value=0.0, step=0.1)
             # 商业租金递增设置（和住宅完全一致，仅改名称）
             # 模式开关
+            # 模式开关（默认不启用）
             comm_use_custom_increase = st.checkbox("启用自定义递增年份（不选则按默认跨度递增）", value=False)
             
             if not comm_use_custom_increase:
@@ -226,13 +227,42 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
                 col_comm_rent1, col_comm_rent2 = st.columns(2)
                 comm_rent_increase_span = col_comm_rent1.number_input("商业租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
                 comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
-                comm_custom_increase_dict = {}  # 自定义字典留空
+                comm_custom_increase_list = []  # 自定义区间列表留空
             else:
-                # 【自定义模式：每行一组 递增年份+递增率，纵向排列】
+                # 【自定义模式：每行一组 起始年+结束年+每X年+递增率】
                 st.markdown("#### 自定义递增设置")
                 # 用session_state保存行数，刷新不丢失，默认1行
                 if "comm_increase_row_count" not in st.session_state:
                     st.session_state.comm_increase_row_count = 1
+                
+                # 逐行生成输入框
+                comm_custom_increase_list = []  # 格式：[(起始年, 结束年, 跨度, 递增率), ...]
+                for i in range(st.session_state.comm_increase_row_count):
+                    col_start, col_end, col_span, col_rate, col_del = st.columns([2, 2, 2, 3, 1])
+                    # 1. 递增起始年
+                    inc_start = col_start.selectbox(f"起始年{i+1}", options=operate_years, key=f"comm_inc_start_{i}")
+                    # 2. 递增结束年（默认和起始年相同）
+                    inc_end = col_end.selectbox(f"结束年{i+1}", options=operate_years, index=operate_years.index(inc_start), key=f"comm_inc_end_{i}")
+                    # 3. 每X年递增
+                    inc_span = col_span.number_input(f"每X年{i+1}", min_value=1, max_value=50, value=1, step=1, key=f"comm_inc_span_{i}")
+                    # 4. 对应递增率
+                    inc_rate = col_rate.number_input(f"递增率{i+1}（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, key=f"comm_inc_rate_{i}")
+                    # 5. 删除按钮（至少保留1行）
+                    if col_del.button("×", key=f"comm_del_{i}", disabled=st.session_state.comm_increase_row_count <= 1):
+                        st.session_state.comm_increase_row_count -= 1
+                        st.rerun()
+                    # 校验：结束年≥起始年，才加入有效列表
+                    if inc_end >= inc_start:
+                        comm_custom_increase_list.append( (inc_start, inc_end, inc_span, inc_rate) )
+                
+                # 添加行按钮
+                if st.button("+ 添加递增行", key="comm_add_row"):
+                    st.session_state.comm_increase_row_count += 1
+                    st.rerun()
+                
+                # 原有变量赋默认值，避免报错
+                comm_rent_increase_span = 3
+                comm_rent_increase_rate = 2.0
                 
                 # 逐行生成输入框
                 comm_custom_increase_dict = {}
@@ -503,7 +533,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
 #(备注防忘)年份列表all_years，建设运营期判断is_operate，运营期年份列表operate_year_list，商业面积comm_area，商业起始租金comm_rent_start_price，商业租金递增跨度comm_rent_increase_span，爬坡期每年的商业出租率字典comm_occupancy_ramp_dict
 #商业稳定期起始年comm_stable_start，商业稳定期结束年comm_stable_end，商业稳定期固定出租率comm_occupancy_stable，车位个数park_count，土地成本land_cost，建安工程费construction_cost，基础设施建设费infra_cost，工程建设其他费用other_eng_cost
 #用地面积land_use_area，租赁月数lease_months，计容建筑面积plot_ratio_area
-def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost,land_use_area, lease_months,project_input_tax=0.0,comm_custom_increase_dict={}):
+def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost,land_use_area, lease_months,project_input_tax=0.0,comm_custom_increase_list=[], comm_first_increase_year=2):
     """计算出租营运成本明细表（出租情况表），复用现有参数，最小改动"""
     rental_table = pd.DataFrame(index=all_years)
     # （1）. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
@@ -525,18 +555,21 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     for year in operate_year_list:
         year_index = operate_year_list.index(year)
         effective_index = min(year_index, stable_index)
-        
-        # 【核心修改】自动适配模式
-        if comm_custom_increase_dict:
-            # 自定义模式：数一下到今年为止，选了多少个递增年
-            increase_times = 0
-            for inc_year in comm_custom_increase_dict.keys():
-                if inc_year <= year:
-                    increase_times += 1
-            # 用自定义的递增率（如果有多个不同的递增率，这里简化为用第一个，或者你可以改成每年单独算，这里最小改动）
-            # 如果你需要每年不同的递增率，把下面这行改成循环累加即可
-            single_rate = list(comm_custom_increase_dict.values())[0] if comm_custom_increase_dict else 2.0
-            comm_rent_price[year] = comm_rent_start_price * (1 + single_rate / 100) ** increase_times
+       
+        # 【核心替换：租金计算逻辑，支持自定义区间+每X年递增】
+        if comm_custom_increase_list:
+            # 自定义区间模式：区间内按「每X年」递增
+            current_price = comm_rent_start_price
+            # 按运营年份顺序逐年计算
+            for calc_year in sorted(operate_year_list):
+                # 遍历所有区间，判断当年是否需要递增
+                for (start_year, end_year, span, rate) in comm_custom_increase_list:
+                    if start_year <= calc_year <= end_year:
+                        # 核心逻辑：(当年 - 起始年) 能被 跨度 整除，才递增
+                        if (calc_year - start_year) % span == 0:
+                            current_price *= (1 + rate / 100)
+            # 存入当年租金
+            comm_rent_price[calc_year] = current_price
         else:
             # 原有连续模式，一丝不动
             increase_times = (effective_index + 1) // comm_rent_increase_span
@@ -971,7 +1004,8 @@ if calc_button:
             lease_months=lease_months if 'lease_months' in locals() else 12,
             land_use_area=land_use_area,
             project_input_tax=project_input_tax,
-            comm_custom_increase_dict=comm_custom_increase_dict,
+            comm_custom_increase_list=comm_custom_increase_list,
+            comm_first_increase_year=comm_first_increase_year,
         )
         # 【核心】顺便把现值赋给 income_df()
         income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
