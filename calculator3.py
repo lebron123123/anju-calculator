@@ -990,7 +990,7 @@ if calc_button:
             income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
         
         # 3. 更新总收入：原有逻辑完全不动
-        income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df[f"{other_income_name}(万元)"]+ income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] +income_df["出租净收益现值(万元)"] +income_df["总收入(万元)"] 
+        #income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df[f"{other_income_name}(万元)"]+ income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] +income_df["出租净收益现值(万元)"] +income_df["总收入(万元)"] 
     
     # 3. 经营成本测算
     park_income_dict = income_df["车位收入(万元)"].to_dict()
@@ -1106,7 +1106,12 @@ if calc_button:
         # 替换原有总成本表，仅出售类生效
         total_cost_df = sale_cost_df
     # ===================== 出售类总成本表重写结束 =====================
-    
+    # 【关键：统一计算最终正确的总收入，确保损益表和收入明细表用的是同一套数据】
+    if project_type == "出售类(配保房/可售型人才房等)":
+        # 先把出租净收益现值同步到收入表
+        income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+        # 重新计算最终总收入，和收入明细表的公式完全一致，无重复累加
+        income_df["总收入(万元)"] = (income_df["配保房销售收入(万元)"]  + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"] )
     # 提前计算损益表，用于核心指标的净利润
     is_sale = (project_type == "出售类(配保房/可售型人才房等)")
     profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=is_sale)
@@ -1452,7 +1457,7 @@ if calc_button:
     # 第1行：把上一个表的净收益现值复制到收入表
     if project_type == "出售类(配保房/可售型人才房等)": income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
     # 【核心修复1行：重新计算总收入，把出租净收益现值加进去】
-    if project_type == "出售类(配保房/可售型人才房等)": income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"]
+    #if project_type == "出售类(配保房/可售型人才房等)": income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"]
     # 第2行：重新生成带合计的转置表
     if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df.T; income_df_T["全周期合计(万元)"] = income_df_T.apply(lambda r: round(r.sum(),4) if r.name in income_sum_rows else "/", axis=1); income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
     # 第3行：【核心1行】把指定行强制放到最前面
