@@ -1180,11 +1180,11 @@ if calc_button:
         income_sum_rows = ["配保房销售收入(万元)", "住宅租金收入(万元)", "出租净收益现值(万元)", "车位收入(万元)", f"{other_income_name}(万元)"]
         income_df_T["全周期合计(万元)"] = income_df_T.apply(
         lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
-    )
-    # 总收入合计=所有分项合计之和，和你手动计算的74614.5544完全匹配
-    total_all = income_df_T.loc[income_sum_rows, "全周期合计(万元)"].sum()
-    income_df_T.loc["总收入(万元)", "全周期合计(万元)"] = round(total_all, 4)
-    # 仅出售类：调整行顺序
+        )
+        # 总收入合计=所有分项合计之和，和你手动计算的74614.5544完全匹配
+        total_all = income_df_T.loc[income_sum_rows, "全周期合计(万元)"].sum()
+        income_df_T.loc["总收入(万元)", "全周期合计(万元)"] = round(total_all, 4)
+        # 仅出售类：调整行顺序
         income_df_T = income_df_T.reindex(income_sum_rows + [idx for idx in income_df_T.index if idx not in income_sum_rows])
     else:
     # 出租型：完全保持你原来的逻辑，一丝不动
