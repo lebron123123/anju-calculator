@@ -231,6 +231,7 @@ if is_ai_mode:
 
             # 👇 【终极关键】强制触发你原有一键测算，直接出结果
             st.session_state["calc_button"] = True
+            st.rerun()
 
     # 4. 不执行普通模式输入，直接跑你原有测算（零多余界面）
     st.markdown("---")
@@ -363,7 +364,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
             col_stable1, col_stable2, col_stable3 = st.columns(3)
             # 稳定期起始年默认是爬坡期最后一年+1，且≥运营期起始年
             default_stable_start = max(ramp_years) + 1 if ramp_years else operate_years[0]
-            stable_start = col_stable1.number_input("稳定期起始年", min_value=operate_years[0], max_value=operate_years[-1], value=default_stable_start, step=1)
+            stable_start = col_stable1.number_input("稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
             # 稳定期结束年默认用运营期结束年，且≥起始年
             stable_end = col_stable2.number_input("稳定期结束年", min_value=stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
             # 稳定期固定出租率
