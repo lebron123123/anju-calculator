@@ -228,7 +228,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
                 comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
                 comm_custom_increase_list = []  # 自定义区间列表留空
             else:
-                # 【自定义模式：每行一组 起始年+结束年+每X年+递增率，无重复key】
+                # 【自定义模式：每行一组 起始年+结束年+每X年+递增率，无重复key，无重复代码】
                 st.markdown("#### 自定义递增设置")
                 # 用session_state保存行数，刷新不丢失，默认1行
                 if "comm_increase_row_count" not in st.session_state:
