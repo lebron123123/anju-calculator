@@ -791,8 +791,11 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df):
     profit_df["总成本费用(万元)"] = total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"]
     profit_df["税金及其附加总和(万元)"] = tax_df["税金及其附加总和(万元)"]
     
-    # 4. 利润总额
-    profit_df["利润总额(万元)"] = round(profit_df["总收入(万元)"] - profit_df["总成本费用(万元)"] - profit_df["税金及其附加总和(万元)"], 4)
+    # 4. 利润总额（出售型不扣除税金及其附加，出租型保持原有逻辑）
+    if is_sale_project:
+        profit_df["利润总额(万元)"] = round(profit_df["总收入(万元)"] - profit_df["总成本费用(万元)"], 4)
+    else:
+        profit_df["利润总额(万元)"] = round(profit_df["总收入(万元)"] - profit_df["总成本费用(万元)"] - profit_df["税金及其附加总和(万元)"], 4)
     
     # 5-6. 修复弥补亏损、应纳税所得额核心逻辑
     loss_history = []
@@ -1046,7 +1049,8 @@ if calc_button:
     # ===================== 出售类总成本表重写结束 =====================
     
     # 提前计算损益表，用于核心指标的净利润
-    profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
+    is_sale = (project_type == "出售类(配保房/可售型人才房等)")
+    profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=is_sale)
 
     # ===================== 新增：全投资现金流量表计算 =====================
     cf_df = pd.DataFrame(index=all_years)
@@ -1431,9 +1435,17 @@ if calc_button:
     
     # --- 新增：损益表明细 ---
     st.subheader("📈 损益表明细")
+    is_sale = (project_type == "出售类(配保房/可售型人才房等)")
     profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
     profit_df_T = profit_df.T
-    profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "税金及其附加总和(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
+    #profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "税金及其附加总和(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
+    # 出售型剔除税金及其附加行，出租型保持完整
+    if is_sale:
+        profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
+        profit_df_T = profit_df_T.drop("税金及其附加总和(万元)", errors="ignore")
+    else:
+        profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "税金及其附加总和(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
+    # 全周期合计计算    
     profit_df_T["全周期合计(万元)"] = profit_df_T.apply(lambda row: round(row.sum(), 4) if row.name in profit_sum_rows else "/", axis=1)
     profit_df_T = profit_df_T[ ["全周期合计(万元)"] + [col for col in profit_df_T.columns if col != "全周期合计(万元)"] ]
     st.dataframe(profit_df_T, use_container_width=True)
