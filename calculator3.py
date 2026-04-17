@@ -1495,7 +1495,9 @@ if calc_button:
     # --- 新增：损益表明细 ---
     st.subheader("📈 损益表明细")
     is_sale = (project_type == "出售类(配保房/可售型人才房等)")
-    profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
+    # 仅出租型需要重新计算（出售型前面已经算好）
+    if not is_sale:
+        profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=False)
     profit_df_T = profit_df.T
     #profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "税金及其附加总和(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
     # 出售型剔除税金及其附加行，出租型保持完整
