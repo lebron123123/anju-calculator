@@ -3,6 +3,36 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import json
+import pandas as pd
+from volcengine.maas import MaasService, MaasException, ChatRole
+
+# 初始化AI
+maas = MaasService('maas-api.cn-huabei-1.volces.com', 'cn-huabei-1')
+maas.set_ak("你的API_KEY")
+maas.set_sk("你的SECRET_KEY")
+
+# AI 自动补全参数（会参考你的历史项目）
+def ai_fill_indicators(core_input, history_df=None):
+    history_example = ""
+    if history_df is not None and len(history_df) > 0:
+        history_example = "【历史项目参考】\n" + history_df.head(3).to_json(force_ascii=False)
+
+    prompt = f"""
+    你是安居房测算专家，根据核心指标+历史项目，生成合规测算参数，只输出JSON。
+    {history_example}
+    核心指标：{json.dumps(core_input)}
+    """
+
+    try:
+        resp = maas.chat({
+            "model": "ep-20240801104313-jxqvh",
+            "messages": [{"role": ChatRole.USER, "content": prompt}],
+            "temperature": 0.2
+        })
+        return json.loads(resp.choices[0].message.content), "✅ AI补全完成"
+    except:
+        return None, "❌ 失败"
 
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
@@ -31,6 +61,12 @@ PROJECT_CONFIG = {
         "ui_components": [],
         "calc_rules": {},
         "show_metrics": []
+    }
+    # 👇 只加这一段
+    "🤖 AI智能测算": {
+        "extra_inputs": [],
+        "ui_components": ["ai_mode"],
+        "calc_rules": {"repay_plan_mode": "custom"}
     }
 }
 # 全局初始化项目类型参数（保留，后面代码要用到）
@@ -73,7 +109,60 @@ if current_config["extra_inputs"]:
             )
 st.markdown("---")
 
+# ===================== AI模式 / 普通模式 分流 =====================
+is_ai_mode = "ai_mode" in current_config.get("ui_components", [])
 
+if is_ai_mode:
+    st.header("🤖 AI智能测算（仅输8个核心指标）")
+
+    # 8个核心输入
+    project_name = st.text_input("项目名称")
+    ai_sub_type = st.radio("项目类型",["出售类","出租类","租售结合类"],horizontal=1)
+    total_build_area = st.number_input("总建筑面积",value=50000)
+    total_investment = st.number_input("总投资",value=50000)
+    build_start = st.number_input("建设期起始年",value=2025)
+    build_end = st.number_input("建设期结束年",value=2026)
+    operate_start = st.number_input("运营起始年",value=2027)
+    operate_end = st.number_input("运营结束年",value=2057)
+    sale_avg_price = st.number_input("售价",value=10000.0)
+    resi_rent_start = st.number_input("租金",value=19.2)
+    loan_rate = st.number_input("借款利率",value=3.0)
+    discount_rate = st.number_input("折现率",value=8.0)
+
+    build_years = list(range(build_start,build_end+1))
+    operate_years = list(range(operate_start,operate_end+1))
+
+    # 上传历史项目
+    f = st.file_uploader("上传历史项目.csv（让AI更准）")
+    history_df = pd.read_csv(f) if f else None
+
+    # AI按钮
+    if st.button("🤖 AI一键补全 30+ 参数",type="primary"):
+        core = {
+            "总建筑面积":total_build_area,"总投资":total_investment,
+            "售价":sale_avg_price,"租金":resi_rent_start,
+            "项目类型":ai_sub_type
+        }
+        params, msg = ai_fill_indicators(core, history_df)
+        st.session_state.ai = params
+        st.success(msg)
+
+    # 赋值给你原来的变量（完全兼容）
+    ai = st.session_state.get("ai",{})
+    residential_area = ai.get("住宅面积",34330)
+    rent_increase_span = ai.get("递增跨度",3)
+    rent_increase_rate = ai.get("递增率",2.0)
+    occupancy_stable = ai.get("稳定出租率",0.9)
+    comm_area = ai.get("商业面积",0)
+    park_count = ai.get("车位数量",500)
+    land_cost = ai.get("土地成本",0)
+    construction_cost = ai.get("建安费",0)
+    sale_area = ai.get("销售面积",0)
+    sale_ramp_dict = ai.get("销售节奏",{})
+
+    st.stop()  # 不执行你原来的输入界面
+
+# ===================== 以下是你原来的所有输入代码，完全不动 =====================
 # ===================== 输入区（优化：手机上更易操作）=====================
 st.header("📝 请输入项目数据")
 
