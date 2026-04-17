@@ -454,7 +454,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
                 # 商业稳定期设置
                 col_comm_stable1, col_comm_stable2, col_comm_stable3 = st.columns(3)
                 comm_default_stable_start = max(comm_ramp_years) + 1 if comm_ramp_years else operate_years[0]
-                comm_stable_start = col_comm_stable1.number_input("商业稳定期起始年", min_value=operate_years[0], max_value=operate_years[-1], value=comm_default_stable_start, step=1)
+                comm_stable_start = col_comm_stable1.number_input("商业稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
                 comm_stable_end = col_comm_stable2.number_input("商业稳定期结束年", min_value=comm_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
                 comm_occupancy_stable = col_comm_stable3.number_input("商业稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
             comm_rent_stable_start = st.number_input("商业租金稳定年", min_value=operate_years[0], max_value=operate_years[-1],value=operate_years[0], step=1, help="从该年开始租金不再递增，保持稳定")
