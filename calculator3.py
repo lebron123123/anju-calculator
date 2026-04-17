@@ -124,106 +124,118 @@ if current_config["extra_inputs"]:
             )
 st.markdown("---")
 
-# ===================== AI模式 / 普通模式 分流 =====================
+# ===================== 【最终版】AI模式 / 普通模式 彻底分流 =====================
 is_ai_mode = "ai_mode" in current_config.get("ui_components", [])
 
+# 初始化所有测算需要的变量（先给默认值，避免报错）
+residential_area, rent_start_price = 0, 0.0
+rent_increase_span, rent_increase_rate = 3, 2.0
+occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0.0
+comm_area, comm_rent_start_price = 0, 0.0
+park_count, park_rent_start_price, park_income_ratio = 0, 0.0, 0.0
+other_income_name, other_income_total = "其他收入", 0.0
+manage_coeff, total_build_area = 1.92, 50000
+total_investment, loan_annual_rate, loan_total_years = 50000.0, 3.0, 25
+land_cost, construction_cost, infra_cost = 0.0, 0.0, 0.0
+discount_rate = 8.0
+sale_area, sale_avg_price, sale_ramp_dict = 0, 0.0, {}
+build_years, operate_years = [], []
+house_type = "公租房"
+invest_plan_dict, loan_plan_dict, repay_plan_dict = {}, {}, {}
+
+# ===================== 【AI模式：纯核心输入，无任何多余界面】 =====================
 if is_ai_mode:
-    st.header("🤖 AI智能测算（仅输8个核心指标）")
+    st.header("🤖 AI智能测算（仅需核心指标）")
+    st.markdown("填写以下核心指标，点击按钮一键生成所有参数+测算结果，无需手动输入其他数据")
 
-    # 8个核心输入
-    project_name = st.text_input("项目名称")
-    ai_sub_type = st.radio("项目类型",["出售类","出租类","租售结合类"],horizontal=1)
-    total_build_area = st.number_input("总建筑面积",value=50000)
-    total_investment = st.number_input("总投资",value=50000)
-    build_start = st.number_input("建设期起始年",value=2025)
-    build_end = st.number_input("建设期结束年",value=2026)
-    operate_start = st.number_input("运营起始年",value=2027)
-    operate_end = st.number_input("运营结束年",value=2057)
-    sale_avg_price = st.number_input("售价",value=10000.0)
-    resi_rent_start = st.number_input("租金",value=19.2)
-    loan_rate = st.number_input("借款利率",value=3.0)
-    discount_rate = st.number_input("折现率",value=8.0)
+    # 仅保留8个核心输入框，无其他任何内容
+    with st.expander("核心指标", expanded=True):
+        project_name = st.text_input("项目名称", value="安居项目-AI测算")
+        ai_sub_type = st.radio("项目类型",["出售类","出租类","租售结合类"],horizontal=True)
+        total_build_area = st.number_input("总建筑面积（㎡）",value=50000,step=100)
+        total_investment = st.number_input("总投资（万元）",value=50000.0,step=1000.0)
+        build_start = st.number_input("建设期起始年",value=2025)
+        build_end = st.number_input("建设期结束年",value=2026)
+        operate_start = st.number_input("运营起始年",value=2027)
+        operate_end = st.number_input("运营结束年",value=2057)
+        if ai_sub_type in ["出售类","租售结合类"]:
+            sale_avg_price = st.number_input("可售部分售价（元/㎡）",value=10000.0)
+        else:
+            sale_avg_price = 0.0
+        if ai_sub_type in ["出租类","租售结合类"]:
+            resi_rent_start = st.number_input("住宅起始租金（元/㎡/月）",value=19.2)
+        else:
+            resi_rent_start = 0.0
+        loan_annual_rate = st.number_input("借款年利率（%）",value=3.0)
+        discount_rate = st.number_input("折现率（%）",value=8.0)
 
-    build_years = list(range(build_start,build_end+1))
-    operate_years = list(range(operate_start,operate_end+1))
+    # 自动生成年份列表
+    build_years = list(range(build_start, build_end+1))
+    operate_years = list(range(operate_start, operate_end+1))
 
-    # 上传历史项目
-    f = st.file_uploader("上传历史项目.csv（让AI更准）")
-    history_df = pd.read_csv(f) if f else None
-
-    # AI按钮
-    if st.button("🤖 AI一键补全 30+ 参数",type="primary"):
-        core = {
-            "总建筑面积":total_build_area,"总投资":total_investment,
-            "售价":sale_avg_price,"租金":resi_rent_start,
-            "项目类型":ai_sub_type
+    # AI一键生成按钮（点击后直接生成所有参数）
+    if st.button("🤖 AI一键生成所有参数并测算", type="primary", use_container_width=True):
+        # 1. 调用本地规则版AI，生成所有参数
+        core_input = {
+            "项目类型": ai_sub_type,
+            "总建筑面积": total_build_area,
+            "总投资": total_investment,
+            "建设期": build_years,
+            "运营期": operate_years,
+            "售价": sale_avg_price,
+            "租金": resi_rent_start,
+            "利率": loan_annual_rate,
+            "折现率": discount_rate
         }
-        params, msg = ai_fill_indicators(core, history_df)
-        st.session_state.ai = params
+        params, msg = ai_fill_indicators(core_input)
         st.success(msg)
 
-        # 先定义ai，从session_state取，为空就给空字典
-        ai = st.session_state.get("ai", {})
-        # 1. 住宅相关变量
-        residential_area = ai.get("residential_area", 34330)
+        # 2. 把AI生成的参数，全部赋值给测算变量（直接覆盖默认值）
+        ai = params
+        # 住宅
+        residential_area = ai.get("residential_area", total_build_area * 0.9)
+        rent_start_price = resi_rent_start
         rent_increase_span = ai.get("rent_increase_span", 3)
         rent_increase_rate = ai.get("rent_increase_rate", 2.0)
-        ramp_years = ai.get("ramp_years", operate_years[:2])
-        occupancy_ramp_dict = ai.get("occupancy_ramp_dict", {})
-        stable_start = ai.get("stable_start", max(operate_years[:2])+1)
-        stable_end = ai.get("stable_end", operate_end)
         occupancy_stable = ai.get("occupancy_stable", 0.9)
-    
-        # 2. 商业相关变量
-        comm_area = ai.get("comm_area", 0)
-        comm_rent_start_price = ai.get("comm_rent_start_price", 0.0)
-        comm_rent_increase_span = ai.get("comm_rent_increase_span", 3)
-        comm_rent_increase_rate = ai.get("comm_rent_increase_rate", 3.0)
-        comm_ramp_years = ai.get("comm_ramp_years", operate_years[:2])
-        comm_occupancy_ramp_dict = ai.get("comm_occupancy_ramp_dict", {})
-        comm_stable_start = ai.get("comm_stable_start", max(operate_years[:2])+1)
-        comm_stable_end = ai.get("comm_stable_end", operate_end)
-        comm_occupancy_stable = ai.get("comm_occupancy_stable", 0.85)
-    
-        # 3. 车位相关变量
-        park_count = ai.get("park_count", 500)
-        park_rent_start_price = ai.get("park_rent_start_price", 300.0)
+        # 商业/车位
+        comm_area = ai.get("comm_area", total_build_area * 0.08)
+        park_count = ai.get("park_count", int(total_build_area / 100))
         park_income_ratio = ai.get("park_income_ratio", 0.5)
-        park_ramp_years = ai.get("park_ramp_years", operate_years[:2])
-        park_occupancy_ramp_dict = ai.get("park_occupancy_ramp_dict", {})
-        park_stable_start = ai.get("park_stable_start", max(operate_years[:2])+1)
-        park_stable_end = ai.get("park_stable_end", operate_end)
-        park_occupancy_stable = ai.get("park_occupancy_stable", 0.9)
-    
-        # 4. 成本&收入其他变量
-        other_income_name = ai.get("other_income_name", "其他收入")
-        other_income_total = ai.get("other_income_total", total_investment * 0.003)
-        manage_coeff = ai.get("manage_coeff", 1.92)
-        residential_decoration_cost = ai.get("residential_decoration_cost", total_build_area * 800 / 10000)
+        # 成本
         land_cost = ai.get("land_cost", total_investment * 0.25)
         construction_cost = ai.get("construction_cost", total_build_area * 1000 / 10000)
-        infra_cost = ai.get("infra_cost", total_build_area * 80 / 10000)
-        other_eng_cost = ai.get("other_eng_cost", construction_cost * 0.05)
-        project_input_tax = ai.get("project_input_tax", construction_cost * 0.09)
-        land_use_area = ai.get("land_use_area", total_build_area / 3)
-        land_floor_price = ai.get("land_floor_price", 1000.0)
-        dev_cost = ai.get("dev_cost", total_investment * 0.1)
-        sale_construction_cost = ai.get("sale_construction_cost", 0.0)
-        sale_infra_cost = ai.get("sale_infra_cost", 0.0)
-        sale_area = ai.get("sale_area", total_build_area * 0.8)
-        sale_ramp_dict = ai.get("sale_ramp_dict", {"2030":0.3, "2031":0.4, "2032":0.3})
-    
-        # 5. 借款&折现相关变量
-        loan_total_years = ai.get("loan_total_years", 25)
-        loan_plan_dict = ai.get("loan_plan_dict", {year: total_investment*0.7/len(build_years) for year in build_years})
-        repay_plan_dict = ai.get("repay_plan_dict", {})
-        invest_plan_dict = ai.get("invest_plan_dict", {year: total_investment/len(build_years) for year in build_years})
+        infra_cost = ai.get("infra_cost", construction_cost * 0.08)
+        # 借款/销售
+        sale_area = ai.get("sale_area", total_build_area * 0.8 if ai_sub_type in ["出售类","租售结合类"] else 0)
+        sale_ramp_dict = ai.get("sale_ramp_dict", {"2030":0.3,"2031":0.4,"2032":0.3})
+        loan_plan_dict = ai.get("loan_plan_dict", {y: total_investment*0.7/len(build_years) for y in build_years})
+        invest_plan_dict = ai.get("invest_plan_dict", {y: total_investment/len(build_years) for y in build_years})
 
-    #st.stop()  # 不执行你原来的输入界面
+        # 3. 关键：直接跳转到测算逻辑，不显示任何输入界面
+        st.session_state["ai_mode_ready"] = True
+        st.rerun()  # 刷新后，直接进入测算，不会再显示输入界面
+
+    # 如果还没点击AI按钮，就显示提示
+    if not st.session_state.get("ai_mode_ready", False):
+        st.info("请填写核心指标，点击上方按钮生成参数，无需填写其他数据")
+        st.stop()  # 停止执行，不显示下面的普通模式界面
+
+# ===================== 【普通模式：原来的完整手动输入界面】 =====================
+else:
+    # 这里直接粘贴你原来的「请输入项目数据」的所有代码，和之前完全一样
+    # 比如：st.header("📝 请输入项目数据")、各种输入框、expander等
+    # 这部分和你之前的代码完全一样，不用改
+    st.header("📝 请输入项目数据")
+    # --- 粘贴你原来的所有手动输入代码 ---
+
+# ===================== 【测算逻辑：AI模式/普通模式共用，完全不变】 =====================
+# 下面直接放你原来的一键测算、收入表、损益表、结果汇总等所有代码
+# 这些代码完全不用改，因为上面已经给所有变量赋值了，不管是AI模式还是普通模式，都有值
 
 # ===================== 以下是你原来的所有输入代码，完全不动 =====================
 # ===================== 输入区（优化：手机上更易操作）=====================
-st.header("📝 请输入项目数据")
+#st.header("📝 请输入项目数据")
 
 # 定义年份范围（方便后续调整，可选但推荐）
 START_YEAR = 2000
