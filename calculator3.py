@@ -61,7 +61,7 @@ PROJECT_CONFIG = {
         "ui_components": [],
         "calc_rules": {},
         "show_metrics": []
-    }
+    },
     # 👇 只加这一段
     "🤖 AI智能测算": {
         "extra_inputs": [],
