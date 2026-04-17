@@ -1424,7 +1424,7 @@ if calc_button:
             #lease_months=lease_months if 'lease_months' in locals() else 12,
             #land_use_area=land_use_area,
             #project_input_tax=project_input_tax,
-        )   #plot_ratio_area=plot_ratio_area,
+        #)   #plot_ratio_area=plot_ratio_area,
         rental_cost_df_T = rental_cost_df.T
         # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
         rental_sum_rows = [
