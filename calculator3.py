@@ -1178,9 +1178,7 @@ if calc_button:
     if project_type == "出售类(配保房/可售型人才房等)":
      # 仅出售类：配保房+商业+住宅的顺序，且都算合计
         # 仅出售类：配保房+商业+住宅的顺序，且都算合计
-        income_sum_rows = ["配保房销售收入(万元)", "住宅租金收入(万元)", "出租净收益现值(万元)", "车位收入(万元)", f"{other_income_name}(万元)"]
-        # 【仅新增这1行】总收入合计=分项合计之和
-        income_df_T.loc["总收入(万元)", "全周期合计(万元)"] = round(income_df_T.loc[income_sum_rows, "全周期合计(万元)"].sum(), 4)
+        income_sum_rows = ["配保房销售收入(万元)", "住宅租金收入(万元)", "出租净收益现值(万元)", "车位收入(万元)", f"{other_income_name}(万元)","总收入(万元)"]
         income_df_T["全周期合计(万元)"] = income_df_T.apply(
         lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
         )
@@ -1404,27 +1402,27 @@ if calc_button:
     rental_cost_df = pd.DataFrame()
     if project_type == "出售类(配保房/可售型人才房等)":
         # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
-        #rental_cost_df = calc_rental_operation_table(
-            #all_years=all_years,
-            #is_operate=is_operate,
-            #operate_year_list=operate_year_list,
-            #comm_area=comm_area,
-            #comm_rent_start_price=comm_rent_start_price,
-            #comm_rent_increase_span=comm_rent_increase_span,
-            #comm_rent_increase_rate=comm_rent_increase_rate,
-            #comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
-            #comm_stable_start=comm_stable_start,
-            #comm_stable_end=comm_stable_end,
-            #comm_occupancy_stable=comm_occupancy_stable,
-            #park_count=park_count,
-            #land_cost=land_cost,
-            #construction_cost=construction_cost,
-            #infra_cost=infra_cost,
-           # other_eng_cost=other_eng_cost,
-            #lease_months=lease_months if 'lease_months' in locals() else 12,
-            #land_use_area=land_use_area,
-            #project_input_tax=project_input_tax,
-        #)   #plot_ratio_area=plot_ratio_area,
+        rental_cost_df = calc_rental_operation_table(
+            all_years=all_years,
+            is_operate=is_operate,
+            operate_year_list=operate_year_list,
+            comm_area=comm_area,
+            comm_rent_start_price=comm_rent_start_price,
+            comm_rent_increase_span=comm_rent_increase_span,
+            comm_rent_increase_rate=comm_rent_increase_rate,
+            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
+            comm_stable_start=comm_stable_start,
+            comm_stable_end=comm_stable_end,
+            comm_occupancy_stable=comm_occupancy_stable,
+            park_count=park_count,
+            land_cost=land_cost,
+            construction_cost=construction_cost,
+            infra_cost=infra_cost,
+            other_eng_cost=other_eng_cost,
+            lease_months=lease_months if 'lease_months' in locals() else 12,
+            land_use_area=land_use_area,
+            project_input_tax=project_input_tax,
+        )   plot_ratio_area=plot_ratio_area,
         rental_cost_df_T = rental_cost_df.T
         # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
         rental_sum_rows = [
@@ -1458,13 +1456,13 @@ if calc_button:
         st.dataframe(rental_cost_df_T, use_container_width=True)
 
     # 第1行：把上一个表的净收益现值复制到收入表
-    #if project_type == "出售类(配保房/可售型人才房等)": income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+    if project_type == "出售类(配保房/可售型人才房等)": income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
     # 【核心修复1行：重新计算总收入，把出租净收益现值加进去】
-    #if project_type == "出售类(配保房/可售型人才房等)": income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"]
+    if project_type == "出售类(配保房/可售型人才房等)": income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"]
     # 第2行：重新生成带合计的转置表
-    #if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df.T; income_df_T["全周期合计(万元)"] = income_df_T.apply(lambda r: round(r.sum(),4) if r.name in income_sum_rows else "/", axis=1); income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
+    if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df.T; income_df_T["全周期合计(万元)"] = income_df_T.apply(lambda r: round(r.sum(),4) if r.name in income_sum_rows else "/", axis=1); income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
     # 第3行：【核心1行】把指定行强制放到最前面
-    #if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.reindex(["配保房销售收入(万元)", "出租净收益现值(万元)"] + [idx for idx in income_df_T.index if idx not in ["配保房销售收入(万元)", "出租净收益现值(万元)"]])
+    if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.reindex(["配保房销售收入(万元)", "出租净收益现值(万元)"] + [idx for idx in income_df_T.index if idx not in ["配保房销售收入(万元)", "出租净收益现值(万元)"]])
     
     # --- 收入明细 ---
     st.subheader("📋 收入明细表")
