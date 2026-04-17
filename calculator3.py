@@ -262,30 +262,7 @@ if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_
                 # 原有变量赋默认值，避免报错
                 comm_rent_increase_span = 3
                 comm_rent_increase_rate = 2.0
-                
-                # 逐行生成输入框
-                comm_custom_increase_dict = {}
-                for i in range(st.session_state.comm_increase_row_count):
-                    col_year, col_rate, col_del = st.columns([4, 4, 1])
-                    # 左侧：选择递增年份（仅可选运营期年份）
-                    inc_year = col_year.selectbox(f"递增年份{i+1}", options=operate_years, key=f"comm_inc_year_{i}")
-                    # 右侧：输入对应递增率
-                    inc_rate = col_rate.number_input(f"递增率{i+1}（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, key=f"comm_inc_rate_{i}")
-                    # 删除按钮（至少保留1行）
-                    if col_del.button("×", key=f"comm_del_{i}", disabled=st.session_state.comm_increase_row_count <= 1):
-                        st.session_state.comm_increase_row_count -= 1
-                        st.rerun()
-                    # 存入字典（同一年份自动去重，取最后一次设置的递增率）
-                    comm_custom_increase_dict[inc_year] = inc_rate
-                
-                # 添加行按钮
-                if st.button("+ 添加递增行", key="comm_add_row"):
-                    st.session_state.comm_increase_row_count += 1
-                    st.rerun()
-                
-                # 原有变量赋默认值，避免报错
-                comm_rent_increase_span = 3
-                comm_rent_increase_rate = 2.0
+            
             
             # 商业出租率设置（和住宅完全一致，仅改名称）
             if 'operate_years' in locals() and operate_years:
