@@ -151,6 +151,7 @@ if is_ai_mode:
         # 把AI生成的参数赋值给所有测算变量（这里和你原来的测算逻辑完全兼容）
         ai_params = st.session_state["ai_params"]
         ai_sub_type = st.session_state.get("ai_sub_type", "出售类")
+        operate_start = 2027
         comm_rent_stable_start, resi_rent_start = operate_start, st.session_state.get("resi_rent_start", 19.2)
         comm_rent_stable_start, resi_rent_start = 2027, 19.2
         comm_rent_stable_start, resi_rent_start = operate_start, resi_rent_start
