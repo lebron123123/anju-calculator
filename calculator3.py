@@ -215,11 +215,11 @@ if is_ai_mode:
         # 3. 关键：直接跳转到测算逻辑，不显示任何输入界面
         st.session_state["ai_mode_ready"] = True
         st.rerun()  # 刷新后，直接进入测算，不会再显示输入界面
-
-    # 如果还没点击AI按钮，就显示提示
-    if not st.session_state.get("ai_mode_ready", False):
-        st.info("请填写核心指标，点击上方按钮生成参数，无需填写其他数据")
-        st.stop()  # 停止执行，不显示下面的普通模式界面
+        # 👇 只加这2行，彻底屏蔽多余输入、自动出结果
+        st.session_state["calc_button"] = True
+        st.rerun()
+    
+    st.stop()
 
 # ===================== 【普通模式：原来的完整手动输入界面】 =====================
 else:
