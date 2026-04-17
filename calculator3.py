@@ -1420,12 +1420,13 @@ if calc_button:
 
     st.markdown("---")
 
-    # --- 新增：税金及其附加明细 ---
-    st.subheader("📝 税金及其附加明细")
-    tax_df_T = tax_df.T
-    tax_df_T["全周期合计(万元)"] = tax_df_T.sum(axis=1).round(4)
-    tax_df_T = tax_df_T[ ["全周期合计(万元)"] + [col for col in tax_df_T.columns if col != "全周期合计(万元)"] ]
-    st.dataframe(tax_df_T, use_container_width=True)
+    if project_type != "出售类(配保房/可售型人才房等)":
+        # --- 新增：税金及其附加明细 ---
+        st.subheader("📝 税金及其附加明细")
+        tax_df_T = tax_df.T
+        tax_df_T["全周期合计(万元)"] = tax_df_T.sum(axis=1).round(4)
+        tax_df_T = tax_df_T[ ["全周期合计(万元)"] + [col for col in tax_df_T.columns if col != "全周期合计(万元)"] ]
+        st.dataframe(tax_df_T, use_container_width=True)
 
     st.markdown("---")
     
