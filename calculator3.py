@@ -162,20 +162,62 @@ if is_ai_mode:
         st.session_state.ai = params
         st.success(msg)
 
-    # 赋值给你原来的变量（完全兼容）
-    ai = st.session_state.get("ai",{})
-    residential_area = ai.get("住宅面积",34330)
-    rent_increase_span = ai.get("递增跨度",3)
-    rent_increase_rate = ai.get("递增率",2.0)
-    occupancy_stable = ai.get("稳定出租率",0.9)
-    comm_area = ai.get("商业面积",0)
-    park_count = ai.get("车位数量",500)
-    land_cost = ai.get("土地成本",0)
-    construction_cost = ai.get("建安费",0)
-    sale_area = ai.get("销售面积",0)
-    sale_ramp_dict = ai.get("销售节奏",{})
+    # 1. 住宅相关变量
+    residential_area = ai.get("residential_area", 34330)
+    rent_increase_span = ai.get("rent_increase_span", 3)
+    rent_increase_rate = ai.get("rent_increase_rate", 2.0)
+    ramp_years = ai.get("ramp_years", operate_years[:2])
+    occupancy_ramp_dict = ai.get("occupancy_ramp_dict", {})
+    stable_start = ai.get("stable_start", max(operate_years[:2])+1)
+    stable_end = ai.get("stable_end", operate_end)
+    occupancy_stable = ai.get("occupancy_stable", 0.9)
+    
+    # 2. 商业相关变量
+    comm_area = ai.get("comm_area", 0)
+    comm_rent_start_price = ai.get("comm_rent_start_price", 0.0)
+    comm_rent_increase_span = ai.get("comm_rent_increase_span", 3)
+    comm_rent_increase_rate = ai.get("comm_rent_increase_rate", 3.0)
+    comm_ramp_years = ai.get("comm_ramp_years", operate_years[:2])
+    comm_occupancy_ramp_dict = ai.get("comm_occupancy_ramp_dict", {})
+    comm_stable_start = ai.get("comm_stable_start", max(operate_years[:2])+1)
+    comm_stable_end = ai.get("comm_stable_end", operate_end)
+    comm_occupancy_stable = ai.get("comm_occupancy_stable", 0.85)
+    
+    # 3. 车位相关变量
+    park_count = ai.get("park_count", 500)
+    park_rent_start_price = ai.get("park_rent_start_price", 300.0)
+    park_income_ratio = ai.get("park_income_ratio", 0.5)
+    park_ramp_years = ai.get("park_ramp_years", operate_years[:2])
+    park_occupancy_ramp_dict = ai.get("park_occupancy_ramp_dict", {})
+    park_stable_start = ai.get("park_stable_start", max(operate_years[:2])+1)
+    park_stable_end = ai.get("park_stable_end", operate_end)
+    park_occupancy_stable = ai.get("park_occupancy_stable", 0.9)
+    
+    # 4. 成本&收入其他变量
+    other_income_name = ai.get("other_income_name", "其他收入")
+    other_income_total = ai.get("other_income_total", total_investment * 0.003)
+    manage_coeff = ai.get("manage_coeff", 1.92)
+    residential_decoration_cost = ai.get("residential_decoration_cost", total_build_area * 800 / 10000)
+    land_cost = ai.get("land_cost", total_investment * 0.25)
+    construction_cost = ai.get("construction_cost", total_build_area * 1000 / 10000)
+    infra_cost = ai.get("infra_cost", total_build_area * 80 / 10000)
+    other_eng_cost = ai.get("other_eng_cost", construction_cost * 0.05)
+    project_input_tax = ai.get("project_input_tax", construction_cost * 0.09)
+    land_use_area = ai.get("land_use_area", total_build_area / 3)
+    land_floor_price = ai.get("land_floor_price", 1000.0)
+    dev_cost = ai.get("dev_cost", total_investment * 0.1)
+    sale_construction_cost = ai.get("sale_construction_cost", 0.0)
+    sale_infra_cost = ai.get("sale_infra_cost", 0.0)
+    sale_area = ai.get("sale_area", total_build_area * 0.8)
+    sale_ramp_dict = ai.get("sale_ramp_dict", {"2030":0.3, "2031":0.4, "2032":0.3})
+    
+    # 5. 借款&折现相关变量
+    loan_total_years = ai.get("loan_total_years", 25)
+    loan_plan_dict = ai.get("loan_plan_dict", {year: total_investment*0.7/len(build_years) for year in build_years})
+    repay_plan_dict = ai.get("repay_plan_dict", {})
+    invest_plan_dict = ai.get("invest_plan_dict", {year: total_investment/len(build_years) for year in build_years})
 
-    st.stop()  # 不执行你原来的输入界面
+    #st.stop()  # 不执行你原来的输入界面
 
 # ===================== 以下是你原来的所有输入代码，完全不动 =====================
 # ===================== 输入区（优化：手机上更易操作）=====================
