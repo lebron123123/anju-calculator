@@ -1125,7 +1125,33 @@ if calc_button:
         park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable,
         other_income_name, other_income_total
     )
-
+    # 🚨 【新增】提前算好出租情况表，提取正确的商业出租收入，供后面现金流量表使用
+    rental_cost_df_early = pd.DataFrame()
+    if "sale_and_commercial" in PROJECT_CONFIG[project_type].get("ui_components", []):
+        rental_cost_df_early = calc_rental_operation_table(
+            all_years=all_years,
+            is_operate=is_operate,
+            operate_year_list=operate_year_list,
+            comm_area=comm_area,
+            comm_rent_start_price=comm_rent_start_price,
+            comm_rent_increase_span=comm_rent_increase_span,
+            comm_rent_increase_rate=comm_rent_increase_rate,
+            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
+            comm_stable_start=comm_stable_start,
+            comm_stable_end=comm_stable_end,
+            comm_occupancy_stable=comm_occupancy_stable,
+            park_count=park_count,
+            land_cost=land_cost,
+            construction_cost=construction_cost,
+            infra_cost=infra_cost,
+            other_eng_cost=other_eng_cost,
+            lease_months=lease_months if 'lease_months' in locals() else 12,
+            land_use_area=land_use_area,
+            project_input_tax=project_input_tax,
+            comm_custom_increase_list=comm_custom_increase_list,
+    )
+    # 直接把正确的商业出租收入存到 income_df 里，后面所有地方通用
+    income_df["商业出租收入(万元)"] = rental_cost_df_early["商业出租收入(万元)"].fillna(0.0)
     # ===================== 【仅改参数·100%复用】出售类新增收入项 ======================
     if "sale_and_commercial" in PROJECT_CONFIG[project_type].get("ui_components", []):
         # 1. 商业出租：完全复用calc_income函数，传入商业专属参数，零重复代码
@@ -1304,7 +1330,7 @@ if calc_button:
         # 1. 先定义各项明细
         cf_df["配保房销售收入(万元)"] = income_df["配保房销售收入(万元)"] if "配保房销售收入(万元)" in income_df.columns else 0
         cf_df["其他收入(万元)"] = income_df[f"{other_income_name}(万元)"] if f"{other_income_name}(万元)" in income_df.columns else 0
-        cf_df["商业出租收入(万元)"] = rental_cost_df["商业出租收入(万元)"] if "商业出租收入(万元)" in rental_cost_df.columns else 0
+        cf_df["商业出租收入(万元)"] = income_df["商业出租收入(万元)"] if "商业出租收入(万元)" in income_df.columns else 0
         # 回收固定资产余值（公式不变，先设为0，再给最后一行赋值）
         area_total = sale_area + comm_area
         comm_ratio = comm_area / area_total if area_total != 0 else 0
