@@ -1299,6 +1299,17 @@ if calc_button:
     # 1. 现金流入：直接调用现成的总收入
     cf_df["现金流入(万元)"] = income_df["总收入(万元)"]
 
+    # 👇 【最小新增】出售型专用现金流入明细（4行）
+    if project_type == "出售类(配保房/可售型人才房等)":
+        cf_df["配保房销售收入(万元)"] = income_df["配保房销售收入(万元)"]
+        cf_df["其他收入(万元)"] = income_df[f"{other_income_name}(万元)"]
+        cf_df["商业出租收入(万元)"] = income_df["商业出租收入(万元)"] if "商业出租收入(万元)" in income_df else 0
+        # 回收固定资产余值（你要的公式）
+        area_total = sale_area + comm_area
+        comm_ratio = comm_area / area_total if area_total != 0 else 0
+        recover_fixed = (land_cost + dev_cost - total_cost_df["财务费用(建设期)(万元)"].sum() * comm_ratio) * 0.2
+        cf_df["回收固定资产余值(万元)"] = recover_fixed
+
     # 2. 现金流出：全调用现成表数据，按你的公式汇总
     # 2. 现金流出：全调用现成表数据，按你的公式汇总
     for year in all_years:
