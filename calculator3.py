@@ -1309,9 +1309,9 @@ if calc_button:
         comm_ratio = comm_area / area_total if area_total != 0 else 0
         recover_fixed = (land_cost + dev_cost - total_cost_df["财务费用(建设期)(万元)"].sum() * comm_ratio) * 0.2
         cf_df["回收固定资产余值(万元)"] = 0.0
-        operate_last_year = operate_years[-1]
-        if operate_last_year in cf_df.index:
-            cf_df.loc[operate_last_year, "回收固定资产余值(万元)"] = recover_fixed
+        operate_first_year = operate_years[0]  # 👈 改这里：[-1]→[0]，取运营期第一年
+        if operate_first_year in cf_df.index:
+            cf_df.loc[operate_first_year, "回收固定资产余值(万元)"] = recover_fixed  # 👈 改这里：变量名对应
     
         # 2. 关键：现金流入 = 四项之和（解决合计为/的问题）
         cf_df["现金流入(万元)"] = (cf_df["配保房销售收入(万元)"] + cf_df["其他收入(万元)"] + cf_df["商业出租收入(万元)"] + cf_df["回收固定资产余值(万元)"])
