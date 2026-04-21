@@ -1294,6 +1294,30 @@ if calc_button:
     is_sale = (project_type == "出售类(配保房/可售型人才房等)")
     profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=is_sale)
 
+    rental_cost_df = pd.DataFrame()
+    if project_type == "出售类(配保房/可售型人才房等)":
+        # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
+        rental_cost_df = calc_rental_operation_table(
+            all_years=all_years,
+            is_operate=is_operate,
+            operate_year_list=operate_year_list,
+            comm_area=comm_area,
+            comm_rent_start_price=comm_rent_start_price,
+            comm_rent_increase_span=comm_rent_increase_span,
+            comm_rent_increase_rate=comm_rent_increase_rate,
+            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
+            comm_stable_start=comm_stable_start,
+            comm_stable_end=comm_stable_end,
+            comm_occupancy_stable=comm_occupancy_stable,
+            park_count=park_count,
+            land_cost=land_cost,
+            construction_cost=construction_cost,
+            infra_cost=infra_cost,
+            other_eng_cost=other_eng_cost,
+            lease_months=lease_months if 'lease_months' in locals() else 12,
+            land_use_area=land_use_area,
+            project_input_tax=project_input_tax,
+        )   #plot_ratio_area=plot_ratio_area,
     # ===================== 新增：全投资现金流量表计算 =====================
     cf_df = pd.DataFrame(index=all_years)
     # 1. 现金流入：直接调用现成的总收入
@@ -1601,30 +1625,7 @@ if calc_button:
 
     # ===================== ✅ 出售类：插入出租营运成本表 =====================
     # 仅出售类项目显示该表，非出售类完全不执行，避免报错
-    rental_cost_df = pd.DataFrame()
-    if project_type == "出售类(配保房/可售型人才房等)":
-        # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
-        rental_cost_df = calc_rental_operation_table(
-            all_years=all_years,
-            is_operate=is_operate,
-            operate_year_list=operate_year_list,
-            comm_area=comm_area,
-            comm_rent_start_price=comm_rent_start_price,
-            comm_rent_increase_span=comm_rent_increase_span,
-            comm_rent_increase_rate=comm_rent_increase_rate,
-            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
-            comm_stable_start=comm_stable_start,
-            comm_stable_end=comm_stable_end,
-            comm_occupancy_stable=comm_occupancy_stable,
-            park_count=park_count,
-            land_cost=land_cost,
-            construction_cost=construction_cost,
-            infra_cost=infra_cost,
-            other_eng_cost=other_eng_cost,
-            lease_months=lease_months if 'lease_months' in locals() else 12,
-            land_use_area=land_use_area,
-            project_input_tax=project_input_tax,
-        )   #plot_ratio_area=plot_ratio_area,
+    
         rental_cost_df_T = rental_cost_df.T
         # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
         rental_sum_rows = [
