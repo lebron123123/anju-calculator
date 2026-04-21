@@ -1303,7 +1303,8 @@ if calc_button:
         # 1. 先定义各项明细
         cf_df["配保房销售收入(万元)"] = income_df["配保房销售收入(万元)"] if "配保房销售收入(万元)" in income_df.columns else 0
         cf_df["其他收入(万元)"] = income_df[f"{other_income_name}(万元)"] if f"{other_income_name}(万元)" in income_df.columns else 0
-        cf_df["商业出租收入(万元)"] = income_df["商业出租收入(万元)"] if "商业出租收入(万元)" in income_df.columns else 0
+        #cf_df["商业出租收入(万元)"] = income_df["商业出租收入(万元)"] if "商业出租收入(万元)" in income_df.columns else 0
+        cf_df["商业出租收入(万元)"] = rental_cost_df.get("商业出租收入(万元)", 0.0).astype(float)
         # 回收固定资产余值（公式不变，先设为0，再给最后一行赋值）
         area_total = sale_area + comm_area
         comm_ratio = comm_area / area_total if area_total != 0 else 0
