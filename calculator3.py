@@ -1305,12 +1305,12 @@ if calc_button:
         cf_df["配保房销售收入(万元)"] = income_df["配保房销售收入(万元)"] if "配保房销售收入(万元)" in income_df.columns else 0
         cf_df["其他收入(万元)"] = income_df[f"{other_income_name}(万元)"] if f"{other_income_name}(万元)" in income_df.columns else 0
         cf_df["商业出租收入(万元)"] = income_df["商业出租收入(万元)"] if "商业出租收入(万元)" in income_df.columns else 0
-        # 回收固定资产余值（公式不变）
+        # 回收固定资产余值（公式不变，先设为0，再给最后一行赋值）
         area_total = sale_area + comm_area
         comm_ratio = comm_area / area_total if area_total != 0 else 0
         recover_fixed = (land_cost + dev_cost - total_cost_df["财务费用(建设期)(万元)"].sum() * comm_ratio) * 0.2
-        cf_df["回收固定资产余值(万元)"] = 0
-        cf_df.loc[cf_df.index[-1], "回收固定资产余值(万元)"] = recover_fixed  # 只在期末回收
+        cf_df["回收固定资产余值(万元)"] = 0.0  # 改成浮点数0，而不是字符串或None
+        cf_df.loc[cf_df.index[-1], "回收固定资产余值(万元)"] = recover_fixed
     
         # 2. 关键：现金流入 = 四项之和（解决合计为/的问题）
         cf_df["现金流入(万元)"] = (cf_df["配保房销售收入(万元)"] + cf_df["其他收入(万元)"] + cf_df["商业出租收入(万元)"] + cf_df["回收固定资产余值(万元)"])
