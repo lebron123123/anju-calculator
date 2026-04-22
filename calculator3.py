@@ -1351,22 +1351,23 @@ if calc_button:
 
     # 2. 现金流出：全调用现成表数据，按你的公式汇总
     # 2. 现金流出：全调用现成表数据，按你的公式汇总
-    for year in all_years:
-        build_invest = invest_plan_dict.get(year, 0.0)
-        tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
-        # 【最小修复】用get方法兜底，出售类无对应列自动返回0，不触发KeyError
-        manage_total = total_cost_df.loc[year, :].get("管理费用(住房)(万元)", 0) + total_cost_df.loc[year, :].get("管理费用(停车位)(万元)", 0)
-        vacancy_fee = total_cost_df.loc[year, :].get("空置期物业管理费(万元)", 0)
-        repair_fee = total_cost_df.loc[year, :].get("维修费用(万元)", 0)
-        insurance_fee = total_cost_df.loc[year, :].get("保险费(万元)", 0)
-        decoration_reset = total_cost_df.loc[year, :].get("装修重置费(万元)", 0)
-        maintain_fund = total_cost_df.loc[year, :].get("日常物业维修基金(万元)", 0)
-        income_tax = profit_df.loc[year, "所得税(万元)"]
+   if project_type != "出售类(配保房/可售型人才房等)": 
+       for year in all_years:
+           build_invest = invest_plan_dict.get(year, 0.0)
+           tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
+           # 【最小修复】用get方法兜底，出售类无对应列自动返回0，不触发KeyError
+           manage_total = total_cost_df.loc[year, :].get("管理费用(住房)(万元)", 0) + total_cost_df.loc[year, :].get("管理费用(停车位)(万元)", 0)
+           vacancy_fee = total_cost_df.loc[year, :].get("空置期物业管理费(万元)", 0)
+           repair_fee = total_cost_df.loc[year, :].get("维修费用(万元)", 0)
+           insurance_fee = total_cost_df.loc[year, :].get("保险费(万元)", 0)
+           decoration_reset = total_cost_df.loc[year, :].get("装修重置费(万元)", 0)
+           maintain_fund = total_cost_df.loc[year, :].get("日常物业维修基金(万元)", 0)
+           income_tax = profit_df.loc[year, "所得税(万元)"]
         
-        # 现金流出合计
-        cash_out_total = build_invest + tax_total + manage_total + vacancy_fee + repair_fee + insurance_fee + decoration_reset + maintain_fund + income_tax
-        cf_df.loc[year, "建设投资(万元)"] = round(build_invest, 4)
-        cf_df.loc[year, "现金流出合计(万元)"] = round(cash_out_total, 4)
+           # 现金流出合计
+           cash_out_total = build_invest + tax_total + manage_total + vacancy_fee + repair_fee + insurance_fee + decoration_reset + maintain_fund + income_tax
+           cf_df.loc[year, "建设投资(万元)"] = round(build_invest, 4)
+           cf_df.loc[year, "现金流出合计(万元)"] = round(cash_out_total, 4)
 
     # 3. 净现金流量
     cf_df["净现金流量(万元)"] = round(cf_df["现金流入(万元)"] - cf_df["现金流出合计(万元)"], 4)
