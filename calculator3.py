@@ -1322,6 +1322,7 @@ if calc_button:
         dev_cost_base = total_investment * (sale_area / area_total) if area_total != 0 else 0.0
         # 初始化新列
         cf_df[["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = 0.0
+        dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
         for year in all_years:
             # 一行提取所有现成数据
             sale_fee, sale_tax = total_cost_df.loc[year, ["销售费用(万元)", "销售税金及其附加(万元)"]]
@@ -1331,7 +1332,7 @@ if calc_button:
             dev_cost_sale, dev_cost_dep = total_cost_df.loc[year, ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)"]]
         
              # 合计计算：严格按你给的公式
-            dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
+            #dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
             # 年度值统一填/，不做逐年计算，仅合计行生效
             #cf_df["开发成本投资(万元)"] = float('nan')
             
