@@ -1334,7 +1334,7 @@ if calc_button:
             dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
             # 年度值统一填/，不做逐年计算，仅合计行生效
             cf_df["开发成本投资(万元)"] = float('nan')
-            cf_df.loc["合计", "开发成本投资(万元)"] = round(dev_cost_total, 4)
+            
             # 一行计算调整所得税（负数自动取0）
             adjust_tax = max( (cf_df.loc[year, "现金流入(万元)"] - cf_df.loc[year, "回收固定资产余值(万元)"] - (dev_cost_sale + dev_cost_dep + sale_fee + sale_tax + rent_cost + rent_tax)) * 0.25, 0.0 )
         
