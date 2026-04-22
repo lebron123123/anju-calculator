@@ -1755,15 +1755,6 @@ if calc_button:
 
     st.markdown("---")
 
-    if project_type == "出售类(配保房/可售型人才房等)":
-        dev_cost = cf_df_T.loc["开发成本投资(万元)", "全周期合计/期末值"]
-        sale_fee = cf_df_T.loc["销售费用(万元)", "全周期合计/期末值"]
-        sale_tax = cf_df_T.loc["销售税金及附加(万元)", "全周期合计/期末值"]
-        rent_tax = cf_df_T.loc["出租经营税金(万元)", "全周期合计/期末值"]
-        rent_cost = cf_df_T.loc["出租营运成本(万元)", "全周期合计/期末值"]
-        adjust_tax = cf_df_T.loc["调整所得税(万元)", "全周期合计/期末值"]
-        # 严格公式
-        cf_df_T.loc["现金流出合计(万元)", "全周期合计/期末值"] = round(dev_cost + sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
     # --- 新增：全投资现金流量表明细 ---
     st.subheader("💵 全投资现金流量表明细")
     cf_df_T = cf_df.T
