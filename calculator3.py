@@ -1322,6 +1322,8 @@ if calc_button:
         dev_cost_base = total_investment * (sale_area / area_total) if area_total != 0 else 0.0
         # 初始化新列
         cf_df[["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = 0.0
+        # 合计计算：严格按你给的公式
+        dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
         for year in all_years:
             # 一行提取所有现成数据
             sale_fee, sale_tax = total_cost_df.loc[year, ["销售费用(万元)", "销售税金及其附加(万元)"]]
@@ -1330,8 +1332,7 @@ if calc_button:
             build_fin_fee = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
             dev_cost_sale, dev_cost_dep = total_cost_df.loc[year, ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)"]]
         
-             # 合计计算：严格按你给的公式
-            dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
+             
             # 年度值统一填/，不做逐年计算，仅合计行生效
             cf_df["开发成本投资(万元)"] = float('nan')
             
@@ -1339,9 +1340,10 @@ if calc_button:
             adjust_tax = max( (cf_df.loc[year, "现金流入(万元)"] - cf_df.loc[year, "回收固定资产余值(万元)"] - (dev_cost_sale + dev_cost_dep + sale_fee + sale_tax + rent_cost + rent_tax)) * 0.25, 0.0 )
         
             # 一行填入所有数值
-            cf_df.loc[year, ["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [round(dev_cost_total,4), round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
-            # 一行重新计算现金流出合计（不含建设投资）
-            cf_df.loc[year, "现金流出合计(万元)"] = round( dev_cost_base + sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
+             # 🔥 修复2：年度开发成本投资 = 0（不参与年度计算，仅合计有数）
+            cf_df.loc[year, ["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [0.0, round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
+            # 🔥 修复3：年度现金流出合计 = 仅费用+税，不加开发成本
+            cf_df.loc[year, "现金流出合计(万元)"] = round( sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
             cf_df = cf_df.reindex(columns=["现金流入(万元)","配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)", "现金流出合计(万元)", "开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"])
     else:
         # 其他类型保持原来的逻辑不变
@@ -1752,7 +1754,16 @@ if calc_button:
     st.dataframe(profit_df_T, use_container_width=True)
 
     st.markdown("---")
-    
+
+    if project_type == "出售类(配保房/可售型人才房等)":
+    dev_cost = cf_df_T.loc["开发成本投资(万元)", "全周期合计/期末值"]
+    sale_fee = cf_df_T.loc["销售费用(万元)", "全周期合计/期末值"]
+    sale_tax = cf_df_T.loc["销售税金及附加(万元)", "全周期合计/期末值"]
+    rent_tax = cf_df_T.loc["出租经营税金(万元)", "全周期合计/期末值"]
+    rent_cost = cf_df_T.loc["出租营运成本(万元)", "全周期合计/期末值"]
+    adjust_tax = cf_df_T.loc["调整所得税(万元)", "全周期合计/期末值"]
+    # 严格公式
+    cf_df_T.loc["现金流出合计(万元)", "全周期合计/期末值"] = round(dev_cost + sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
     # --- 新增：全投资现金流量表明细 ---
     st.subheader("💵 全投资现金流量表明细")
     cf_df_T = cf_df.T
