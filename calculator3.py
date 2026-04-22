@@ -1319,7 +1319,7 @@ if calc_button:
 
         # 🔥 【仅新增这一段：出售类专属现金流出，其他全不动】
         area_total = sale_area + comm_area
-        dev_cost_base = total_investment * (comm_area / area_total) if area_total != 0 else 0.0
+        dev_cost_base = total_investment * (sale_area / area_total) if area_total != 0 else 0.0
         # 初始化新列
         cf_df[["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = 0.0
         for year in all_years:
