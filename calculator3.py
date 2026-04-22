@@ -1316,6 +1316,29 @@ if calc_button:
     
         # 2. 关键：现金流入 = 四项之和（解决合计为/的问题）
         cf_df["现金流入(万元)"] = (cf_df["配保房销售收入(万元)"] + cf_df["其他收入(万元)"] + cf_df["商业出租收入(万元)"] + cf_df["回收固定资产余值(万元)"])
+
+        # 🔥 【仅新增这一段：出售类专属现金流出，其他全不动】
+        area_total = sale_area + comm_area
+        dev_cost_base = total_investment * (comm_area / area_total) if area_total != 0 else 0.0
+        # 初始化新列
+        cf_df[["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = 0.0
+        for year in all_years:
+            # 一行提取所有现成数据
+            sale_fee, sale_tax = total_cost_df.loc[year, ["销售费用(万元)", "销售税金及其附加(万元)"]]
+            rent_tax = rental_cost_df.loc[year, "出租经营税金合计(万元)"] if year in rental_cost_df.index else 0.0
+            rent_cost = rental_cost_df.loc[year, "出租营运成本合计(万元)"] if year in rental_cost_df.index else 0.0
+            build_fin_fee = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
+            dev_cost_sale, dev_cost_dep = total_cost_df.loc[year, ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)"]]
+        
+            # 一行计算开发成本投资
+            dev_cost_invest = dev_cost_base - build_fin_fee - sale_fee
+            # 一行计算调整所得税（负数自动取0）
+            adjust_tax = max( (cf_df.loc[year, "现金流入(万元)"] - cf_df.loc[year, "回收固定资产余值(万元)"] - (dev_cost_sale + dev_cost_dep + sale_fee + sale_tax + rent_cost + rent_tax)) * 0.25, 0.0 )
+        
+            # 一行填入所有数值
+            cf_df.loc[year, ["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [round(dev_cost_invest,4), round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
+            # 一行重新计算现金流出合计（不含建设投资）
+            cf_df.loc[year, "现金流出合计(万元)"] = round(dev_cost_invest + sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
     else:
         # 其他类型保持原来的逻辑不变
         cf_df["现金流入(万元)"] = income_df["总收入(万元)"]
@@ -1730,7 +1753,8 @@ if calc_button:
     st.subheader("💵 全投资现金流量表明细")
     cf_df_T = cf_df.T
     # 合计行规则：普通行求和，累计行取最后一年的期末值（符合财务表规范）
-    cf_sum_rows = ["现金流入(万元)", "配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)","建设投资(万元)", "现金流出合计(万元)", "净现金流量(万元)", "净现值(万元)"]
+    #cf_sum_rows = ["现金流入(万元)", "配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)","建设投资(万元)", "现金流出合计(万元)", "净现金流量(万元)", "净现值(万元)"]
+    cf_sum_rows = ["现金流入(万元)", "配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)", "现金流出合计(万元)", "开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)", "净现金流量(万元)", "净现值(万元)"] if project_type == "出售类(配保房/可售型人才房等)" else ["现金流入(万元)","建设投资(万元)", "现金流出合计(万元)", "净现金流量(万元)", "净现值(万元)"]
     cf_df_T["全周期合计/期末值"] = cf_df_T.apply(
         lambda row: round(row.sum(), 4) if row.name in cf_sum_rows 
         else (round(row.iloc[-1], 4) if "累计" in row.name else "/"), 
