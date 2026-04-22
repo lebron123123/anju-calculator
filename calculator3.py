@@ -1340,7 +1340,7 @@ if calc_button:
             adjust_tax = max( (cf_df.loc[year, "现金流入(万元)"] - cf_df.loc[year, "回收固定资产余值(万元)"] - (dev_cost_sale + dev_cost_dep + sale_fee + sale_tax + rent_cost + rent_tax)) * 0.25, 0.0 )
         
             # 一行填入所有数值
-            cf_df.loc[year, ["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [round(dev_cost_total,4), round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
+            cf_df.loc[year, ["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [0.0, round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
             # 一行重新计算现金流出合计（不含建设投资）
             cf_df.loc[year, "现金流出合计(万元)"] = round( dev_cost_base + sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
             cf_df = cf_df.reindex(columns=["现金流入(万元)","配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)", "现金流出合计(万元)", "开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"])
