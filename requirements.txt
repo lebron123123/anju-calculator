@@ -2,3 +2,4 @@ streamlit
 pandas
 openpyxl
 volcengine-python-sdk
+anthropic>=0.34.0
