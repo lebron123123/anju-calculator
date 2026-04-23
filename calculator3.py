@@ -471,41 +471,66 @@ def build_ai_context_text(context_dict):
 
 def answer_ai_chat_local(question, context_dict):
     """
-    本地版问答：先不用外部大模型，也能回答常见问题
+    本地版问答：支持异常解释、优化建议、参考项目说明、指标解释
     """
     q = (question or "").strip()
-
     if not q:
         return "请先输入问题。"
 
-    total_income = context_dict.get("total_income", 0)
-    total_cost = context_dict.get("total_cost", 0)
-    total_net_profit = context_dict.get("total_net_profit", 0)
-    total_npv_sum = context_dict.get("total_npv_sum", 0)
+    total_income = float(context_dict.get("total_income", 0) or 0)
+    total_cost = float(context_dict.get("total_cost", 0) or 0)
+    total_net_profit = float(context_dict.get("total_net_profit", 0) or 0)
+    total_npv_sum = float(context_dict.get("total_npv_sum", 0) or 0)
     irr_value = context_dict.get("irr_value", "")
-    interest_coverage_ratio = context_dict.get("interest_coverage_ratio", 0)
+    interest_coverage_ratio = float(context_dict.get("interest_coverage_ratio", 0) or 0)
     similar_project_names = context_dict.get("similar_project_names", [])
+    sub_type = context_dict.get("sub_type", "")
+
+    insight = build_risk_and_suggestion_text(context_dict)
+    risk_text = insight["risk_text"]
+    suggestion_text = insight["suggestion_text"]
+
+    q_lower = q.lower()
+
+    if "为什么" in q or "异常" in q or "不好" in q or "偏低" in q or "偏弱" in q:
+        return f"从当前测算结果看，主要原因可能是：{risk_text}"
+
+    if "建议" in q or "优化" in q or "怎么改" in q or "怎么提升" in q:
+        return f"基于当前测算结果，我建议优先从这些方向优化：{suggestion_text}"
 
     if "收入" in q:
-        return f"本项目全周期总收入约为 {total_income} 万元。你如果需要，我可以继续帮你拆解收入主要来自住宅、车位、销售还是商业出租。"
-    elif "成本" in q:
-        return f"本项目全周期总成本费用约为 {total_cost} 万元。若你愿意，我下一步可以继续帮你解释成本里哪几项占比最高。"
-    elif "净利润" in q or "利润" in q:
-        return f"本项目全周期净利润约为 {total_net_profit} 万元。"
-    elif "净现值" in q or "npv" in q.lower():
-        return f"本项目净现值约为 {total_npv_sum} 万元。净现值为负通常意味着按当前折现率和假设参数看，项目财务回报偏弱。"
-    elif "irr" in q.lower() or "收益率" in q:
-        return f"本项目全投资内部收益率（IRR）为 {irr_value}。如果你需要，我可以继续解释是哪些参数拉低或拉高了IRR。"
-    elif "利息保障" in q:
-        return f"本项目利息保障倍数约为 {interest_coverage_ratio}。一般来说，这个指标越高，债务利息覆盖能力越强。"
-    elif "历史项目" in q or "参考项目" in q or "同类项目" in q:
+        return f"本项目全周期总收入约为 {total_income} 万元。若你愿意，我可以继续按住宅、车位、销售、商业出租几个模块帮你解释收入来源。"
+
+    if "成本" in q:
+        return f"本项目全周期总成本费用约为 {total_cost} 万元。当前如果项目收益偏弱，通常需要优先检查土地成本、建安成本、基础设施费和融资成本。"
+
+    if "净利润" in q or "利润" in q:
+        return f"本项目全周期净利润约为 {total_net_profit} 万元。若净利润偏低或为负，通常说明收入释放不足或成本压力较大。"
+
+    if "净现值" in q or "npv" in q_lower:
+        return f"本项目净现值约为 {total_npv_sum} 万元。{risk_text}"
+
+    if "irr" in q_lower or "收益率" in q:
+        return f"本项目全投资内部收益率（IRR）为 {irr_value}。如果IRR偏低，通常与前期投资过大、运营现金流不足、租售价格偏低或回收周期过长有关。"
+
+    if "利息保障" in q or "偿债" in q:
+        return f"本项目利息保障倍数约为 {interest_coverage_ratio}。一般来说，该指标越高，项目对利息支出的覆盖能力越强。当前判断为：{risk_text}"
+
+    if "历史项目" in q or "参考项目" in q or "同类项目" in q:
         if similar_project_names:
-            return f"本次测算主要参考了这些同类项目：{'、'.join(similar_project_names)}。"
-        return "本次测算未匹配到可用的同类历史项目，主要基于规则参数进行了补齐。"
-    elif "怎么测" in q or "怎么来的" in q or "依据" in q or "为什么" in q:
-        return "当前测算逻辑是：先根据你输入的核心指标匹配同类历史项目，再结合行业规则自动补齐缺失参数，最后进入完整财务模型生成各张表格。"
-    else:
-        return "我已经拿到当前项目的测算上下文。你可以继续问我：为什么IRR这么低、参考了哪些项目、哪些参数最影响结果、收入成本如何构成等。"
+            return f"本次测算主要参考了这些同类项目：{'、'.join(similar_project_names)}。这些样本被用于修正住宅面积、商业面积、车位数量、稳定出租率和部分成本参数。"
+        return "本次测算未匹配到可用的同类历史项目，当前结果主要基于规则参数进行了补齐。"
+
+    if "项目类型" in q or "子类型" in q:
+        return f"当前测算项目子类型为 {sub_type}。不同子类型会影响收入结构、销售逻辑和补参规则。"
+
+    if "怎么测" in q or "怎么来的" in q or "依据" in q:
+        return "当前测算逻辑是：先根据你输入的核心指标匹配同类历史项目，再结合行业规则自动补齐缺失参数，最后进入完整财务模型生成收入、成本、税金、损益和现金流表。"
+
+    return (
+        "我已经拿到当前项目的测算上下文。"
+        "你可以继续问我：为什么IRR为负、净现值为什么偏低、有哪些优化建议、参考了哪些历史项目、如何提升收益或改善偿债能力。"
+    )
 
 
 def call_external_llm_for_chat(messages, context_text):
@@ -524,7 +549,7 @@ def render_ai_chat_panel():
 
     if "ai_chat_messages" not in st.session_state:
         st.session_state["ai_chat_messages"] = [
-            {"role": "assistant", "content": "你好，我可以基于当前测算结果继续解释项目收益、成本、IRR、净现值、参考项目和关键假设。"}
+            {"role": "assistant", "content": "你好，我可以基于当前测算结果继续解释项目收益、成本、IRR、净现值、参考项目、异常指标和优化建议。"}
         ]
 
     for msg in st.session_state["ai_chat_messages"]:
@@ -538,13 +563,96 @@ def render_ai_chat_panel():
         context_dict = st.session_state.get("ai_result_context", {})
         context_text = build_ai_context_text(context_dict)
 
-        # 先尝试外部大模型；如果没有配置，就回退到本地回答
-        llm_answer = call_external_llm_for_chat(st.session_state["ai_chat_messages"], context_text)
+        # 先尝试外部大模型；如果没有，就回退到本地规则回答
+        llm_answer = call_external_llm_for_chat(
+            messages=st.session_state["ai_chat_messages"],
+            context_text=context_text
+        )
+
         if not llm_answer:
             llm_answer = answer_ai_chat_local(user_question, context_dict)
 
         st.session_state["ai_chat_messages"].append({"role": "assistant", "content": llm_answer})
+
+        # 关键：标记已有结果，避免聊天导致页面回退
+        st.session_state["ai_result_ready"] = True
         st.rerun()
+        
+def build_risk_and_suggestion_text(context_dict):
+    """
+    根据当前测算结果，生成异常指标解释 + 优化建议
+    """
+    if not context_dict:
+        return {
+            "risk_text": "暂无测算结果，无法生成异常指标解释。",
+            "suggestion_text": "请先完成一次AI测算。"
+        }
+
+    total_income = float(context_dict.get("total_income", 0) or 0)
+    total_cost = float(context_dict.get("total_cost", 0) or 0)
+    total_net_profit = float(context_dict.get("total_net_profit", 0) or 0)
+    total_npv_sum = float(context_dict.get("total_npv_sum", 0) or 0)
+    irr_raw = str(context_dict.get("irr_value", "")).replace("%", "").replace(" ", "")
+    interest_coverage_ratio = float(context_dict.get("interest_coverage_ratio", 0) or 0)
+
+    try:
+        irr_num = float(irr_raw)
+    except:
+        irr_num = None
+
+    risks = []
+    suggestions = []
+
+    # 风险解释
+    if total_npv_sum < 0:
+        risks.append("净现值为负，说明按当前折现率口径看，项目未来现金流不足以覆盖资金时间价值，整体财务吸引力偏弱。")
+    if irr_num is not None and irr_num < 0:
+        risks.append("IRR为负，通常意味着项目全周期净现金流回收偏慢，或者前期投入过高、后期收入释放不足。")
+    if total_net_profit < 0:
+        risks.append("净利润为负，说明在当前收入与成本假设下，项目整体无法实现会计口径盈利。")
+    if interest_coverage_ratio < 1:
+        risks.append("利息保障倍数低于1，说明项目经营收益对利息支出的覆盖能力较弱，偿债安全边际不足。")
+    elif interest_coverage_ratio < 1.5:
+        risks.append("利息保障倍数偏低，说明项目偿债能力有一定压力。")
+
+    if total_cost > total_income:
+        risks.append("总成本高于总收入，当前模型下项目盈亏平衡尚未实现。")
+
+    if not risks:
+        risks.append("当前未发现特别突出的异常指标，整体财务表现处于可接受区间，但仍建议结合实际参数进一步校核。")
+
+    # 优化建议
+    if total_npv_sum < 0 or (irr_num is not None and irr_num < 0):
+        suggestions.append("可以优先从提升运营收入入手，例如上调可售售价、优化租金水平、提高出租率或提高车位收入系数。")
+        suggestions.append("可以重新审视总投资与建设投资节奏，若能压降前期投入或延后部分支出，通常会改善NPV与IRR。")
+        suggestions.append("可以重点检查土地成本、建安成本、基础设施费等大额成本参数，若有优化空间，财务结果会明显改善。")
+
+    if interest_coverage_ratio < 1.5:
+        suggestions.append("建议优化借款结构，例如降低借款规模、拉长借款期限或降低利率，以改善利息保障能力。")
+
+    suggestions.append("建议对最敏感的参数做情景测算，如售价±5%、租金±5%、总投资±10%、出租率±5%，用于识别关键影响因素。")
+    suggestions.append("如需正式决策，建议将AI补齐参数转为可编辑模式，由人工复核后再次测算。")
+
+    return {
+        "risk_text": "；".join(risks),
+        "suggestion_text": "；".join(suggestions)
+    }
+
+
+def save_ai_result_snapshot(result_dict):
+    """
+    保存当前测算结果快照，供聊天/刷新后继续展示
+    """
+    st.session_state["ai_result_snapshot"] = result_dict
+    st.session_state["ai_result_ready"] = True
+
+
+def get_ai_result_snapshot():
+    return st.session_state.get("ai_result_snapshot", {})
+
+
+def has_ai_result_snapshot():
+    return st.session_state.get("ai_result_ready", False)
 
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
@@ -724,7 +832,8 @@ if is_ai_mode:
         for k in [
         "ai_mode_ready", "ai_calc_trigger", "ai_msg", "ai_params", "ai_base",
         "ai_core_input", "ai_similar_projects", "ai_similar_project_names",
-        "ai_result_context", "ai_chat_messages"
+        "ai_result_context", "ai_chat_messages",
+        "ai_result_snapshot", "ai_result_ready"
         ]:
             if k in st.session_state:
                 del st.session_state[k]
@@ -1678,8 +1787,29 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=Fal
     return profit_df
 
 # ===================== 结果展示区 =====================
-if calc_button:
+if calc_button or has_ai_result_snapshot():
     try:
+        use_snapshot_only = (not calc_button) and has_ai_result_snapshot()
+        if use_snapshot_only:
+            snap = get_ai_result_snapshot()
+
+            total_income = snap["total_income"]
+            total_cost = snap["total_cost"]
+            total_interest = snap["total_interest"]
+            total_net_profit = snap["total_net_profit"]
+            interest_coverage_ratio = snap["interest_coverage_ratio"]
+            total_npv_sum = snap["total_npv_sum"]
+            irr_value = snap["irr_value"]
+
+            income_df_T = snap["income_df_T"]
+            cost_df_T = snap["cost_df_T"]
+            loan_df_T = snap["loan_df_T"]
+            profit_df_T = snap["profit_df_T"]
+            cf_df_T = snap["cf_df_T"]
+            tax_df_T = snap.get("tax_df_T", pd.DataFrame())
+            rental_cost_df_T = snap.get("rental_cost_df_T", pd.DataFrame())
+
+            project_name = snap.get("project_name", "AI测算项目")
         st.session_state["ai_calc_trigger"] = False
         # 前置校验，避免参数缺失报错
         show_resi = st.session_state.get("show_resi", True) #不设置这个就会报错
@@ -2195,7 +2325,7 @@ if calc_button:
 
 
         # ===================== AI模式专属：测算说明 + 补参说明 =====================
-        if st.session_state.get("ai_mode_ready", False):
+        if st.session_state.get("ai_mode_ready", False) and has_ai_result_snapshot():
             ai_core_input = st.session_state.get("ai_core_input", {})
             ai_params_state = st.session_state.get("ai_params", {})
             ai_similar_projects = st.session_state.get("ai_similar_projects", [])
@@ -2239,6 +2369,26 @@ if calc_button:
                 "irr_value": irr_value,
                 "interest_coverage_ratio": interest_coverage_ratio
             }
+                # ===================== 保存结果快照，供聊天和刷新后继续展示 =====================
+        if calc_button:
+            snapshot_dict = {
+                "project_name": project_name,
+                "total_income": total_income,
+                "total_cost": total_cost,
+                "total_interest": total_interest,
+                "total_net_profit": total_net_profit,
+                "interest_coverage_ratio": interest_coverage_ratio,
+                "total_npv_sum": total_npv_sum,
+                "irr_value": irr_value,
+                "income_df_T": income_df_T.copy(),
+                "cost_df_T": cost_df_T.copy(),
+                "loan_df_T": loan_df_T.copy(),
+                "profit_df_T": profit_df_T.copy(),
+                "cf_df_T": cf_df_T.copy(),
+                "tax_df_T": tax_df_T.copy() if 'tax_df_T' in locals() else pd.DataFrame(),
+                "rental_cost_df_T": rental_cost_df_T.copy() if 'rental_cost_df_T' in locals() else pd.DataFrame()
+            }
+            save_ai_result_snapshot(snapshot_dict)
         # 8. 页面结果展示
         st.header("📊 测算结果")
         st.markdown("---")
