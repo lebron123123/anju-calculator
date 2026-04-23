@@ -594,7 +594,7 @@ def call_external_llm_for_chat(messages, context_text):
 以下是当前项目的测算上下文：
 {context_text}
 """.strip()
-
+        st.info("正在调用大模型回答...")
         resp = client.messages.create(
             model="claude-opus-4-6",
             max_tokens=1200,
