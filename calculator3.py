@@ -540,8 +540,8 @@ if is_ai_mode:
                 st.session_state["debug_ai_clicked"] = True
                 st.session_state["debug_ai_time"] = datetime.now().strftime("%H:%M:%S")
                 st.rerun()
-    except Exception as e:
-        st.error(f"AI一键测算触发失败：{e}")
+        except Exception as e:
+            st.error(f"AI一键测算触发失败：{e}")
     if st.button("♻️ 清空AI结果并重新填写", use_container_width=True):
         for k in ["ai_mode_ready", "ai_calc_trigger", "ai_msg", "ai_params", "ai_base"]:
             if k in st.session_state:
