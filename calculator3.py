@@ -9,10 +9,13 @@ import pandas as pd
 import json
 import pandas as pd
 import requests
+import os
 
-LLM_MODE = "ollama"   # "ollama" 或 "cloud"
+LLM_MODE = "cloud"   # "ollama" 或 "cloud"
+CLOUD_PROVIDER = "kimi"
+CLOUD_MODEL = "moonshot-v1-8k"
+
 OLLAMA_MODEL = "qwen3.5:latest"
-CLOUD_MODEL = "claude-opus-4-6"
 
 try:
     from anthropic import Anthropic
@@ -547,10 +550,14 @@ def call_kimi_cloud_for_chat(messages, context_text):
     调用 Kimi 云端聊天接口
     返回字符串；失败时返回 None
     """
-    secret_value = get_secret_value("sk-QlarYFqgZOncmq90xrY9gdSWkgg3jAxmK399R2nW1ZSPj3Qe", "")
+    #secret_value = get_secret_value("KIMI_API_KEY", "")
+    # 注意：这是不安全的做法！用完请改回来或删除密钥
+    secret_value = "sk-QlarYFqgZOncmq90xrY9gdSWkgg3jAxmK399R2nW1ZSPj3Qe" 
     if not secret_value:
-        set_llm_debug_status(False, "未检测到云端模型密钥，请先在 Streamlit Secrets 中配置 KIMI_API_KEY")
+        set_llm_debug_status(False, "未检测到 KIMI_API_KEY，请先在 Streamlit Secrets 中配置")
         return None
+
+    kimi_chat_url = "https://api.moonshot.cn/v1/chat/completions"
 
     try:
         recent_messages = messages[-8:] if messages else []
@@ -586,13 +593,6 @@ def call_kimi_cloud_for_chat(messages, context_text):
                 "content": content
             })
 
-        # 按 Kimi 官方聊天接口文档填写请求地址
-        # 这里请替换成你当前使用的官方 chat completions 地址
-        kimi_chat_url = get_secret_value("https://api.moonshot.cn/v1/chat/completions", "").strip()
-        if not kimi_chat_url:
-            set_llm_debug_status(False, "未配置 KIMI_CHAT_URL，请在 Streamlit Secrets 中补充官方聊天接口地址")
-            return None
-
         resp = requests.post(
             kimi_chat_url,
             headers={
@@ -621,7 +621,7 @@ def call_kimi_cloud_for_chat(messages, context_text):
             set_llm_debug_status(True, f"Kimi云端调用成功：{CLOUD_MODEL}")
             return answer
 
-        set_llm_debug_status(False, "Kimi云端返回为空")
+        set_llm_debug_status(False, f"Kimi云端返回为空：{data}")
         return None
 
     except Exception as e:
@@ -724,7 +724,7 @@ def render_ai_chat_panel():
     if LLM_MODE == "ollama":
         st.caption("当前问答优先使用本地Ollama模型回答，失败时自动回退到本地规则回答。")
     elif LLM_MODE == "cloud":
-        st.caption("当前问答优先使用云端大模型回答，失败时自动回退到本地规则回答。")
+        st.caption(f"当前问答优先使用云端大模型回答，服务商：{CLOUD_PROVIDER}，模型：{CLOUD_MODEL}，失败时自动回退到本地规则回答。")
     else:
         st.caption("当前未配置有效的大模型模式，问答将使用本地规则回答。")
 
@@ -844,6 +844,14 @@ def get_llm_debug_status():
         "ok": st.session_state.get("llm_debug_ok", None),
         "message": st.session_state.get("llm_debug_message", "尚未调用大模型")
     }
+    
+def get_secret_value(name, default=""):
+    try:
+        if name in st.secrets:
+            return st.secrets[name]
+    except Exception:
+        pass
+    return os.getenv(name, default)
 
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
