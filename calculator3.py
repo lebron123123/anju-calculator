@@ -542,87 +542,119 @@ def answer_ai_chat_local(question, context_dict):
         "你可以继续问我：为什么IRR为负、净现值为什么偏低、有哪些优化建议、参考了哪些历史项目、如何提升收益或改善偿债能力。"
     )
 
+def call_kimi_cloud_for_chat(messages, context_text):
+    """
+    调用 Kimi 云端聊天接口
+    返回字符串；失败时返回 None
+    """
+    secret_value = get_secret_value("sk-QlarYFqgZOncmq90xrY9gdSWkgg3jAxmK399R2nW1ZSPj3Qe", "")
+    if not secret_value:
+        set_llm_debug_status(False, "未检测到云端模型密钥，请先在 Streamlit Secrets 中配置 KIMI_API_KEY")
+        return None
+
+    try:
+        recent_messages = messages[-8:] if messages else []
+
+        api_messages = []
+        system_prompt = f"""
+你是一个安居房/保障房项目财务测算分析助手。
+
+要求：
+1. 基于当前测算结果回答用户问题；
+2. 优先解释IRR、净现值、利润、成本、现金流、异常指标和优化建议；
+3. 不要虚构上下文中不存在的数据；
+4. 回答要简洁、专业、适合项目汇报。
+
+当前项目测算上下文：
+{context_text}
+""".strip()
+
+        api_messages.append({
+            "role": "system",
+            "content": system_prompt
+        })
+
+        for msg in recent_messages:
+            role = msg.get("role", "user")
+            content = str(msg.get("content", "")).strip()
+            if not content:
+                continue
+            if role not in ["user", "assistant"]:
+                role = "user"
+            api_messages.append({
+                "role": role,
+                "content": content
+            })
+
+        # 按 Kimi 官方聊天接口文档填写请求地址
+        # 这里请替换成你当前使用的官方 chat completions 地址
+        kimi_chat_url = get_secret_value("https://api.moonshot.cn/v1/chat/completions", "").strip()
+        if not kimi_chat_url:
+            set_llm_debug_status(False, "未配置 KIMI_CHAT_URL，请在 Streamlit Secrets 中补充官方聊天接口地址")
+            return None
+
+        resp = requests.post(
+            kimi_chat_url,
+            headers={
+                "Authorization": f"Bearer {secret_value}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": CLOUD_MODEL,
+                "messages": api_messages,
+                "temperature": 0.3,
+                "max_tokens": 1200
+            },
+            timeout=120
+        )
+
+        resp.raise_for_status()
+        data = resp.json()
+
+        answer = ""
+        choices = data.get("choices", [])
+        if choices:
+            answer = choices[0].get("message", {}).get("content", "") or ""
+
+        answer = answer.strip()
+        if answer:
+            set_llm_debug_status(True, f"Kimi云端调用成功：{CLOUD_MODEL}")
+            return answer
+
+        set_llm_debug_status(False, "Kimi云端返回为空")
+        return None
+
+    except Exception as e:
+        set_llm_debug_status(False, f"Kimi云端调用失败：{type(e).__name__}: {e}")
+        return None
 
 def call_external_llm_for_chat(messages, context_text):
-    recent_messages = messages[-8:] if messages else []
+    if LLM_MODE == "cloud":
+        if CLOUD_PROVIDER == "kimi":
+            return call_kimi_cloud_for_chat(messages, context_text)
 
-    if LLM_MODE == "ollama":
-        try:
-            dialog_text = ""
-            for msg in recent_messages:
-                role = msg.get("role", "user")
-                content = str(msg.get("content", "")).strip()
-                if not content:
-                    continue
-                if role == "assistant":
-                    dialog_text += f"\n助手：{content}"
-                else:
-                    dialog_text += f"\n用户：{content}"
+        elif CLOUD_PROVIDER == "anthropic":
+            if Anthropic is None:
+                set_llm_debug_status(False, "未安装 anthropic SDK")
+                return None
 
-            prompt = f"""
-你是一个安居房/保障房项目财务测算分析助手。
+            try:
+                recent_messages = messages[-8:] if messages else []
 
-要求：
-1. 基于当前测算结果回答用户问题；
-2. 优先解释IRR、净现值、利润、成本、现金流、异常指标和优化建议；
-3. 不要虚构上下文中不存在的数据；
-4. 回答要简洁、专业。
+                llm_messages = []
+                for msg in recent_messages:
+                    role = msg.get("role", "user")
+                    content = str(msg.get("content", "")).strip()
+                    if not content:
+                        continue
+                    if role not in ["user", "assistant"]:
+                        role = "user"
+                    llm_messages.append({
+                        "role": role,
+                        "content": content
+                    })
 
-当前项目测算上下文：
-{context_text}
-
-最近对话：
-{dialog_text}
-
-请继续回答用户最后一个问题：
-""".strip()
-
-            resp = requests.post(
-                "http://127.0.0.1:11434/api/generate",
-                json={
-                    "model": OLLAMA_MODEL,
-                    "prompt": prompt,
-                    "stream": False
-                },
-                timeout=120
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            answer = data.get("response", "").strip()
-
-            if answer:
-                set_llm_debug_status(True, f"本地Ollama调用成功：{OLLAMA_MODEL}")
-                return answer
-
-            set_llm_debug_status(False, "本地Ollama返回为空")
-            return None
-
-        except Exception as e:
-            set_llm_debug_status(False, f"本地Ollama调用失败：{type(e).__name__}: {e}")
-            return None
-
-    elif LLM_MODE == "cloud":
-        if Anthropic is None:
-            set_llm_debug_status(False, "未安装 anthropic SDK")
-            return None
-
-        try:
-            client = Anthropic()
-
-            llm_messages = []
-            for msg in recent_messages:
-                role = msg.get("role", "user")
-                content = str(msg.get("content", "")).strip()
-                if not content:
-                    continue
-                if role not in ["user", "assistant"]:
-                    role = "user"
-                llm_messages.append({
-                    "role": role,
-                    "content": content
-                })
-
-            system_prompt = f"""
+                system_prompt = f"""
 你是一个安居房/保障房项目财务测算分析助手。
 
 要求：
@@ -635,35 +667,45 @@ def call_external_llm_for_chat(messages, context_text):
 {context_text}
 """.strip()
 
-            resp = client.messages.create(
-                model=CLOUD_MODEL,
-                max_tokens=1200,
-                temperature=0.3,
-                system=system_prompt,
-                messages=llm_messages
-            )
+                client = Anthropic()
 
-            if resp and resp.content:
-                parts = []
-                for block in resp.content:
-                    text = getattr(block, "text", "")
-                    if text:
-                        parts.append(text)
+                resp = client.messages.create(
+                    model=CLOUD_MODEL,
+                    max_tokens=1200,
+                    temperature=0.3,
+                    system=system_prompt,
+                    messages=llm_messages
+                )
 
-                answer = "\n".join(parts).strip()
-                if answer:
-                    set_llm_debug_status(True, f"云端调用成功：{CLOUD_MODEL}")
-                    return answer
+                if resp and resp.content:
+                    parts = []
+                    for block in resp.content:
+                        text = getattr(block, "text", "")
+                        if text:
+                            parts.append(text)
 
-            set_llm_debug_status(False, "云端模型返回为空")
+                    answer = "\n".join(parts).strip()
+                    if answer:
+                        set_llm_debug_status(True, f"云端调用成功：{CLOUD_MODEL}")
+                        return answer
+
+                set_llm_debug_status(False, "云端模型返回为空")
+                return None
+
+            except Exception as e:
+                set_llm_debug_status(False, f"云端模型调用失败：{type(e).__name__}: {e}")
+                return None
+
+        else:
+            set_llm_debug_status(False, f"未知 CLOUD_PROVIDER：{CLOUD_PROVIDER}")
             return None
 
-        except Exception as e:
-            set_llm_debug_status(False, f"云端模型调用失败：{type(e).__name__}: {e}")
-            return None
+    elif LLM_MODE == "ollama":
+        set_llm_debug_status(False, "当前部署在云端时不建议使用本地Ollama直连")
+        return None
 
     else:
-        set_llm_debug_status(False, f"未知LLM_MODE：{LLM_MODE}")
+        set_llm_debug_status(False, f"未知 LLM_MODE：{LLM_MODE}")
         return None
 
 
