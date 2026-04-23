@@ -9,45 +9,367 @@ import pandas as pd
 import json
 import pandas as pd
 
-# 本地规则版参数生成（完全不依赖API，不会报错）
+# ===================== 内置历史项目数据库 + 相似项目匹配 =====================
+@st.cache_data
+def load_builtin_history_projects():
+    """
+    内置历史项目库（先写在代码里，后续你有真实项目时，直接往这里补数据）
+    字段尽量和AI补参所需字段一致
+    """
+    data = [
+        {
+            "项目名称": "历史出售项目A",
+            "项目子类型": "出售类",
+            "总建筑面积": 52000,
+            "总投资": 51000,
+            "售价": 10500,
+            "租金": 0,
+            "residential_area": 0,
+            "comm_area": 4200,
+            "park_count": 460,
+            "occupancy_stable": 0.90,
+            "comm_occupancy_stable": 0.85,
+            "park_occupancy_stable": 0.90,
+            "manage_coeff": 1.92,
+            "land_cost": 13000,
+            "construction_cost": 5200,
+            "infra_cost": 450,
+            "sale_area": 41000,
+            "comm_rent_start_price": 32,
+            "park_rent_start_price": 300,
+            "park_income_ratio": 0.50
+        },
+        {
+            "项目名称": "历史出售项目B",
+            "项目子类型": "出售类",
+            "总建筑面积": 68000,
+            "总投资": 65000,
+            "售价": 9800,
+            "租金": 0,
+            "residential_area": 0,
+            "comm_area": 5000,
+            "park_count": 600,
+            "occupancy_stable": 0.90,
+            "comm_occupancy_stable": 0.86,
+            "park_occupancy_stable": 0.90,
+            "manage_coeff": 1.95,
+            "land_cost": 16500,
+            "construction_cost": 6700,
+            "infra_cost": 560,
+            "sale_area": 54000,
+            "comm_rent_start_price": 35,
+            "park_rent_start_price": 320,
+            "park_income_ratio": 0.55
+        },
+        {
+            "项目名称": "历史出租项目A",
+            "项目子类型": "出租类",
+            "总建筑面积": 50000,
+            "总投资": 48000,
+            "售价": 0,
+            "租金": 19.2,
+            "residential_area": 43000,
+            "comm_area": 2800,
+            "park_count": 470,
+            "occupancy_stable": 0.92,
+            "comm_occupancy_stable": 0.85,
+            "park_occupancy_stable": 0.90,
+            "manage_coeff": 1.92,
+            "land_cost": 12000,
+            "construction_cost": 5000,
+            "infra_cost": 420,
+            "sale_area": 0,
+            "comm_rent_start_price": 28,
+            "park_rent_start_price": 300,
+            "park_income_ratio": 0.50
+        },
+        {
+            "项目名称": "历史出租项目B",
+            "项目子类型": "出租类",
+            "总建筑面积": 62000,
+            "总投资": 59000,
+            "售价": 0,
+            "租金": 22.0,
+            "residential_area": 54000,
+            "comm_area": 3200,
+            "park_count": 580,
+            "occupancy_stable": 0.93,
+            "comm_occupancy_stable": 0.86,
+            "park_occupancy_stable": 0.91,
+            "manage_coeff": 2.00,
+            "land_cost": 15000,
+            "construction_cost": 6200,
+            "infra_cost": 500,
+            "sale_area": 0,
+            "comm_rent_start_price": 30,
+            "park_rent_start_price": 320,
+            "park_income_ratio": 0.55
+        },
+        {
+            "项目名称": "历史租售结合项目A",
+            "项目子类型": "租售结合类",
+            "总建筑面积": 56000,
+            "总投资": 54000,
+            "售价": 9800,
+            "租金": 18.5,
+            "residential_area": 18000,
+            "comm_area": 3500,
+            "park_count": 500,
+            "occupancy_stable": 0.90,
+            "comm_occupancy_stable": 0.85,
+            "park_occupancy_stable": 0.90,
+            "manage_coeff": 1.92,
+            "land_cost": 13500,
+            "construction_cost": 5600,
+            "infra_cost": 450,
+            "sale_area": 28000,
+            "comm_rent_start_price": 30,
+            "park_rent_start_price": 300,
+            "park_income_ratio": 0.50
+        },
+        {
+            "项目名称": "历史租售结合项目B",
+            "项目子类型": "租售结合类",
+            "总建筑面积": 72000,
+            "总投资": 70000,
+            "售价": 11000,
+            "租金": 20.0,
+            "residential_area": 22000,
+            "comm_area": 4500,
+            "park_count": 680,
+            "occupancy_stable": 0.91,
+            "comm_occupancy_stable": 0.86,
+            "park_occupancy_stable": 0.91,
+            "manage_coeff": 1.98,
+            "land_cost": 17500,
+            "construction_cost": 7100,
+            "infra_cost": 600,
+            "sale_area": 36000,
+            "comm_rent_start_price": 33,
+            "park_rent_start_price": 320,
+            "park_income_ratio": 0.55
+        }
+    ]
+    return pd.DataFrame(data)
+
+
+def _safe_num(x, default=0.0):
+    try:
+        if pd.isna(x):
+            return default
+        return float(x)
+    except:
+        return default
+
+
+def find_similar_projects(core_input, history_df, top_n=3):
+    """
+    按项目子类型 + 面积 + 投资 + 售价/租金做简单相似匹配
+    """
+    if history_df is None or history_df.empty:
+        return pd.DataFrame()
+
+    df = history_df.copy()
+    target_type = core_input.get("项目子类型", "")
+    if target_type:
+        df = df[df["项目子类型"] == target_type]
+
+    if df.empty:
+        return pd.DataFrame()
+
+    area0 = max(_safe_num(core_input.get("总建筑面积", 0)), 1)
+    invest0 = max(_safe_num(core_input.get("总投资", 0)), 1)
+    sale0 = _safe_num(core_input.get("售价", 0))
+    rent0 = _safe_num(core_input.get("租金", 0))
+
+    def calc_score(row):
+        score = 0.0
+        score += abs(_safe_num(row.get("总建筑面积")) - area0) / area0
+        score += abs(_safe_num(row.get("总投资")) - invest0) / invest0
+
+        if sale0 > 0:
+            score += abs(_safe_num(row.get("售价")) - sale0) / max(sale0, 1)
+        if rent0 > 0:
+            score += abs(_safe_num(row.get("租金")) - rent0) / max(rent0, 1)
+
+        return score
+
+    df["score"] = df.apply(calc_score, axis=1)
+    df = df.sort_values("score").head(top_n).copy()
+    df["weight"] = 1 / (df["score"] + 0.001)
+    return df
+
+
+def weighted_avg(similar_df, field, default_value):
+    if similar_df is None or similar_df.empty or field not in similar_df.columns:
+        return default_value
+    vals = pd.to_numeric(similar_df[field], errors="coerce")
+    weights = pd.to_numeric(similar_df["weight"], errors="coerce")
+    valid = (~vals.isna()) & (~weights.isna())
+    if valid.sum() == 0:
+        return default_value
+    return float(np.average(vals[valid], weights=weights[valid]))
+
 def ai_fill_indicators(core_input, history_df=None):
     """
-    用行业常规值+固定规则生成参数，先让AI模式跑起来
+    AI补参：
+    1）先按项目子类型生成规则默认值
+    2）再用相似历史项目做加权修正
+    3）最后返回补齐后的参数
     """
     core = core_input
-    # 核心规则：按安居房行业常规比例生成参数
-    params = {
-        # 住宅相关
-        "residential_area": core.get("总建筑面积", 50000) * 0.9,
-        "rent_increase_span": 3,
-        "rent_increase_rate": 2.0,
-        "ramp_years": core.get("运营期年份", [2027,2028])[:2],
-        "occupancy_ramp_dict": {str(y): 0.7 if i==0 else 0.8 for i,y in enumerate(core.get("运营期年份", [2027,2028])[:2])},
-        "stable_start": max(core.get("运营期年份", [2027,2028])[:2]) + 1 if len(core.get("运营期年份", [2027,2028])[:2])>0 else 2029,
-        "stable_end": core.get("运营期年份", [2027,2028,2029])[-1],
-        "occupancy_stable": 0.9,
-        # 商业相关
-        "comm_area": core.get("总建筑面积", 50000) * 0.08,
-        "comm_rent_start_price": 30.0,
-        "comm_rent_increase_span": 3,
-        "comm_rent_increase_rate": 3.0,
-        "comm_occupancy_stable": 0.85,
-        # 车位相关
-        "park_count": int(core.get("总建筑面积", 50000) / 100),
-        "park_rent_start_price": 300.0,
-        "park_income_ratio": 0.5,
-        "park_occupancy_stable": 0.9,
-        # 成本相关
-        "other_income_name": "其他收入",
-        "other_income_total": core.get("总投资", 50000) * 0.003,
-        "manage_coeff": 1.92,
-        "land_cost": core.get("总投资", 50000) * 0.25,
-        "construction_cost": core.get("总建筑面积", 50000) * 1000 / 10000,
-        "infra_cost": core.get("总建筑面积", 50000) * 80 / 10000,
-        "sale_area": core.get("总建筑面积", 50000) * 0.8,
-        "sale_ramp_dict": {"2030":0.3, "2031":0.4, "2032":0.3}
-    }
-    return params, "✅ 本地规则版参数生成完成"
+    total_area = _safe_num(core.get("总建筑面积", 50000))
+    total_invest = _safe_num(core.get("总投资", 50000))
+    operate_years = core.get("运营期年份", [2027, 2028, 2029])
+    sub_type = core.get("项目子类型", "出租类")
+    sale_price = _safe_num(core.get("售价", 0))
+    rent_price = _safe_num(core.get("租金", 0))
+
+    if not operate_years:
+        operate_years = [2027, 2028, 2029]
+
+    # ---------- 1）先给一套规则默认值 ----------
+    if sub_type == "出售类":
+        rule_params = {
+            "residential_area": 0,
+            "rent_increase_span": 3,
+            "rent_increase_rate": 2.0,
+            "ramp_years": operate_years[:2],
+            "occupancy_ramp_dict": {int(y): (0.7 if i == 0 else 0.8) for i, y in enumerate(operate_years[:2])},
+            "stable_start": (max(operate_years[:2]) + 1) if len(operate_years[:2]) > 0 else operate_years[0],
+            "stable_end": operate_years[-1],
+            "occupancy_stable": 0.9,
+
+            "comm_area": total_area * 0.08,
+            "comm_rent_start_price": 30.0,
+            "comm_rent_increase_span": 3,
+            "comm_rent_increase_rate": 3.0,
+            "comm_occupancy_stable": 0.85,
+
+            "park_count": int(total_area / 100),
+            "park_rent_start_price": 300.0,
+            "park_income_ratio": 0.5,
+            "park_occupancy_stable": 0.9,
+
+            "other_income_name": "其他收入",
+            "other_income_total": total_invest * 0.003,
+
+            "manage_coeff": 1.92,
+            "land_cost": total_invest * 0.25,
+            "construction_cost": total_area * 1000 / 10000,
+            "infra_cost": total_area * 80 / 10000,
+            "sale_area": total_area * 0.78,
+            "sale_ramp_dict": {
+                int(operate_years[0]): 0.3,
+                int(operate_years[min(1, len(operate_years)-1)]): 0.4,
+                int(operate_years[min(2, len(operate_years)-1)]): 0.3
+            }
+        }
+
+    elif sub_type == "租售结合类":
+        rule_params = {
+            "residential_area": total_area * 0.35,
+            "rent_increase_span": 3,
+            "rent_increase_rate": 2.0,
+            "ramp_years": operate_years[:2],
+            "occupancy_ramp_dict": {int(y): (0.7 if i == 0 else 0.8) for i, y in enumerate(operate_years[:2])},
+            "stable_start": (max(operate_years[:2]) + 1) if len(operate_years[:2]) > 0 else operate_years[0],
+            "stable_end": operate_years[-1],
+            "occupancy_stable": 0.9,
+
+            "comm_area": total_area * 0.08,
+            "comm_rent_start_price": 30.0,
+            "comm_rent_increase_span": 3,
+            "comm_rent_increase_rate": 3.0,
+            "comm_occupancy_stable": 0.85,
+
+            "park_count": int(total_area / 100),
+            "park_rent_start_price": 300.0,
+            "park_income_ratio": 0.5,
+            "park_occupancy_stable": 0.9,
+
+            "other_income_name": "其他收入",
+            "other_income_total": total_invest * 0.003,
+
+            "manage_coeff": 1.92,
+            "land_cost": total_invest * 0.25,
+            "construction_cost": total_area * 1000 / 10000,
+            "infra_cost": total_area * 80 / 10000,
+            "sale_area": total_area * 0.45,
+            "sale_ramp_dict": {
+                int(operate_years[0]): 0.3,
+                int(operate_years[min(1, len(operate_years)-1)]): 0.4,
+                int(operate_years[min(2, len(operate_years)-1)]): 0.3
+            }
+        }
+
+    else:  # 出租类
+        rule_params = {
+            "residential_area": total_area * 0.88,
+            "rent_increase_span": 3,
+            "rent_increase_rate": 2.0,
+            "ramp_years": operate_years[:2],
+            "occupancy_ramp_dict": {int(y): (0.7 if i == 0 else 0.8) for i, y in enumerate(operate_years[:2])},
+            "stable_start": (max(operate_years[:2]) + 1) if len(operate_years[:2]) > 0 else operate_years[0],
+            "stable_end": operate_years[-1],
+            "occupancy_stable": 0.9,
+
+            "comm_area": total_area * 0.06,
+            "comm_rent_start_price": 28.0,
+            "comm_rent_increase_span": 3,
+            "comm_rent_increase_rate": 3.0,
+            "comm_occupancy_stable": 0.85,
+
+            "park_count": int(total_area / 100),
+            "park_rent_start_price": 300.0,
+            "park_income_ratio": 0.5,
+            "park_occupancy_stable": 0.9,
+
+            "other_income_name": "其他收入",
+            "other_income_total": total_invest * 0.003,
+
+            "manage_coeff": 1.92,
+            "land_cost": total_invest * 0.25,
+            "construction_cost": total_area * 1000 / 10000,
+            "infra_cost": total_area * 80 / 10000,
+            "sale_area": 0,
+            "sale_ramp_dict": {}
+        }
+
+    explain_list = ["已使用行业规则兜底"]
+
+    # ---------- 2）若有历史项目，则做相似项目修正 ----------
+    similar_df = pd.DataFrame()
+    if history_df is not None and not history_df.empty:
+        similar_df = find_similar_projects(core_input, history_df, top_n=3)
+
+    if similar_df is not None and not similar_df.empty:
+        explain_list.append("已参考相似历史项目：" + "、".join(similar_df["项目名称"].tolist()))
+
+        fields_to_adjust = [
+            "residential_area", "comm_area", "park_count",
+            "occupancy_stable", "comm_occupancy_stable", "park_occupancy_stable",
+            "manage_coeff", "land_cost", "construction_cost", "infra_cost",
+            "sale_area", "comm_rent_start_price", "park_rent_start_price", "park_income_ratio"
+        ]
+
+        for f in fields_to_adjust:
+            if f in rule_params:
+                rule_params[f] = weighted_avg(similar_df, f, rule_params[f])
+
+    # ---------- 3）做一些类型修正 ----------
+    if sub_type == "出售类":
+        rule_params["residential_area"] = 0
+        if sale_price <= 0:
+            rule_params["sale_area"] = total_area * 0.78
+
+    if sub_type == "出租类":
+        rule_params["sale_area"] = 0
+
+    # 整数类字段修正
+    rule_params["park_count"] = int(round(rule_params["park_count"], 0))
+
+    return rule_params, "；".join(explain_list)
 
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
@@ -147,96 +469,169 @@ invest_plan_dict, loan_plan_dict, repay_plan_dict = {}, {}, {}
 # ===================== 【最终修复版】AI模式 =====================
 # ===================== 【最终极简修复】AI模式 =====================
 # ===================== 【终极一步到位】AI智能测算模式（零报错·全自动）=====================
+# ===================== AI模式：核心输入 -> 历史项目匹配 -> 自动补参 -> 触发原测算 =====================
 if is_ai_mode:
-    # 1. 全局兜底默认值（彻底解决所有变量未定义报错）
-    operate_start = 2027
-    operate_end = 2057
-    comm_rent_stable_start = operate_start
-    build_years = [2025,2026]
-    operate_years = list(range(operate_start, operate_end+1))
-    st.session_state["show_resi"] = True
-    st.session_state["show_comm"] = True
-    st.session_state["show_park"] = True
+    st.header("🤖 AI智能测算（仅填10项以内）")
 
-    # 2. 核心输入（仅8项，极简）
-    st.header("🤖 AI智能测算（仅填8项）")
     with st.expander("核心指标", expanded=True):
-        ai_sub_type = st.radio("项目子类型",["出售类","出租类","租售结合类"],horizontal=True)
-        total_build_area = st.number_input("总建筑面积（㎡）",value=50000)
-        total_investment = st.number_input("总投资（万元）",value=50000)
-        build_start = st.number_input("建设期起始年",value=2025)
-        build_end = st.number_input("建设期结束年",value=2026)
-        operate_start = st.number_input("运营起始年",value=2027)
-        operate_end = st.number_input("运营结束年",value=2057)
-        sale_avg_price = st.number_input("可售售价（元/㎡）",value=10000) if ai_sub_type in ["出售类","租售结合类"] else 0.0
-        resi_rent_start = st.number_input("住宅租金（元/㎡/月）",value=19.2) if ai_sub_type in ["出租类","租售结合类"] else 0.0
-        loan_annual_rate = st.number_input("借款年利率（%）",value=3.0)
-        discount_rate = st.number_input("折现率（%）",value=8.0)
+        ai_sub_type = st.radio("项目子类型", ["出售类", "出租类", "租售结合类"], horizontal=True)
+        total_build_area = st.number_input("总建筑面积（㎡）", value=50000)
+        total_investment = st.number_input("总投资（万元）", value=50000)
+        build_start = st.number_input("建设期起始年", value=2025)
+        build_end = st.number_input("建设期结束年", value=2026)
+        operate_start = st.number_input("运营起始年", value=2027)
+        operate_end = st.number_input("运营结束年", value=2057)
+        sale_avg_price = st.number_input("可售售价（元/㎡）", value=10000.0) if ai_sub_type in ["出售类", "租售结合类"] else 0.0
+        resi_rent_start = st.number_input("住宅租金（元/㎡/月）", value=19.2) if ai_sub_type in ["出租类", "租售结合类"] else 0.0
+        loan_annual_rate = st.number_input("借款年利率（%）", value=3.0)
+        discount_rate = st.number_input("折现率（%）", value=8.0)
 
-    # 3. AI一键按钮（点了直接出结果，不绕弯）
     if st.button("🤖 AI一键测算", type="primary", use_container_width=True):
-        with st.spinner("AI生成参数+自动测算中..."):
-            # AI生成参数
+        with st.spinner("正在匹配历史项目并自动补参..."):
+            history_df = load_builtin_history_projects()
+
+            build_years_ai = list(range(int(build_start), int(build_end) + 1))
+            operate_years_ai = list(range(int(operate_start), int(operate_end) + 1))
+
             core_input = {
-                "总建筑面积":total_build_area,"总投资":total_investment,
-                "运营期":operate_years,"售价":sale_avg_price,"租金":resi_rent_start
+                "项目子类型": ai_sub_type,
+                "总建筑面积": total_build_area,
+                "总投资": total_investment,
+                "运营期年份": operate_years_ai,
+                "售价": sale_avg_price,
+                "租金": resi_rent_start
             }
-            params, _ = ai_fill_indicators(core_input)
-            ai_p = params
 
-            # 👇 【关键】直接赋值给你原有所有变量，100%兼容
-            residential_area = ai_p["residential_area"]
-            rent_start_price = resi_rent_start
-            rent_increase_span = 3
-            rent_increase_rate = 2.0
-            occupancy_ramp_dict = {operate_start:0.7, operate_start+1:0.8}
-            stable_start = operate_start+2
-            stable_end = operate_end
-            occupancy_stable = 0.9
-            comm_area = ai_p["comm_area"]
-            comm_rent_start_price = ai_p["comm_rent_start_price"]
-            comm_rent_increase_span = 3
-            comm_rent_increase_rate = 3.0
-            comm_occupancy_ramp_dict = {operate_start:0.7, operate_start+1:0.8}
-            comm_stable_start = operate_start+2
-            comm_stable_end = operate_end
-            comm_occupancy_stable = 0.85
-            park_count = ai_p["park_count"]
-            park_rent_start_price = ai_p["park_rent_start_price"]
-            park_income_ratio = ai_p["park_income_ratio"]
-            park_occupancy_ramp_dict = {operate_start:0.7, operate_start+1:0.8}
-            park_stable_start = operate_start+2
-            park_stable_end = operate_end
-            park_occupancy_stable = 0.9
-            other_income_name = "其他收入"
-            other_income_total = ai_p["other_income_total"]
-            manage_coeff = 1.92
-            residential_decoration_cost = total_build_area * 800 / 10000
-            land_cost = ai_p["land_cost"]
-            construction_cost = ai_p["construction_cost"]
-            infra_cost = ai_p["infra_cost"]
-            other_eng_cost = construction_cost * 0.05
-            project_input_tax = construction_cost * 0.09
-            land_use_area = total_build_area // 3
-            land_floor_price = 1000
-            dev_cost = total_investment * 0.1
-            sale_area = ai_p["sale_area"]
-            sale_ramp_dict = ai_p["sale_ramp_dict"]
-            loan_plan_dict = {y:total_investment*0.7/len(build_years) for y in build_years}
-            invest_plan_dict = {y:total_investment/len(build_years) for y in build_years}
-            loan_total_years = 25
-            house_type = "公租房"
-            lease_months = 12
-            comm_custom_increase_list = []
+            ai_params, ai_msg = ai_fill_indicators(core_input, history_df)
 
-            # 👇 【终极关键】强制触发你原有一键测算，直接出结果
-            st.session_state["calc_button"] = True
+            # 根据子类型映射成你原代码真正要识别的项目类型
+            subtype_to_project_type = {
+                "出售类": "出售类(配保房/可售型人才房等)",
+                "出租类": "出租型(协议出让/合作类等)",
+                "租售结合类": "租售结合类"
+            }
+
+            show_resi = ai_sub_type in ["出租类", "租售结合类"]
+            show_comm = True
+            show_park = True
+
+            st.session_state["ai_mode_ready"] = True
+            st.session_state["ai_calc_trigger"] = True
+            st.session_state["ai_msg"] = ai_msg
+            st.session_state["ai_params"] = ai_params
+            st.session_state["ai_base"] = {
+                "project_type": subtype_to_project_type[ai_sub_type],
+                "ai_sub_type": ai_sub_type,
+                "total_build_area": total_build_area,
+                "total_investment": total_investment,
+                "build_years": build_years_ai,
+                "operate_years": operate_years_ai,
+                "operate_start": int(operate_start),
+                "operate_end": int(operate_end),
+                "sale_avg_price": sale_avg_price,
+                "resi_rent_start": resi_rent_start,
+                "loan_annual_rate": loan_annual_rate,
+                "discount_rate": discount_rate,
+                "show_resi": show_resi,
+                "show_comm": show_comm,
+                "show_park": show_park
+            }
             st.rerun()
+    if st.button("♻️ 清空AI结果并重新填写", use_container_width=True):
+        for k in ["ai_mode_ready", "ai_calc_trigger", "ai_msg", "ai_params", "ai_base"]:
+            if k in st.session_state:
+                del st.session_state[k]
+        st.rerun()
 
-    # 4. 不执行普通模式输入，直接跑你原有测算（零多余界面）
-    st.markdown("---")
-    st.stop()
-    # 不写st.stop()，让程序直接走到你原有测算逻辑
+    # 第一次进入AI页但还没点按钮时，先停止，不往下跑手工模式
+    if not st.session_state.get("ai_mode_ready", False):
+        st.info("请先填写核心指标后点击“AI一键测算”。")
+        st.stop()
+
+    # ========== AI参数已生成：开始回填到原变量，供下面原测算逻辑直接使用 ==========
+    ai_p = st.session_state["ai_params"]
+    ai_b = st.session_state["ai_base"]
+
+    project_type = ai_b["project_type"]
+    current_config = PROJECT_CONFIG[project_type]
+
+    project_name = f"AI测算_{ai_b['ai_sub_type']}_{datetime.now().strftime('%Y%m%d')}"
+
+    build_years = ai_b["build_years"]
+    operate_years = ai_b["operate_years"]
+    operate_start = ai_b["operate_start"]
+    operate_end = ai_b["operate_end"]
+
+    total_build_area = ai_b["total_build_area"]
+    total_investment = ai_b["total_investment"]
+    sale_avg_price = ai_b["sale_avg_price"]
+    loan_annual_rate = ai_b["loan_annual_rate"]
+    discount_rate = ai_b["discount_rate"]
+
+    st.session_state["show_resi"] = ai_b["show_resi"]
+    st.session_state["show_comm"] = ai_b["show_comm"]
+    st.session_state["show_park"] = ai_b["show_park"]
+
+    # 基础变量回填
+    residential_area = ai_p["residential_area"]
+    rent_start_price = ai_b["resi_rent_start"]
+    rent_increase_span = ai_p["rent_increase_span"]
+    rent_increase_rate = ai_p["rent_increase_rate"]
+    occupancy_ramp_dict = ai_p["occupancy_ramp_dict"]
+    stable_start = ai_p["stable_start"]
+    stable_end = ai_p["stable_end"]
+    occupancy_stable = ai_p["occupancy_stable"]
+
+    comm_area = ai_p["comm_area"]
+    comm_rent_start_price = ai_p["comm_rent_start_price"]
+    comm_rent_increase_span = ai_p["comm_rent_increase_span"]
+    comm_rent_increase_rate = ai_p["comm_rent_increase_rate"]
+    comm_occupancy_ramp_dict = {operate_start: 0.7, min(operate_start + 1, operate_end): 0.8}
+    comm_stable_start = min(operate_start + 2, operate_end)
+    comm_stable_end = operate_end
+    comm_occupancy_stable = ai_p["comm_occupancy_stable"]
+    comm_rent_stable_start = operate_end
+
+    park_count = int(ai_p["park_count"])
+    park_rent_start_price = ai_p["park_rent_start_price"]
+    park_income_ratio = ai_p["park_income_ratio"]
+    park_occupancy_ramp_dict = {operate_start: 0.7, min(operate_start + 1, operate_end): 0.8}
+    park_stable_start = min(operate_start + 2, operate_end)
+    park_stable_end = operate_end
+    park_occupancy_stable = ai_p["park_occupancy_stable"]
+
+    other_income_name = ai_p["other_income_name"]
+    other_income_total = ai_p["other_income_total"]
+    manage_coeff = ai_p["manage_coeff"]
+
+    land_cost = ai_p["land_cost"]
+    construction_cost = ai_p["construction_cost"]
+    infra_cost = ai_p["infra_cost"]
+    sale_area = ai_p["sale_area"]
+    sale_ramp_dict = ai_p["sale_ramp_dict"]
+
+    # 你原测算里会用到的其他变量，一并兜底
+    house_type = "公租房"
+    lease_months = 12
+    loan_total_years = 25
+    residential_decoration_cost = total_build_area * 800 / 10000
+    other_eng_cost = construction_cost * 0.05
+    project_input_tax = construction_cost * 0.09
+    land_use_area = total_build_area // 3
+    land_area = land_use_area
+    land_floor_price = 1000
+    dev_cost = total_investment * 0.1
+    sale_construction_cost = construction_cost * 0.70
+    sale_infra_cost = infra_cost * 0.70
+    stamp_tax_rate = 0.0
+    comm_custom_increase_list = []
+
+    invest_plan_dict = {y: total_investment / len(build_years) for y in build_years} if build_years else {}
+    loan_plan_dict = {y: total_investment * 0.7 / len(build_years) for y in build_years} if build_years else {}
+    repay_plan_dict = {}
+
+    st.success("AI参数已生成完成")
+    st.caption(st.session_state.get("ai_msg", ""))
 
 # ===================== 【普通模式：原来的完整手动输入界面】 =====================
 else:
@@ -250,374 +645,375 @@ else:
 # 下面直接放你原来的一键测算、收入表、损益表、结果汇总等所有代码
 # 这些代码完全不用改，因为上面已经给所有变量赋值了，不管是AI模式还是普通模式，都有值
 
+run_manual_inputs = not (is_ai_mode and st.session_state.get("ai_mode_ready", False))
 # ===================== 以下是你原来的所有输入代码，完全不动 =====================
 # ===================== 输入区（优化：手机上更易操作）=====================
 #st.header("📝 请输入项目数据")
+if run_manual_inputs:
+    # 定义年份范围（方便后续调整，可选但推荐）
+    START_YEAR = 2000
+    END_YEAR = 2200
+    year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2000~2200的年份列表
 
-# 定义年份范围（方便后续调整，可选但推荐）
-START_YEAR = 2000
-END_YEAR = 2200
-year_options = list(range(START_YEAR, END_YEAR + 1))  # 生成2000~2200的年份列表
 
-
-# 1. 项目基本信息（完整正确版，确保build_years、operate_years全局可访问）
-with st.expander("1. 项目基本信息", expanded=True):
-    project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
-    # 【核心修改：仅出租型项目显示房源类型，缩进和上面的project_name完全一致】
-    if project_type == "出租型(协议出让/合作类等)":
-        house_type = st.radio("房源类型", options=["公租房", "保租房"], index=0, horizontal=True, help="用于匹配装修重置费计算规则")
-    else:
-        house_type = "公租房"  # 非出租型项目，给固定默认值，不影响计算
-    # 建设期年份：原有代码完全不动
-    build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
-    
-    # ---------------------- 运营期年份区间选择----------------------
-    st.subheader("运营期年份（区间选择）")
-    # 初始化session_state（仅第一次运行设置默认值/session_state是网页小本本）
-    if "operate_start" not in st.session_state: st.session_state["operate_start"] = 2027
-    if "operate_end" not in st.session_state: st.session_state["operate_end"] = 2029
-    
-    # 回调函数：起始年变化时自动修正结束年，防错
-    def sync_operate_end():
-        if st.session_state["operate_end"] < st.session_state["operate_start"]:
-            st.session_state["operate_end"] = st.session_state["operate_start"]
-    
-    # 输入框一行展示
-    col1, col2 = st.columns(2)
-    col1.number_input("运营期起始年", min_value=START_YEAR, max_value=END_YEAR, step=1, key="operate_start", on_change=sync_operate_end)
-    col2.number_input("运营期结束年", min_value=st.session_state["operate_start"], max_value=END_YEAR, step=1, key="operate_end")
-    
-    # 【关键】这里的缩进和上面的代码同级，确保operate_years在with块内被定义，外面能访问到
-    operate_start = st.session_state["operate_start"]
-    operate_end = st.session_state["operate_end"]
-    operate_years = list(range(operate_start, operate_end + 1))
-    
-    # 提示和校验，缩进同级
-    st.info(f"✅ 已自动生成运营期年份：{operate_years}")
-    if build_years and operate_start < max(build_years):
-        st.warning(f"⚠️ 运营期起始年({operate_start})早于建设期最后一年({max(build_years)})，请检查！")
-
-# 2. 收入计算参数
-with st.expander("2. 收入计算参数", expanded=True):
-    lease_months = 12
-    sale_area = 0
-    # ===================== 【出售类专属·移到最开头】配保房销售设置 ======================
-    # 先初始化变量，非出售类自动赋默认值，避免NameError
-    sale_area, sale_avg_price, sale_ramp_dict = 0, 0.0, {}
-    comm_area, comm_rent_price = 0, 0.0
-    dev_cost = 0.0  # 非配售开发成本费默认值
-    sale_construction_cost = 0.0  # 配售建安工程费默认值
-    sale_infra_cost = 0.0  # 配售基础设施费默认值
-    current_config = PROJECT_CONFIG[project_type]
-    if "sale_and_commercial" in current_config.get("ui_components", []):
-        st.subheader("🏠 配保房销售")
-        col_sale1, col_sale2 = st.columns(2)
-        sale_area = col_sale1.number_input("销售面积（㎡）", min_value=0, max_value=9999999, value=0, step=100)
-        sale_avg_price = col_sale2.number_input("售价（元/㎡）", min_value=0.0, max_value=999999.0, value=0.0, step=100.0)
-        sale_ramp_years = st.multiselect("销售年份", operate_years, operate_years[:3])
-        if sale_ramp_years:
-            cols = st.columns(len(sale_ramp_years))
-            for idx, y in enumerate(sale_ramp_years):  #用enmerate自动生成序号
-                sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
-        st.markdown("---")
-   # 出售类专属：有/无收入双按钮（点击“无”全隐藏，点击“有”全显示）
-if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_basic" in current_config.get("ui_components", [])):
-    st.markdown("### 🎛️ 收入模块控制")
-    # 住宅收入：有/无按钮
-    col1, col2 = st.columns(2)
-    if col1.button("有住宅收入", key="btn_resi_yes"): st.session_state["show_resi"] = True
-    if col2.button("无住宅收入", key="btn_resi_no"): st.session_state["show_resi"] = False
-    
-    # 商业收入：有/无按钮
-    col3, col4 = st.columns(2)
-    if col3.button("有商业收入", key="btn_comm_yes"): st.session_state["show_comm"] = True
-    if col4.button("无商业收入", key="btn_comm_no"): st.session_state["show_comm"] = False
-    
-    # 车位收入：有/无按钮
-    col5, col6 = st.columns(2)
-    if col5.button("有车位收入", key="btn_park_yes"): st.session_state["show_park"] = True
-    if col6.button("无车位收入", key="btn_park_no"): st.session_state["show_park"] = False
-    st.markdown("---")
-    # 基础参数（一行排版）
-    if (project_type != "出售类(配保房/可售型人才房等)") or st.session_state["show_resi"]: #（当前选的项目类型不等于出售型）或者（用户刚才点了「有住宅收入」按钮）
-        st.subheader("🏠 住宅出租")
-        residential_area = st.number_input("住宅面积（㎡）", value=34330, min_value=0)
-        rent_start_price = st.number_input("起始租金单价（元/㎡/月）", value=19.2, min_value=0.0, step=0.1)
-        # ---------------------- 新增需求①：租金每X年递增Y% ----------------------
-        col_rent1, col_rent2 = st.columns(2)
-        rent_increase_span = col_rent1.number_input("租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
-        rent_increase_rate = col_rent2.number_input("租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
-    
-        # ---------------------- 新增需求②：出租率爬坡期+稳定期 ----------------------
-        # 先获取运营期年份作为可选范围（联动之前的operate_years）
-        if 'operate_years' in locals() and operate_years: #locals()代码花名册
-            # 1. 爬坡期设置：让用户选年份，动态生成输入框
-            ramp_years = st.multiselect("请选择爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
-            # 动态生成爬坡期每年的出租率输入框（一行排版）
-            occupancy_ramp_dict = {}
-            if ramp_years:
-                col_ramp = st.columns(len(ramp_years))
-                for idx, year in enumerate(ramp_years):
-                    occupancy_ramp_dict[year] = col_ramp[idx].number_input(f"{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
-        
-            # 2. 稳定期设置：区间选择+固定出租率
-            col_stable1, col_stable2, col_stable3 = st.columns(3)
-            # 稳定期起始年默认是爬坡期最后一年+1，且≥运营期起始年
-            default_stable_start = max(ramp_years) + 1 if ramp_years else operate_years[0]
-            stable_start = col_stable1.number_input("稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
-            # 稳定期结束年默认用运营期结束年，且≥起始年
-            stable_end = col_stable2.number_input("稳定期结束年", min_value=stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
-            # 稳定期固定出租率
-            occupancy_stable = col_stable3.number_input("稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
+    # 1. 项目基本信息（完整正确版，确保build_years、operate_years全局可访问）
+    with st.expander("1. 项目基本信息", expanded=True):
+        project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
+        # 【核心修改：仅出租型项目显示房源类型，缩进和上面的project_name完全一致】
+        if project_type == "出租型(协议出让/合作类等)":
+            house_type = st.radio("房源类型", options=["公租房", "保租房"], index=0, horizontal=True, help="用于匹配装修重置费计算规则")
         else:
-            st.warning("⚠️ 请先在「1. 项目基本信息」中设置运营期年份！")
-            # 给变量赋默认值，避免NameError
-            occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0
-        
-    else:
-    # 隐藏时赋默认值（仅5行，避免报错）
-        residential_area, rent_start_price = 0, 0.0
-        rent_increase_span, rent_increase_rate = 3, 2.0
-        occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0.0
+            house_type = "公租房"  # 非出租型项目，给固定默认值，不影响计算
+        # 建设期年份：原有代码完全不动
+        build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
     
-    # ===================== 【出售类专属】商业出租设置（1:1复刻住宅出租）======================
-    # 先初始化商业所有变量，非出售类自动赋默认值，避免NameError
-    comm_area, comm_rent_start_price = 0, 0.0
-    comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
-    comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable = {}, 0, 0, 0.9
+        # ---------------------- 运营期年份区间选择----------------------
+        st.subheader("运营期年份（区间选择）")
+        # 初始化session_state（仅第一次运行设置默认值/session_state是网页小本本）
+        if "operate_start" not in st.session_state: st.session_state["operate_start"] = 2027
+        if "operate_end" not in st.session_state: st.session_state["operate_end"] = 2029
+    
+        # 回调函数：起始年变化时自动修正结束年，防错
+        def sync_operate_end():
+            if st.session_state["operate_end"] < st.session_state["operate_start"]:
+                st.session_state["operate_end"] = st.session_state["operate_start"]
+    
+        # 输入框一行展示
+        col1, col2 = st.columns(2)
+        col1.number_input("运营期起始年", min_value=START_YEAR, max_value=END_YEAR, step=1, key="operate_start", on_change=sync_operate_end)
+        col2.number_input("运营期结束年", min_value=st.session_state["operate_start"], max_value=END_YEAR, step=1, key="operate_end")
+    
+        # 【关键】这里的缩进和上面的代码同级，确保operate_years在with块内被定义，外面能访问到
+        operate_start = st.session_state["operate_start"]
+        operate_end = st.session_state["operate_end"]
+        operate_years = list(range(operate_start, operate_end + 1))
+    
+        # 提示和校验，缩进同级
+        st.info(f"✅ 已自动生成运营期年份：{operate_years}")
+        if build_years and operate_start < max(build_years):
+            st.warning(f"⚠️ 运营期起始年({operate_start})早于建设期最后一年({max(build_years)})，请检查！")
 
+    # 2. 收入计算参数
+    with st.expander("2. 收入计算参数", expanded=True):
+        lease_months = 12
+        sale_area = 0
+        # ===================== 【出售类专属·移到最开头】配保房销售设置 ======================
+        # 先初始化变量，非出售类自动赋默认值，避免NameError
+        sale_area, sale_avg_price, sale_ramp_dict = 0, 0.0, {}
+        comm_area, comm_rent_price = 0, 0.0
+        dev_cost = 0.0  # 非配售开发成本费默认值
+        sale_construction_cost = 0.0  # 配售建安工程费默认值
+        sale_infra_cost = 0.0  # 配售基础设施费默认值
+        current_config = PROJECT_CONFIG[project_type]
+        if "sale_and_commercial" in current_config.get("ui_components", []):
+            st.subheader("🏠 配保房销售")
+            col_sale1, col_sale2 = st.columns(2)
+            sale_area = col_sale1.number_input("销售面积（㎡）", min_value=0, max_value=9999999, value=0, step=100)
+            sale_avg_price = col_sale2.number_input("售价（元/㎡）", min_value=0.0, max_value=999999.0, value=0.0, step=100.0)
+            sale_ramp_years = st.multiselect("销售年份", operate_years, operate_years[:3])
+            if sale_ramp_years:
+                cols = st.columns(len(sale_ramp_years))
+                for idx, y in enumerate(sale_ramp_years):  #用enmerate自动生成序号
+                    sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
+            st.markdown("---")
+       # 出售类专属：有/无收入双按钮（点击“无”全隐藏，点击“有”全显示）
     if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_basic" in current_config.get("ui_components", [])):
+        st.markdown("### 🎛️ 收入模块控制")
+        # 住宅收入：有/无按钮
+        col1, col2 = st.columns(2)
+        if col1.button("有住宅收入", key="btn_resi_yes"): st.session_state["show_resi"] = True
+        if col2.button("无住宅收入", key="btn_resi_no"): st.session_state["show_resi"] = False
+    
+        # 商业收入：有/无按钮
+        col3, col4 = st.columns(2)
+        if col3.button("有商业收入", key="btn_comm_yes"): st.session_state["show_comm"] = True
+        if col4.button("无商业收入", key="btn_comm_no"): st.session_state["show_comm"] = False
+    
+        # 车位收入：有/无按钮
+        col5, col6 = st.columns(2)
+        if col5.button("有车位收入", key="btn_park_yes"): st.session_state["show_park"] = True
+        if col6.button("无车位收入", key="btn_park_no"): st.session_state["show_park"] = False
         st.markdown("---")
-        if st.session_state["show_comm"]:
-            st.subheader("🏪 商业出租")
-            # 基础参数（和住宅完全一致，仅改名称）
-            col_comm1, col_comm2 = st.columns(2)
-            comm_area = col_comm1.number_input("商业面积（㎡）", value=0, min_value=0, step=100)
-            comm_rent_start_price = col_comm2.number_input("商业起始租金单价（元/㎡/月）", value=0.0, min_value=0.0, step=0.1)
-            # 商业租金递增设置（和住宅完全一致，仅改名称）
-            # 模式开关（默认不启用）
-            comm_use_custom_increase = st.checkbox("启用自定义递增年份（不选则按默认跨度递增）", value=False)
+        # 基础参数（一行排版）
+        if (project_type != "出售类(配保房/可售型人才房等)") or st.session_state["show_resi"]: #（当前选的项目类型不等于出售型）或者（用户刚才点了「有住宅收入」按钮）
+            st.subheader("🏠 住宅出租")
+            residential_area = st.number_input("住宅面积（㎡）", value=34330, min_value=0)
+            rent_start_price = st.number_input("起始租金单价（元/㎡/月）", value=19.2, min_value=0.0, step=0.1)
+            # ---------------------- 新增需求①：租金每X年递增Y% ----------------------
+            col_rent1, col_rent2 = st.columns(2)
+            rent_increase_span = col_rent1.number_input("租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
+            rent_increase_rate = col_rent2.number_input("租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
+        
+            # ---------------------- 新增需求②：出租率爬坡期+稳定期 ----------------------
+            # 先获取运营期年份作为可选范围（联动之前的operate_years）
+            if 'operate_years' in locals() and operate_years: #locals()代码花名册
+                # 1. 爬坡期设置：让用户选年份，动态生成输入框
+                ramp_years = st.multiselect("请选择爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
+                # 动态生成爬坡期每年的出租率输入框（一行排版）
+                occupancy_ramp_dict = {}
+                if ramp_years:
+                    col_ramp = st.columns(len(ramp_years))
+                    for idx, year in enumerate(ramp_years):
+                        occupancy_ramp_dict[year] = col_ramp[idx].number_input(f"{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
             
-            if not comm_use_custom_increase:
-                # 【完全保留原有界面，一丝不动】
-                col_comm_rent1, col_comm_rent2 = st.columns(2)
-                comm_rent_increase_span = col_comm_rent1.number_input("商业租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
-                comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
-                comm_custom_increase_list = []  # 自定义区间列表留空
+                # 2. 稳定期设置：区间选择+固定出租率
+                col_stable1, col_stable2, col_stable3 = st.columns(3)
+                # 稳定期起始年默认是爬坡期最后一年+1，且≥运营期起始年
+                default_stable_start = max(ramp_years) + 1 if ramp_years else operate_years[0]
+                stable_start = col_stable1.number_input("稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
+                # 稳定期结束年默认用运营期结束年，且≥起始年
+                stable_end = col_stable2.number_input("稳定期结束年", min_value=stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
+                # 稳定期固定出租率
+                occupancy_stable = col_stable3.number_input("稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
             else:
-                # 【自定义模式：每行一组 起始年+结束年+每X年+递增率，无重复key，无重复代码】
-                st.markdown("#### 自定义递增设置")
-                # 用session_state保存行数，刷新不丢失，默认1行
-                if "comm_increase_row_count" not in st.session_state:
-                    st.session_state.comm_increase_row_count = 1
+                st.warning("⚠️ 请先在「1. 项目基本信息」中设置运营期年份！")
+                # 给变量赋默认值，避免NameError
+                occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0
+            
+        else:
+        # 隐藏时赋默认值（仅5行，避免报错）
+            residential_area, rent_start_price = 0, 0.0
+            rent_increase_span, rent_increase_rate = 3, 2.0
+            occupancy_ramp_dict, stable_start, stable_end, occupancy_stable = {}, 0, 0, 0.0
+        
+        # ===================== 【出售类专属】商业出租设置（1:1复刻住宅出租）======================
+        # 先初始化商业所有变量，非出售类自动赋默认值，避免NameError
+        comm_area, comm_rent_start_price = 0, 0.0
+        comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
+        comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable = {}, 0, 0, 0.9
+    
+        if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_basic" in current_config.get("ui_components", [])):
+            st.markdown("---")
+            if st.session_state["show_comm"]:
+                st.subheader("🏪 商业出租")
+                # 基础参数（和住宅完全一致，仅改名称）
+                col_comm1, col_comm2 = st.columns(2)
+                comm_area = col_comm1.number_input("商业面积（㎡）", value=0, min_value=0, step=100)
+                comm_rent_start_price = col_comm2.number_input("商业起始租金单价（元/㎡/月）", value=0.0, min_value=0.0, step=0.1)
+                # 商业租金递增设置（和住宅完全一致，仅改名称）
+                # 模式开关（默认不启用）
+                comm_use_custom_increase = st.checkbox("启用自定义递增年份（不选则按默认跨度递增）", value=False)
                 
-                # 逐行生成输入框（唯一key，彻底解决重复报错）
-                comm_custom_increase_list = []  # 格式：[(起始年, 结束年, 跨度, 递增率), ...]
-                for i in range(st.session_state.comm_increase_row_count):
-                    col_start, col_end, col_span, col_rate, col_del = st.columns([2, 2, 2, 3, 1])
-                    # 1. 递增起始年（唯一key）
-                    inc_start = col_start.selectbox(f"起始年{i+1}", options=operate_years, key=f"comm_inc_start_{i}")
-                    # 2. 递增结束年（唯一key，默认和起始年相同）
-                    inc_end = col_end.selectbox(f"结束年{i+1}", options=operate_years, index=operate_years.index(inc_start), key=f"comm_inc_end_{i}")
-                    # 3. 每X年递增（唯一key）
-                    inc_span = col_span.number_input(f"每X年{i+1}", min_value=1, max_value=50, value=1, step=1, key=f"comm_inc_span_{i}")
-                    # 4. 对应区间的递增率（唯一key）
-                    inc_rate = col_rate.number_input(f"递增率{i+1}（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, key=f"comm_inc_rate_{i}")
-                    # 5. 删除按钮（唯一key，至少保留1行）
-                    if col_del.button("×", key=f"comm_del_{i}", disabled=st.session_state.comm_increase_row_count <= 1):
-                        st.session_state.comm_increase_row_count -= 1
+                if not comm_use_custom_increase:
+                    # 【完全保留原有界面，一丝不动】
+                    col_comm_rent1, col_comm_rent2 = st.columns(2)
+                    comm_rent_increase_span = col_comm_rent1.number_input("商业租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1, help="每过X年租金递增一次")
+                    comm_rent_increase_rate = col_comm_rent2.number_input("商业租金递增率（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, help="每次递增的百分比")
+                    comm_custom_increase_list = []  # 自定义区间列表留空
+                else:
+                    # 【自定义模式：每行一组 起始年+结束年+每X年+递增率，无重复key，无重复代码】
+                    st.markdown("#### 自定义递增设置")
+                    # 用session_state保存行数，刷新不丢失，默认1行
+                    if "comm_increase_row_count" not in st.session_state:
+                        st.session_state.comm_increase_row_count = 1
+                    
+                    # 逐行生成输入框（唯一key，彻底解决重复报错）
+                    comm_custom_increase_list = []  # 格式：[(起始年, 结束年, 跨度, 递增率), ...]
+                    for i in range(st.session_state.comm_increase_row_count):
+                        col_start, col_end, col_span, col_rate, col_del = st.columns([2, 2, 2, 3, 1])
+                        # 1. 递增起始年（唯一key）
+                        inc_start = col_start.selectbox(f"起始年{i+1}", options=operate_years, key=f"comm_inc_start_{i}")
+                        # 2. 递增结束年（唯一key，默认和起始年相同）
+                        inc_end = col_end.selectbox(f"结束年{i+1}", options=operate_years, index=operate_years.index(inc_start), key=f"comm_inc_end_{i}")
+                        # 3. 每X年递增（唯一key）
+                        inc_span = col_span.number_input(f"每X年{i+1}", min_value=1, max_value=50, value=1, step=1, key=f"comm_inc_span_{i}")
+                        # 4. 对应区间的递增率（唯一key）
+                        inc_rate = col_rate.number_input(f"递增率{i+1}（%）", min_value=0.0, max_value=50.0, value=2.0, step=0.1, key=f"comm_inc_rate_{i}")
+                        # 5. 删除按钮（唯一key，至少保留1行）
+                        if col_del.button("×", key=f"comm_del_{i}", disabled=st.session_state.comm_increase_row_count <= 1):
+                            st.session_state.comm_increase_row_count -= 1
+                            st.rerun()
+                        # 校验：结束年≥起始年，才加入有效列表
+                        if inc_end >= inc_start:
+                            comm_custom_increase_list.append( (inc_start, inc_end, inc_span, inc_rate) )
+                    
+                    # 添加行按钮（唯一key）
+                    if st.button("+ 添加递增行", key="comm_add_row_btn"):
+                        st.session_state.comm_increase_row_count += 1
                         st.rerun()
-                    # 校验：结束年≥起始年，才加入有效列表
-                    if inc_end >= inc_start:
-                        comm_custom_increase_list.append( (inc_start, inc_end, inc_span, inc_rate) )
+                    
+                    # 原有变量赋默认值，避免报错
+                    comm_rent_increase_span = 3
+                    comm_rent_increase_rate = 2.0
                 
-                # 添加行按钮（唯一key）
-                if st.button("+ 添加递增行", key="comm_add_row_btn"):
-                    st.session_state.comm_increase_row_count += 1
-                    st.rerun()
                 
-                # 原有变量赋默认值，避免报错
-                comm_rent_increase_span = 3
-                comm_rent_increase_rate = 2.0
+                # 商业出租率设置（和住宅完全一致，仅改名称）
+                if 'operate_years' in locals() and operate_years:
+                    # 商业爬坡期设置
+                    comm_ramp_years = st.multiselect("请选择商业爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
+                    comm_occupancy_ramp_dict = {}
+                    if comm_ramp_years:
+                        col_comm_ramp = st.columns(len(comm_ramp_years))
+                        for idx, year in enumerate(comm_ramp_years):
+                            comm_occupancy_ramp_dict[year] = col_comm_ramp[idx].number_input(f"商业{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
+                
+                    # 商业稳定期设置
+                    col_comm_stable1, col_comm_stable2, col_comm_stable3 = st.columns(3)
+                    comm_default_stable_start = max(comm_ramp_years) + 1 if comm_ramp_years else operate_years[0]
+                    comm_stable_start = col_comm_stable1.number_input("商业稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
+                    comm_stable_end = col_comm_stable2.number_input("商业稳定期结束年", min_value=comm_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
+                    comm_occupancy_stable = col_comm_stable3.number_input("商业稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
+                comm_rent_stable_start = st.number_input("商业租金稳定年", min_value=operate_years[0], max_value=operate_years[-1],value=operate_years[0], step=1, help="从该年开始租金不再递增，保持稳定")
+            else:
+            # 隐藏时赋默认值（仅5行）
+                comm_area, comm_rent_start_price = 0, 0.0
+                comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
+                comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_stable_occ = {}, 0, 0, 0.0
             
-            
-            # 商业出租率设置（和住宅完全一致，仅改名称）
+        # ===================== 出售类专属：税金计算参数（每2个一行） ======================
+        if "sale_and_commercial" in current_config.get("ui_components", []):
+            st.markdown("---")
+            st.subheader("💸 税金及成本计算参数")
+            # 第1行：2个参数
+            col1, col2 = st.columns(2)
+            land_cost = col1.number_input("(非配售)土地成本费（万元）", min_value=0.0, value=0.0, step=10.0)
+            construction_cost = col2.number_input("(非配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0)
+            st.markdown("")  # 换行
+        
+            # 第2行：2个参数
+            col3, col4 = st.columns(2)
+            infra_cost = col3.number_input("(非配售)基础设施建设费（万元）", min_value=0.0, value=0.0, step=10.0)
+            other_eng_cost = col4.number_input("(非配售)工程建设其他费用（万元）", min_value=0.0, value=0.0, step=10.0)
+            st.markdown("")  # 换行
+        
+            # 第3行：2个参数
+            col5, col6 = st.columns(2)
+            project_input_tax = col5.number_input("工程进项税（万元）", min_value=0.0, value=0.0, step=0.01, help="直接填入工程类合计进项税，用于增值税迭代计算")
+            land_use_area = col6.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
+            st.markdown("")  # 换行
+    
+            # 第4行：公式必填参数（一行2个）
+            col7, col8 = st.columns(2)
+            land_floor_price = col7.number_input("划拨土地楼面价（元/㎡）", min_value=0.0, value=0.0, step=10.0, help="配保房地价抵减计算用")
+            dev_cost = col8.number_input("(非配售)开发成本费（万元）", min_value=0.0, value=0.0, step=10.0, help="非配售部分开发成本，用于累计开发成本计算")
+            # 印花税率固定默认0‰，无需用户输入，需要时再用
+    
+            # 第5行：配售专属参数（一行2个）
+            col9, col10 = st.columns(2)
+            sale_construction_cost = col9.number_input("(配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分建安工程费，用于增值税进项税计算")
+            sale_infra_cost = col10.number_input("(配售)基础设施费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分基础设施费，用于增值税进项税计算")
+            stamp_tax_rate = 0 / 1000  # 固定0.5‰，转成小数
+    
+            # 第4行：新增工程进项税（单独一行）
+            #plot_ratio_area = col5.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
+            #st.markdown("")  # 换行
+        
+        # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
+        st.markdown("---")
+        if (project_type != "出售类(配保房/可售型人才房等)") or st.session_state["show_park"]:
+            st.subheader("🚗 车位收入")
+            col_park1, col_park2, col_park3 = st.columns(3)
+            park_count = col_park1.number_input("车位个数", min_value=0, value=500, step=1)
+            park_rent_start_price = col_park2.number_input("车位起始租金单价（元/个/月）", min_value=0.0, value=300.0, step=10.0)
+            park_income_ratio = col_park3.number_input("车位实际收入系数", min_value=0.0, max_value=1.0, value=0.5, step=0.01, help="比如50%填0.5")
+             # ---------------------- 车位出租率设置（爬坡期+稳定期，缩进完全匹配）----------------------
             if 'operate_years' in locals() and operate_years:
-                # 商业爬坡期设置
-                comm_ramp_years = st.multiselect("请选择商业爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
-                comm_occupancy_ramp_dict = {}
-                if comm_ramp_years:
-                    col_comm_ramp = st.columns(len(comm_ramp_years))
-                    for idx, year in enumerate(comm_ramp_years):
-                        comm_occupancy_ramp_dict[year] = col_comm_ramp[idx].number_input(f"商业{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
+                # 车位爬坡期设置
+                park_ramp_years = st.multiselect("请选择车位爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
+                park_occupancy_ramp_dict = {}
+                if park_ramp_years:
+                    col_park_ramp = st.columns(len(park_ramp_years))
+                    for idx, year in enumerate(park_ramp_years):
+                        park_occupancy_ramp_dict[year] = col_park_ramp[idx].number_input(f"车位{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
             
-                # 商业稳定期设置
-                col_comm_stable1, col_comm_stable2, col_comm_stable3 = st.columns(3)
-                comm_default_stable_start = max(comm_ramp_years) + 1 if comm_ramp_years else operate_years[0]
-                comm_stable_start = col_comm_stable1.number_input("商业稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
-                comm_stable_end = col_comm_stable2.number_input("商业稳定期结束年", min_value=comm_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
-                comm_occupancy_stable = col_comm_stable3.number_input("商业稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
-            comm_rent_stable_start = st.number_input("商业租金稳定年", min_value=operate_years[0], max_value=operate_years[-1],value=operate_years[0], step=1, help="从该年开始租金不再递增，保持稳定")
+                # 车位稳定期设置
+                col_park_stable1, col_park_stable2, col_park_stable3 = st.columns(3)
+                park_default_stable_start = max(park_ramp_years) + 1 if park_ramp_years else operate_years[0]
+                # 找到车位的那行number_input，同样给value加个min兜底
+                park_stable_start = col_park_stable1.number_input("车位稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
+                park_stable_end = col_park_stable2.number_input("车位稳定期结束年", min_value=park_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
+                park_occupancy_stable = col_park_stable3.number_input("车位稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
+            else:
+                st.warning("⚠️ 请先在「1. 项目基本信息」中设置运营期年份！")
+                park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable = {}, 0, 0, 0
+        
         else:
         # 隐藏时赋默认值（仅5行）
-            comm_area, comm_rent_start_price = 0, 0.0
-            comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
-            comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_stable_occ = {}, 0, 0, 0.0
+            park_count, park_rent_start_price, park_income_ratio = 0, 0.0, 0.0
+            park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_stable_occ = {}, 0, 0, 0.0
         
-    # ===================== 出售类专属：税金计算参数（每2个一行） ======================
-    if "sale_and_commercial" in current_config.get("ui_components", []):
+       
+        
+        # ---------------------- 其他收入设置（自定义名称+仅首年计入）----------------------
         st.markdown("---")
-        st.subheader("💸 税金及成本计算参数")
-        # 第1行：2个参数
-        col1, col2 = st.columns(2)
-        land_cost = col1.number_input("(非配售)土地成本费（万元）", min_value=0.0, value=0.0, step=10.0)
-        construction_cost = col2.number_input("(非配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0)
-        st.markdown("")  # 换行
+        st.subheader("📦 其他收入设置")
+        col_other1, col_other2 = st.columns(2)
+        other_income_name = col_other1.text_input("其他收入名称", value="其他收入")
+        other_income_total = col_other2.number_input(f"{other_income_name}总额（万元）", min_value=0.0, value=0.0, step=10.0)
     
-        # 第2行：2个参数
-        col3, col4 = st.columns(2)
-        infra_cost = col3.number_input("(非配售)基础设施建设费（万元）", min_value=0.0, value=0.0, step=10.0)
-        other_eng_cost = col4.number_input("(非配售)工程建设其他费用（万元）", min_value=0.0, value=0.0, step=10.0)
-        st.markdown("")  # 换行
-    
-        # 第3行：2个参数
-        col5, col6 = st.columns(2)
-        project_input_tax = col5.number_input("工程进项税（万元）", min_value=0.0, value=0.0, step=0.01, help="直接填入工程类合计进项税，用于增值税迭代计算")
-        land_use_area = col6.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
-        st.markdown("")  # 换行
-
-        # 第4行：公式必填参数（一行2个）
-        col7, col8 = st.columns(2)
-        land_floor_price = col7.number_input("划拨土地楼面价（元/㎡）", min_value=0.0, value=0.0, step=10.0, help="配保房地价抵减计算用")
-        dev_cost = col8.number_input("(非配售)开发成本费（万元）", min_value=0.0, value=0.0, step=10.0, help="非配售部分开发成本，用于累计开发成本计算")
-        # 印花税率固定默认0‰，无需用户输入，需要时再用
-
-        # 第5行：配售专属参数（一行2个）
-        col9, col10 = st.columns(2)
-        sale_construction_cost = col9.number_input("(配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分建安工程费，用于增值税进项税计算")
-        sale_infra_cost = col10.number_input("(配售)基础设施费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分基础设施费，用于增值税进项税计算")
-        stamp_tax_rate = 0 / 1000  # 固定0.5‰，转成小数
-
-        # 第4行：新增工程进项税（单独一行）
-        #plot_ratio_area = col5.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
-        #st.markdown("")  # 换行
-    
-    # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
+       
     st.markdown("---")
-    if (project_type != "出售类(配保房/可售型人才房等)") or st.session_state["show_park"]:
-        st.subheader("🚗 车位收入")
-        col_park1, col_park2, col_park3 = st.columns(3)
-        park_count = col_park1.number_input("车位个数", min_value=0, value=500, step=1)
-        park_rent_start_price = col_park2.number_input("车位起始租金单价（元/个/月）", min_value=0.0, value=300.0, step=10.0)
-        park_income_ratio = col_park3.number_input("车位实际收入系数", min_value=0.0, max_value=1.0, value=0.5, step=0.01, help="比如50%填0.5")
-         # ---------------------- 车位出租率设置（爬坡期+稳定期，缩进完全匹配）----------------------
-        if 'operate_years' in locals() and operate_years:
-            # 车位爬坡期设置
-            park_ramp_years = st.multiselect("请选择车位爬坡期年份（从运营期年份中选）", options=operate_years, default=operate_years[:2] if len(operate_years)>=2 else operate_years)
-            park_occupancy_ramp_dict = {}
-            if park_ramp_years:
-                col_park_ramp = st.columns(len(park_ramp_years))
-                for idx, year in enumerate(park_ramp_years):
-                    park_occupancy_ramp_dict[year] = col_park_ramp[idx].number_input(f"车位{year}年出租率", min_value=0.0, max_value=1.0, value=0.7 if idx==0 else 0.8, step=0.01)
-        
-            # 车位稳定期设置
-            col_park_stable1, col_park_stable2, col_park_stable3 = st.columns(3)
-            park_default_stable_start = max(park_ramp_years) + 1 if park_ramp_years else operate_years[0]
-            # 找到车位的那行number_input，同样给value加个min兜底
-            park_stable_start = col_park_stable1.number_input("车位稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 2, operate_end))
-            park_stable_end = col_park_stable2.number_input("车位稳定期结束年", min_value=park_stable_start, max_value=operate_years[-1], value=operate_years[-1], step=1)
-            park_occupancy_stable = col_park_stable3.number_input("车位稳定期出租率", min_value=0.0, max_value=1.0, value=0.9, step=0.01)
-        else:
-            st.warning("⚠️ 请先在「1. 项目基本信息」中设置运营期年份！")
-            park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable = {}, 0, 0, 0
     
+    # 3. 总成本费用参数
+    with st.expander("3. 总成本费用参数", expanded=True):
+        st.subheader("💰 经营成本核心参数")
+        col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
+        manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=1.92, step=0.01, help="1.92×区域系数")
+        total_build_area = col_cost2.number_input("总建筑面积（㎡）", min_value=0, value=50000, step=100)
+        residential_decoration_cost = col_cost3.number_input("住宅精装修工程费（万元）", min_value=0.0, value=5000.0, step=100.0)
+        total_investment = col_cost4.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
+    
+        # ---------------------- 新增：银行借款与还本付息参数 ----------------------
+        st.markdown("---")
+        st.subheader("🏦 银行借款与还本付息参数")
+        # 基础参数
+        col_loan1, col_loan2 = st.columns(2)
+        loan_annual_rate = col_loan1.number_input("借款年利率（%）", min_value=0.0, max_value=20.0, value=3.0, step=0.1)
+        loan_total_years = col_loan2.number_input("借款总年限（年）", min_value=1, max_value=100, value=25, step=1, help="借款的总期限，用于计算利息保障倍数的借款期范围")
+        # 固定还款规则参数，无需用户修改
+        first_repay_ratio = 3.0
+        repay_increase_rate = 4.5
+    
+        # 银行借款计划（动态输入，和出租率操作逻辑一致）
+        st.markdown("#### 银行借款计划")
+        loan_available_years = sorted(list(set(build_years + operate_years)))
+        loan_years = st.multiselect("请选择有借款的年份", options=loan_available_years, default=build_years if build_years else [])
+        loan_plan_dict = {}
+        if loan_years:
+            col_loan_year = st.columns(len(loan_years))
+            for idx, year in enumerate(loan_years):
+                loan_plan_dict[year] = col_loan_year[idx].number_input(f"{year}年借款额（万元）", min_value=0.0, value=0.0, step=100.0)
+        # =====================出售型增加还款计划======================
+        repay_plan_dict = {}
+        current_config = PROJECT_CONFIG[project_type]
+        if "custom_repay_plan" in current_config.get("ui_components", []):
+            st.markdown("#### 银行还款计划")
+            repay_available_years = operate_years
+            repay_years = st.multiselect("请选择有还款的年份", options=repay_available_years, default=operate_years[:3] if len(operate_years)>=loan_total_years else operate_years) #默认3年,免得太大了我靠
+            if repay_years:
+                col_repay_year = st.columns(len(repay_years))
+                for idx, year in enumerate(repay_years):
+                    repay_plan_dict[year] = col_repay_year[idx].number_input(f"{year}年还款本金（万元）", min_value=0.0, value=0.0, step=100.0)
+    
+    # 4. 税金及其附加参数（出售类不显示）
+    if project_type != "出售类(配保房/可售型人才房等)":
+        with st.expander("4. 税金及其附加参数", expanded=True):
+            st.subheader("📝 税金核心参数")
+            col_tax1, col_tax2 = st.columns(2)
+            land_area = col_tax1.number_input("用地面积（㎡）", min_value=0, value=10000, step=100)
+            construction_cost = col_tax2.number_input("建安工程费（万元）", min_value=0.0, value=30000.0, step=1000.0)
     else:
-    # 隐藏时赋默认值（仅5行）
-        park_count, park_rent_start_price, park_income_ratio = 0, 0.0, 0.0
-        park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_stable_occ = {}, 0, 0, 0.0
+        # 给默认值，防止后面计算报错
+        land_area = 0
     
-   
+    # 5. 全投资现金流量表参数
+    with st.expander("5. 全投资现金流量表参数", expanded=True):
+        st.subheader("📊 现金流量表核心参数")
+        # 折现率输入
+        discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=8.0, step=0.1)
+        # 建设投资计划（和银行借款计划模式完全一致，选年份动态生成输入框）
+        st.markdown("#### 建设投资计划")
+        invest_available_years = sorted(list(set(build_years + operate_years)))
+        invest_years = st.multiselect("请选择有建设投资的年份", options=invest_available_years, default=build_years if build_years else [])
+        # 动态生成每年建设投资输入框
+        invest_plan_dict = {}
+        if invest_years:
+            col_invest_year = st.columns(len(invest_years))
+            for idx, year in enumerate(invest_years):
+                invest_plan_dict[year] = col_invest_year[idx].number_input(f"{year}年建设投资额（万元）", min_value=0.0, value=0.0, step=100.0)
     
-    # ---------------------- 其他收入设置（自定义名称+仅首年计入）----------------------
-    st.markdown("---")
-    st.subheader("📦 其他收入设置")
-    col_other1, col_other2 = st.columns(2)
-    other_income_name = col_other1.text_input("其他收入名称", value="其他收入")
-    other_income_total = col_other2.number_input(f"{other_income_name}总额（万元）", min_value=0.0, value=0.0, step=10.0)
-
-   
-st.markdown("---")
-
-# 3. 总成本费用参数
-with st.expander("3. 总成本费用参数", expanded=True):
-    st.subheader("💰 经营成本核心参数")
-    col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
-    manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=1.92, step=0.01, help="1.92×区域系数")
-    total_build_area = col_cost2.number_input("总建筑面积（㎡）", min_value=0, value=50000, step=100)
-    residential_decoration_cost = col_cost3.number_input("住宅精装修工程费（万元）", min_value=0.0, value=5000.0, step=100.0)
-    total_investment = col_cost4.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
-
-    # ---------------------- 新增：银行借款与还本付息参数 ----------------------
-    st.markdown("---")
-    st.subheader("🏦 银行借款与还本付息参数")
-    # 基础参数
-    col_loan1, col_loan2 = st.columns(2)
-    loan_annual_rate = col_loan1.number_input("借款年利率（%）", min_value=0.0, max_value=20.0, value=3.0, step=0.1)
-    loan_total_years = col_loan2.number_input("借款总年限（年）", min_value=1, max_value=100, value=25, step=1, help="借款的总期限，用于计算利息保障倍数的借款期范围")
-    # 固定还款规则参数，无需用户修改
-    first_repay_ratio = 3.0
-    repay_increase_rate = 4.5
-
-    # 银行借款计划（动态输入，和出租率操作逻辑一致）
-    st.markdown("#### 银行借款计划")
-    loan_available_years = sorted(list(set(build_years + operate_years)))
-    loan_years = st.multiselect("请选择有借款的年份", options=loan_available_years, default=build_years if build_years else [])
-    loan_plan_dict = {}
-    if loan_years:
-        col_loan_year = st.columns(len(loan_years))
-        for idx, year in enumerate(loan_years):
-            loan_plan_dict[year] = col_loan_year[idx].number_input(f"{year}年借款额（万元）", min_value=0.0, value=0.0, step=100.0)
-    # =====================出售型增加还款计划======================
-    repay_plan_dict = {}
-    current_config = PROJECT_CONFIG[project_type]
-    if "custom_repay_plan" in current_config.get("ui_components", []):
-        st.markdown("#### 银行还款计划")
-        repay_available_years = operate_years
-        repay_years = st.multiselect("请选择有还款的年份", options=repay_available_years, default=operate_years[:3] if len(operate_years)>=loan_total_years else operate_years) #默认3年,免得太大了我靠
-        if repay_years:
-            col_repay_year = st.columns(len(repay_years))
-            for idx, year in enumerate(repay_years):
-                repay_plan_dict[year] = col_repay_year[idx].number_input(f"{year}年还款本金（万元）", min_value=0.0, value=0.0, step=100.0)
-
-# 4. 税金及其附加参数（出售类不显示）
-if project_type != "出售类(配保房/可售型人才房等)":
-    with st.expander("4. 税金及其附加参数", expanded=True):
-        st.subheader("📝 税金核心参数")
-        col_tax1, col_tax2 = st.columns(2)
-        land_area = col_tax1.number_input("用地面积（㎡）", min_value=0, value=10000, step=100)
-        construction_cost = col_tax2.number_input("建安工程费（万元）", min_value=0.0, value=30000.0, step=1000.0)
-else:
-    # 给默认值，防止后面计算报错
-    land_area = 0
-
-# 5. 全投资现金流量表参数
-with st.expander("5. 全投资现金流量表参数", expanded=True):
-    st.subheader("📊 现金流量表核心参数")
-    # 折现率输入
-    discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=8.0, step=0.1)
-    # 建设投资计划（和银行借款计划模式完全一致，选年份动态生成输入框）
-    st.markdown("#### 建设投资计划")
-    invest_available_years = sorted(list(set(build_years + operate_years)))
-    invest_years = st.multiselect("请选择有建设投资的年份", options=invest_available_years, default=build_years if build_years else [])
-    # 动态生成每年建设投资输入框
-    invest_plan_dict = {}
-    if invest_years:
-        col_invest_year = st.columns(len(invest_years))
-        for idx, year in enumerate(invest_years):
-            invest_plan_dict[year] = col_invest_year[idx].number_input(f"{year}年建设投资额（万元）", min_value=0.0, value=0.0, step=100.0)
-
-# 6. 一键测算按钮
-calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
+    # 6. 一键测算按钮
+calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True) or st.session_state.get("ai_calc_trigger", False)
 
 # ===================== 核心测算函数=====================
 def generate_year_list(build_yrs, operate_yrs):
@@ -1092,6 +1488,7 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=Fal
 
 # ===================== 结果展示区 =====================
 if calc_button:
+    st.session_state["ai_calc_trigger"] = False
     # 前置校验，避免参数缺失报错
     show_resi = st.session_state.get("show_resi", True) #不设置这个就会报错
     if not operate_years: st.error("❌ 请先在「1. 项目基本信息」中设置运营期年份！"); st.stop()
