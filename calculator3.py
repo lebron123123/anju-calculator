@@ -8,6 +8,11 @@ import pandas as pd
 # 👇 替换掉原来所有和volcengine相关的代码，只保留下面这些
 import json
 import pandas as pd
+import requests
+
+LLM_MODE = "ollama"   # "ollama" 或 "cloud"
+OLLAMA_MODEL = "qwen3.5:latest"
+CLOUD_MODEL = "claude-opus-4-6"
 
 try:
     from anthropic import Anthropic
@@ -539,70 +544,126 @@ def answer_ai_chat_local(question, context_dict):
 
 
 def call_external_llm_for_chat(messages, context_text):
-    """
-    调用大模型做结果解释类问答
-    返回字符串；失败时返回None，自动回退到本地规则回答
-    """
-    if Anthropic is None:
-        set_llm_debug_status(False, "未安装 anthropic SDK，请先执行：pip install anthropic")
-        return None
+    recent_messages = messages[-8:] if messages else []
 
-    try:
-        client = Anthropic()
+    if LLM_MODE == "ollama":
+        try:
+            dialog_text = ""
+            for msg in recent_messages:
+                role = msg.get("role", "user")
+                content = str(msg.get("content", "")).strip()
+                if not content:
+                    continue
+                if role == "assistant":
+                    dialog_text += f"\n助手：{content}"
+                else:
+                    dialog_text += f"\n用户：{content}"
 
-        recent_messages = messages[-8:] if messages else []
-
-        llm_messages = []
-        for msg in recent_messages:
-            role = msg.get("role", "user")
-            content = str(msg.get("content", "")).strip()
-            if not content:
-                continue
-            if role not in ["user", "assistant"]:
-                role = "user"
-            llm_messages.append({
-                "role": role,
-                "content": content
-            })
-
-        system_prompt = f"""
+            prompt = f"""
 你是一个安居房/保障房项目财务测算分析助手。
 
-你的任务：
-1. 基于用户当前项目的测算结果回答问题；
+要求：
+1. 基于当前测算结果回答用户问题；
 2. 优先解释IRR、净现值、利润、成本、现金流、异常指标和优化建议；
-3. 不能虚构上下文中不存在的数据；
-4. 回答简洁、专业、像财务测算顾问。
+3. 不要虚构上下文中不存在的数据；
+4. 回答要简洁、专业。
 
-当前项目测算上下文如下：
+当前项目测算上下文：
+{context_text}
+
+最近对话：
+{dialog_text}
+
+请继续回答用户最后一个问题：
+""".strip()
+
+            resp = requests.post(
+                "http://127.0.0.1:11434/api/generate",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False
+                },
+                timeout=120
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            answer = data.get("response", "").strip()
+
+            if answer:
+                set_llm_debug_status(True, f"本地Ollama调用成功：{OLLAMA_MODEL}")
+                return answer
+
+            set_llm_debug_status(False, "本地Ollama返回为空")
+            return None
+
+        except Exception as e:
+            set_llm_debug_status(False, f"本地Ollama调用失败：{type(e).__name__}: {e}")
+            return None
+
+    elif LLM_MODE == "cloud":
+        if Anthropic is None:
+            set_llm_debug_status(False, "未安装 anthropic SDK")
+            return None
+
+        try:
+            client = Anthropic()
+
+            llm_messages = []
+            for msg in recent_messages:
+                role = msg.get("role", "user")
+                content = str(msg.get("content", "")).strip()
+                if not content:
+                    continue
+                if role not in ["user", "assistant"]:
+                    role = "user"
+                llm_messages.append({
+                    "role": role,
+                    "content": content
+                })
+
+            system_prompt = f"""
+你是一个安居房/保障房项目财务测算分析助手。
+
+要求：
+1. 基于当前测算结果回答用户问题；
+2. 优先解释IRR、净现值、利润、成本、现金流、异常指标和优化建议；
+3. 不要虚构上下文中不存在的数据；
+4. 回答要简洁、专业。
+
+当前项目测算上下文：
 {context_text}
 """.strip()
 
-        resp = client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=1200,
-            temperature=0.3,
-            system=system_prompt,
-            messages=llm_messages
-        )
+            resp = client.messages.create(
+                model=CLOUD_MODEL,
+                max_tokens=1200,
+                temperature=0.3,
+                system=system_prompt,
+                messages=llm_messages
+            )
 
-        if resp and resp.content:
-            parts = []
-            for block in resp.content:
-                text = getattr(block, "text", "")
-                if text:
-                    parts.append(text)
+            if resp and resp.content:
+                parts = []
+                for block in resp.content:
+                    text = getattr(block, "text", "")
+                    if text:
+                        parts.append(text)
 
-            final_text = "\n".join(parts).strip()
-            if final_text:
-                set_llm_debug_status(True, "大模型调用成功")
-                return final_text
+                answer = "\n".join(parts).strip()
+                if answer:
+                    set_llm_debug_status(True, f"云端调用成功：{CLOUD_MODEL}")
+                    return answer
 
-        set_llm_debug_status(False, "大模型返回为空")
-        return None
+            set_llm_debug_status(False, "云端模型返回为空")
+            return None
 
-    except Exception as e:
-        set_llm_debug_status(False, f"大模型调用失败：{type(e).__name__}: {e}")
+        except Exception as e:
+            set_llm_debug_status(False, f"云端模型调用失败：{type(e).__name__}: {e}")
+            return None
+
+    else:
+        set_llm_debug_status(False, f"未知LLM_MODE：{LLM_MODE}")
         return None
 
 
@@ -618,10 +679,12 @@ def render_ai_chat_panel():
         st.caption(f"❌ {debug_status['message']}")
     else:
         st.caption("ℹ️ 当前尚未发起大模型调用")
-    if Anthropic is None:
-        st.caption("当前未检测到大模型SDK，问答将使用本地规则回答。")
+    if LLM_MODE == "ollama":
+        st.caption("当前问答优先使用本地Ollama模型回答，失败时自动回退到本地规则回答。")
+    elif LLM_MODE == "cloud":
+        st.caption("当前问答优先使用云端大模型回答，失败时自动回退到本地规则回答。")
     else:
-        st.caption("当前问答优先使用大模型回答，失败时自动回退到本地规则回答。")
+        st.caption("当前未配置有效的大模型模式，问答将使用本地规则回答。")
 
     if "ai_chat_messages" not in st.session_state:
         st.session_state["ai_chat_messages"] = [
