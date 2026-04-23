@@ -371,6 +371,181 @@ def ai_fill_indicators(core_input, history_df=None):
 
     return rule_params, "；".join(explain_list)
 
+def build_ai_assumption_table(core_input, ai_params, similar_projects=None):
+    """
+    生成AI补参说明表：哪些是用户输入，哪些是AI推断
+    """
+    similar_count = len(similar_projects) if similar_projects else 0
+    infer_source = f"AI推断（参考{similar_count}个同类项目 + 行业规则）" if similar_count > 0 else "AI推断（行业规则）"
+
+    rows = [
+        {"参数": "项目子类型", "取值": core_input.get("项目子类型", ""), "来源": "用户输入"},
+        {"参数": "总建筑面积(㎡)", "取值": core_input.get("总建筑面积", 0), "来源": "用户输入"},
+        {"参数": "总投资(万元)", "取值": core_input.get("总投资", 0), "来源": "用户输入"},
+        {"参数": "售价(元/㎡)", "取值": core_input.get("售价", 0), "来源": "用户输入"},
+        {"参数": "租金(元/㎡/月)", "取值": core_input.get("租金", 0), "来源": "用户输入"},
+
+        {"参数": "住宅面积(㎡)", "取值": round(ai_params.get("residential_area", 0), 2), "来源": infer_source},
+        {"参数": "商业面积(㎡)", "取值": round(ai_params.get("comm_area", 0), 2), "来源": infer_source},
+        {"参数": "车位数量", "取值": int(ai_params.get("park_count", 0)), "来源": infer_source},
+        {"参数": "住宅稳定期出租率", "取值": round(ai_params.get("occupancy_stable", 0), 4), "来源": infer_source},
+        {"参数": "商业稳定期出租率", "取值": round(ai_params.get("comm_occupancy_stable", 0), 4), "来源": infer_source},
+        {"参数": "车位稳定期出租率", "取值": round(ai_params.get("park_occupancy_stable", 0), 4), "来源": infer_source},
+        {"参数": "管理系数", "取值": round(ai_params.get("manage_coeff", 0), 4), "来源": infer_source},
+        {"参数": "土地成本(万元)", "取值": round(ai_params.get("land_cost", 0), 2), "来源": infer_source},
+        {"参数": "建安工程费(万元)", "取值": round(ai_params.get("construction_cost", 0), 2), "来源": infer_source},
+        {"参数": "基础设施费(万元)", "取值": round(ai_params.get("infra_cost", 0), 2), "来源": infer_source},
+        {"参数": "可售面积(㎡)", "取值": round(ai_params.get("sale_area", 0), 2), "来源": infer_source},
+        {"参数": "商业起始租金(元/㎡/月)", "取值": round(ai_params.get("comm_rent_start_price", 0), 2), "来源": infer_source},
+        {"参数": "车位起始租金(元/个/月)", "取值": round(ai_params.get("park_rent_start_price", 0), 2), "来源": infer_source},
+        {"参数": "车位收入系数", "取值": round(ai_params.get("park_income_ratio", 0), 4), "来源": infer_source},
+    ]
+    return pd.DataFrame(rows)
+
+
+def build_ai_summary_text(core_input, project_type, total_income, total_cost, total_net_profit, irr_value, total_npv_sum, similar_projects=None):
+    """
+    生成AI测算说明文字
+    """
+    sub_type = core_input.get("项目子类型", "")
+    total_area = core_input.get("总建筑面积", 0)
+    total_invest = core_input.get("总投资", 0)
+    sale_price = core_input.get("售价", 0)
+    rent_price = core_input.get("租金", 0)
+
+    similar_projects = similar_projects or []
+    similar_count = len(similar_projects)
+    similar_names = "、".join([x.get("项目名称", "") for x in similar_projects[:3]]) if similar_count > 0 else "暂无"
+
+    if sub_type == "出售类":
+        income_desc = f"本次以出售类项目逻辑进行测算，核心售价输入为 {sale_price} 元/㎡。"
+    elif sub_type == "出租类":
+        income_desc = f"本次以出租类项目逻辑进行测算，核心租金输入为 {rent_price} 元/㎡/月。"
+    else:
+        income_desc = f"本次以租售结合类项目逻辑进行测算，核心售价为 {sale_price} 元/㎡，租金为 {rent_price} 元/㎡/月。"
+
+    text = f"""
+根据您给出的核心指标，系统已完成本项目的自动补参与财务测算。
+
+其中，项目子类型为【{sub_type}】，总建筑面积约【{total_area}㎡】，总投资约【{total_invest}万元】。  
+{income_desc}
+
+本次测算共参考了【{similar_count}】个同类历史项目，主要参考项目包括：{similar_names}。  
+在此基础上，系统对住宅面积、商业面积、车位数量、稳定期出租率、土地成本、建安工程费等参数进行了自动补齐，并生成了完整的收入、成本、税金、损益及现金流表。
+
+测算结果显示：项目全周期总收入约为【{total_income}万元】，总成本费用约为【{total_cost}万元】，净利润约为【{total_net_profit}万元】，净现值约为【{total_npv_sum}万元】，全投资内部收益率（IRR）为【{irr_value}】。
+
+请注意：以上结果属于“基于核心指标 + 历史样本 + 规则补参”的快速测算结果，适合用于前期方案研判、项目比选和初步汇报。如需正式决策，建议再结合人工校核对关键参数进行修正。
+""".strip()
+
+    return text
+
+
+def build_ai_context_text(context_dict):
+    """
+    把当前测算结果整理成聊天上下文
+    """
+    if not context_dict:
+        return "暂无测算上下文。"
+
+    similar_names = "、".join(context_dict.get("similar_project_names", [])) if context_dict.get("similar_project_names") else "暂无"
+
+    return f"""
+项目类型：{context_dict.get("project_type", "")}
+项目子类型：{context_dict.get("sub_type", "")}
+总建筑面积：{context_dict.get("total_build_area", 0)}㎡
+总投资：{context_dict.get("total_investment", 0)}万元
+售价：{context_dict.get("sale_price", 0)}元/㎡
+租金：{context_dict.get("rent_price", 0)}元/㎡/月
+参考项目：{similar_names}
+
+测算结果：
+- 全周期总收入：{context_dict.get("total_income", 0)}万元
+- 全周期总成本：{context_dict.get("total_cost", 0)}万元
+- 全周期净利润：{context_dict.get("total_net_profit", 0)}万元
+- 净现值：{context_dict.get("total_npv_sum", 0)}万元
+- IRR：{context_dict.get("irr_value", "")}
+- 利息保障倍数：{context_dict.get("interest_coverage_ratio", 0)}
+""".strip()
+
+
+def answer_ai_chat_local(question, context_dict):
+    """
+    本地版问答：先不用外部大模型，也能回答常见问题
+    """
+    q = (question or "").strip()
+
+    if not q:
+        return "请先输入问题。"
+
+    total_income = context_dict.get("total_income", 0)
+    total_cost = context_dict.get("total_cost", 0)
+    total_net_profit = context_dict.get("total_net_profit", 0)
+    total_npv_sum = context_dict.get("total_npv_sum", 0)
+    irr_value = context_dict.get("irr_value", "")
+    interest_coverage_ratio = context_dict.get("interest_coverage_ratio", 0)
+    similar_project_names = context_dict.get("similar_project_names", [])
+
+    if "收入" in q:
+        return f"本项目全周期总收入约为 {total_income} 万元。你如果需要，我可以继续帮你拆解收入主要来自住宅、车位、销售还是商业出租。"
+    elif "成本" in q:
+        return f"本项目全周期总成本费用约为 {total_cost} 万元。若你愿意，我下一步可以继续帮你解释成本里哪几项占比最高。"
+    elif "净利润" in q or "利润" in q:
+        return f"本项目全周期净利润约为 {total_net_profit} 万元。"
+    elif "净现值" in q or "npv" in q.lower():
+        return f"本项目净现值约为 {total_npv_sum} 万元。净现值为负通常意味着按当前折现率和假设参数看，项目财务回报偏弱。"
+    elif "irr" in q.lower() or "收益率" in q:
+        return f"本项目全投资内部收益率（IRR）为 {irr_value}。如果你需要，我可以继续解释是哪些参数拉低或拉高了IRR。"
+    elif "利息保障" in q:
+        return f"本项目利息保障倍数约为 {interest_coverage_ratio}。一般来说，这个指标越高，债务利息覆盖能力越强。"
+    elif "历史项目" in q or "参考项目" in q or "同类项目" in q:
+        if similar_project_names:
+            return f"本次测算主要参考了这些同类项目：{'、'.join(similar_project_names)}。"
+        return "本次测算未匹配到可用的同类历史项目，主要基于规则参数进行了补齐。"
+    elif "怎么测" in q or "怎么来的" in q or "依据" in q or "为什么" in q:
+        return "当前测算逻辑是：先根据你输入的核心指标匹配同类历史项目，再结合行业规则自动补齐缺失参数，最后进入完整财务模型生成各张表格。"
+    else:
+        return "我已经拿到当前项目的测算上下文。你可以继续问我：为什么IRR这么低、参考了哪些项目、哪些参数最影响结果、收入成本如何构成等。"
+
+
+def call_external_llm_for_chat(messages, context_text):
+    """
+    外部大模型接口占位函数
+    你后续把自己的模型调用代码放到这里即可
+    """
+    return None
+
+
+def render_ai_chat_panel():
+    """
+    渲染AI对话面板
+    """
+    st.subheader("💬 AI测算问答")
+
+    if "ai_chat_messages" not in st.session_state:
+        st.session_state["ai_chat_messages"] = [
+            {"role": "assistant", "content": "你好，我可以基于当前测算结果继续解释项目收益、成本、IRR、净现值、参考项目和关键假设。"}
+        ]
+
+    for msg in st.session_state["ai_chat_messages"]:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    user_question = st.chat_input("请输入你的问题，例如：为什么这个项目IRR为负？")
+    if user_question:
+        st.session_state["ai_chat_messages"].append({"role": "user", "content": user_question})
+
+        context_dict = st.session_state.get("ai_result_context", {})
+        context_text = build_ai_context_text(context_dict)
+
+        # 先尝试外部大模型；如果没有配置，就回退到本地回答
+        llm_answer = call_external_llm_for_chat(st.session_state["ai_chat_messages"], context_text)
+        if not llm_answer:
+            llm_answer = answer_ai_chat_local(user_question, context_dict)
+
+        st.session_state["ai_chat_messages"].append({"role": "assistant", "content": llm_answer})
+        st.rerun()
+
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
@@ -502,7 +677,7 @@ if is_ai_mode:
                     "售价": sale_avg_price,
                     "租金": resi_rent_start
                 }
-
+                similar_df = find_similar_projects(core_input, history_df, top_n=3)
                 ai_params, ai_msg = ai_fill_indicators(core_input, history_df)
 
                 subtype_to_project_type = {
@@ -519,6 +694,9 @@ if is_ai_mode:
                 st.session_state["ai_calc_trigger"] = True
                 st.session_state["ai_msg"] = ai_msg
                 st.session_state["ai_params"] = ai_params
+                st.session_state["ai_core_input"] = core_input
+                st.session_state["ai_similar_projects"] = similar_df.to_dict("records") if not similar_df.empty else []
+                st.session_state["ai_similar_project_names"] = similar_df["项目名称"].tolist() if not similar_df.empty else []
                 st.session_state["ai_base"] = {
                     "project_type": subtype_to_project_type[ai_sub_type],
                     "ai_sub_type": ai_sub_type,
@@ -543,7 +721,11 @@ if is_ai_mode:
         except Exception as e:
             st.error(f"AI一键测算触发失败：{e}")
     if st.button("♻️ 清空AI结果并重新填写", use_container_width=True):
-        for k in ["ai_mode_ready", "ai_calc_trigger", "ai_msg", "ai_params", "ai_base"]:
+        for k in [
+        "ai_mode_ready", "ai_calc_trigger", "ai_msg", "ai_params", "ai_base",
+        "ai_core_input", "ai_similar_projects", "ai_similar_project_names",
+        "ai_result_context", "ai_chat_messages"
+        ]:
             if k in st.session_state:
                 del st.session_state[k]
         st.rerun()
@@ -640,8 +822,7 @@ if is_ai_mode:
 
     st.success("AI参数已生成完成")
     st.caption(st.session_state.get("ai_msg", ""))
-    st.write("DEBUG: AI回填完成，准备进入统一测算逻辑")
-    st.write("DEBUG project_type =", project_type)
+    st.success("AI参数已生成并回填完成，正在进入统一测算流程。")
 
 # ===================== 【普通模式：原来的完整手动输入界面】 =====================
 else:
@@ -2010,8 +2191,54 @@ if calc_button:
             for idx, metric_name in enumerate(current_config["show_metrics"]):
                 cols[idx].metric(metric_name, extra_metrics.get(metric_name, "-"))
             st.markdown("---")
-       # ===================== 【最小新增】项目类型特殊计算与指标展示（插在测算完成后、结果展示前）=====================
-        
+        # ===================== 【最小新增】项目类型特殊计算与指标展示（插在测算完成后、结果展示前）=====================
+
+
+        # ===================== AI模式专属：测算说明 + 补参说明 =====================
+        if st.session_state.get("ai_mode_ready", False):
+            ai_core_input = st.session_state.get("ai_core_input", {})
+            ai_params_state = st.session_state.get("ai_params", {})
+            ai_similar_projects = st.session_state.get("ai_similar_projects", [])
+            ai_similar_project_names = st.session_state.get("ai_similar_project_names", [])
+
+            ai_summary_text = build_ai_summary_text(
+                core_input=ai_core_input,
+                project_type=project_type,
+                total_income=total_income,
+                total_cost=total_cost,
+                total_net_profit=total_net_profit,
+                irr_value=irr_value,
+                total_npv_sum=total_npv_sum,
+                similar_projects=ai_similar_projects
+            )
+
+            st.subheader("🧠 AI测算说明")
+            st.info(ai_summary_text)
+
+            with st.expander("📌 查看AI补齐参数明细", expanded=False):
+                assumption_df = build_ai_assumption_table(
+                    core_input=ai_core_input,
+                    ai_params=ai_params_state,
+                    similar_projects=ai_similar_projects
+                )
+                st.dataframe(assumption_df, use_container_width=True)
+
+            # 存聊天上下文
+            st.session_state["ai_result_context"] = {
+                "project_type": project_type,
+                "sub_type": ai_core_input.get("项目子类型", ""),
+                "total_build_area": ai_core_input.get("总建筑面积", 0),
+                "total_investment": ai_core_input.get("总投资", 0),
+                "sale_price": ai_core_input.get("售价", 0),
+                "rent_price": ai_core_input.get("租金", 0),
+                "similar_project_names": ai_similar_project_names,
+                "total_income": total_income,
+                "total_cost": total_cost,
+                "total_net_profit": total_net_profit,
+                "total_npv_sum": total_npv_sum,
+                "irr_value": irr_value,
+                "interest_coverage_ratio": interest_coverage_ratio
+            }
         # 8. 页面结果展示
         st.header("📊 测算结果")
         st.markdown("---")
@@ -2190,6 +2417,10 @@ if calc_button:
             mime="text/csv",
             use_container_width=True
         )
+        # ===================== AI模式专属：结果问答 =====================
+        if st.session_state.get("ai_mode_ready", False):
+            st.markdown("---")
+            render_ai_chat_panel()
     except Exception as e:
         st.error(f"测算过程报错：{e}")
         st.exception(e)
