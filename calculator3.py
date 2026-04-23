@@ -544,57 +544,40 @@ def call_external_llm_for_chat(messages, context_text):
     返回字符串；失败时返回None，自动回退到本地规则回答
     """
     if Anthropic is None:
+        set_llm_debug_status(False, "未安装 anthropic SDK，请先执行：pip install anthropic")
         return None
 
     try:
         client = Anthropic()
 
-        # 只保留最近几轮，避免上下文过长
         recent_messages = messages[-8:] if messages else []
 
-        # 转成 Anthropic messages 格式
         llm_messages = []
         for msg in recent_messages:
             role = msg.get("role", "user")
             content = str(msg.get("content", "")).strip()
             if not content:
                 continue
-
             if role not in ["user", "assistant"]:
                 role = "user"
-
             llm_messages.append({
                 "role": role,
                 "content": content
             })
 
         system_prompt = f"""
-你是一个“安居房/保障房项目财务测算分析助手”。
+你是一个安居房/保障房项目财务测算分析助手。
 
 你的任务：
-1. 基于用户当前项目的测算结果，回答用户问题。
-2. 优先解释这些内容：
-   - IRR为什么偏低或为负
-   - 净现值为什么为负
-   - 利息保障倍数是否异常
-   - 收入、成本、利润、现金流的关系
-   - 优化建议
-3. 回答必须紧扣给定测算上下文，不要虚构不存在的数据。
-4. 如果用户问“怎么优化”，优先从以下角度回答：
-   - 售价/租金提升
-   - 出租率提升
-   - 车位收入提升
-   - 总投资压降
-   - 土地/建安/基础设施费优化
-   - 借款规模、期限、利率优化
-5. 如果用户问“异常指标解释”，要先指出异常，再解释原因，再给建议。
-6. 语气专业、简洁、像项目测算顾问，不要太口语化。
-7. 不要编造“重新测算后的精确数值”，除非上下文明确给出；只能给方向性建议。
+1. 基于用户当前项目的测算结果回答问题；
+2. 优先解释IRR、净现值、利润、成本、现金流、异常指标和优化建议；
+3. 不能虚构上下文中不存在的数据；
+4. 回答简洁、专业、像财务测算顾问。
 
-以下是当前项目的测算上下文：
+当前项目测算上下文如下：
 {context_text}
 """.strip()
-        st.info("正在调用大模型回答...")
+
         resp = client.messages.create(
             model="claude-opus-4-6",
             max_tokens=1200,
@@ -609,13 +592,17 @@ def call_external_llm_for_chat(messages, context_text):
                 text = getattr(block, "text", "")
                 if text:
                     parts.append(text)
-            final_text = "\n".join(parts).strip()
-            return final_text if final_text else None
 
+            final_text = "\n".join(parts).strip()
+            if final_text:
+                set_llm_debug_status(True, "大模型调用成功")
+                return final_text
+
+        set_llm_debug_status(False, "大模型返回为空")
         return None
 
     except Exception as e:
-        st.warning(f"大模型接口调用失败，已切换本地回答：{e}")
+        set_llm_debug_status(False, f"大模型调用失败：{type(e).__name__}: {e}")
         return None
 
 
@@ -624,6 +611,13 @@ def render_ai_chat_panel():
     渲染AI对话面板
     """
     st.subheader("💬 AI测算问答")
+    debug_status = get_llm_debug_status()
+    if debug_status["ok"] is True:
+        st.caption(f"✅ {debug_status['message']}")
+    elif debug_status["ok"] is False:
+        st.caption(f"❌ {debug_status['message']}")
+    else:
+        st.caption("ℹ️ 当前尚未发起大模型调用")
     if Anthropic is None:
         st.caption("当前未检测到大模型SDK，问答将使用本地规则回答。")
     else:
@@ -735,6 +729,16 @@ def get_ai_result_snapshot():
 
 def has_ai_result_snapshot():
     return st.session_state.get("ai_result_ready", False)
+
+def set_llm_debug_status(ok, message):
+    st.session_state["llm_debug_ok"] = ok
+    st.session_state["llm_debug_message"] = message
+
+def get_llm_debug_status():
+    return {
+        "ok": st.session_state.get("llm_debug_ok", None),
+        "message": st.session_state.get("llm_debug_message", "尚未调用大模型")
+    }
 
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
