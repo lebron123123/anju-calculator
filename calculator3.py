@@ -487,56 +487,61 @@ if is_ai_mode:
         discount_rate = st.number_input("折现率（%）", value=8.0)
 
     if st.button("🤖 AI一键测算", type="primary", use_container_width=True):
-        with st.spinner("正在匹配历史项目并自动补参..."):
-            history_df = load_builtin_history_projects()
+        try:
+            with st.spinner("正在匹配历史项目并自动补参..."):
+                history_df = load_builtin_history_projects()
 
-            build_years_ai = list(range(int(build_start), int(build_end) + 1))
-            operate_years_ai = list(range(int(operate_start), int(operate_end) + 1))
+                build_years_ai = list(range(int(build_start), int(build_end) + 1))
+                operate_years_ai = list(range(int(operate_start), int(operate_end) + 1))
 
-            core_input = {
-                "项目子类型": ai_sub_type,
-                "总建筑面积": total_build_area,
-                "总投资": total_investment,
-                "运营期年份": operate_years_ai,
-                "售价": sale_avg_price,
-                "租金": resi_rent_start
-            }
+                core_input = {
+                    "项目子类型": ai_sub_type,
+                    "总建筑面积": total_build_area,
+                    "总投资": total_investment,
+                    "运营期年份": operate_years_ai,
+                    "售价": sale_avg_price,
+                    "租金": resi_rent_start
+                }
 
-            ai_params, ai_msg = ai_fill_indicators(core_input, history_df)
+                ai_params, ai_msg = ai_fill_indicators(core_input, history_df)
 
-            # 根据子类型映射成你原代码真正要识别的项目类型
-            subtype_to_project_type = {
-                "出售类": "出售类(配保房/可售型人才房等)",
-                "出租类": "出租型(协议出让/合作类等)",
-                "租售结合类": "租售结合类"
-            }
+                subtype_to_project_type = {
+                    "出售类": "出售类(配保房/可售型人才房等)",
+                    "出租类": "出租型(协议出让/合作类等)",
+                    "租售结合类": "租售结合类"
+                }
 
-            show_resi = ai_sub_type in ["出租类", "租售结合类"]
-            show_comm = True
-            show_park = True
+                show_resi = ai_sub_type in ["出租类", "租售结合类"]
+                show_comm = True
+                show_park = True
 
-            st.session_state["ai_mode_ready"] = True
-            st.session_state["ai_calc_trigger"] = True
-            st.session_state["ai_msg"] = ai_msg
-            st.session_state["ai_params"] = ai_params
-            st.session_state["ai_base"] = {
-                "project_type": subtype_to_project_type[ai_sub_type],
-                "ai_sub_type": ai_sub_type,
-                "total_build_area": total_build_area,
-                "total_investment": total_investment,
-                "build_years": build_years_ai,
-                "operate_years": operate_years_ai,
-                "operate_start": int(operate_start),
-                "operate_end": int(operate_end),
-                "sale_avg_price": sale_avg_price,
-                "resi_rent_start": resi_rent_start,
-                "loan_annual_rate": loan_annual_rate,
-                "discount_rate": discount_rate,
-                "show_resi": show_resi,
-                "show_comm": show_comm,
-                "show_park": show_park
-            }
-            st.rerun()
+                st.session_state["ai_mode_ready"] = True
+                st.session_state["ai_calc_trigger"] = True
+                st.session_state["ai_msg"] = ai_msg
+                st.session_state["ai_params"] = ai_params
+                st.session_state["ai_base"] = {
+                    "project_type": subtype_to_project_type[ai_sub_type],
+                    "ai_sub_type": ai_sub_type,
+                    "total_build_area": total_build_area,
+                    "total_investment": total_investment,
+                    "build_years": build_years_ai,
+                    "operate_years": operate_years_ai,
+                    "operate_start": int(operate_start),
+                    "operate_end": int(operate_end),
+                    "sale_avg_price": sale_avg_price,
+                    "resi_rent_start": resi_rent_start,
+                    "loan_annual_rate": loan_annual_rate,
+                    "discount_rate": discount_rate,
+                    "show_resi": show_resi,
+                    "show_comm": show_comm,
+                    "show_park": show_park
+                }
+
+                st.session_state["debug_ai_clicked"] = True
+                st.session_state["debug_ai_time"] = datetime.now().strftime("%H:%M:%S")
+                st.rerun()
+    except Exception as e:
+        st.error(f"AI一键测算触发失败：{e}")
     if st.button("♻️ 清空AI结果并重新填写", use_container_width=True):
         for k in ["ai_mode_ready", "ai_calc_trigger", "ai_msg", "ai_params", "ai_base"]:
             if k in st.session_state:
@@ -614,6 +619,9 @@ if is_ai_mode:
     house_type = "公租房"
     lease_months = 12
     loan_total_years = 25
+    first_repay_ratio = 3.0
+    repay_increase_rate = 4.5
+    land_area = total_build_area // 3
     residential_decoration_cost = total_build_area * 800 / 10000
     other_eng_cost = construction_cost * 0.05
     project_input_tax = construction_cost * 0.09
@@ -632,6 +640,8 @@ if is_ai_mode:
 
     st.success("AI参数已生成完成")
     st.caption(st.session_state.get("ai_msg", ""))
+    st.write("DEBUG: AI回填完成，准备进入统一测算逻辑")
+    st.write("DEBUG project_type =", project_type)
 
 # ===================== 【普通模式：原来的完整手动输入界面】 =====================
 else:
@@ -1488,470 +1498,290 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=Fal
 
 # ===================== 结果展示区 =====================
 if calc_button:
-    st.session_state["ai_calc_trigger"] = False
-    # 前置校验，避免参数缺失报错
-    show_resi = st.session_state.get("show_resi", True) #不设置这个就会报错
-    if not operate_years: st.error("❌ 请先在「1. 项目基本信息」中设置运营期年份！"); st.stop()
-    if  show_resi and not occupancy_ramp_dict: st.error("❌ 请先设置住宅爬坡期年份及对应出租率！"); st.stop() #加双重认证，防止跳过住宅就无法输出
-    if stable_start > stable_end: st.error("❌ 住宅稳定期起始年不能晚于结束年！"); st.stop()
-    if not loan_plan_dict: st.warning("⚠️ 未设置银行借款计划，财务费用将为0")
+    try:
+        st.session_state["ai_calc_trigger"] = False
+        # 前置校验，避免参数缺失报错
+        show_resi = st.session_state.get("show_resi", True) #不设置这个就会报错
+        if not operate_years: st.error("❌ 请先在「1. 项目基本信息」中设置运营期年份！"); st.stop()
+        if  show_resi and not occupancy_ramp_dict: st.error("❌ 请先设置住宅爬坡期年份及对应出租率！"); st.stop() #加双重认证，防止跳过住宅就无法输出
+        if stable_start > stable_end: st.error("❌ 住宅稳定期起始年不能晚于结束年！"); st.stop()
+        if not loan_plan_dict: st.warning("⚠️ 未设置银行借款计划，财务费用将为0")
+        
+        # 1. 基础年份数据生成
+        all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
+        operate_start_year = operate_years[0]  # 运营期起始年，用于还款判断
+        # ========== 【新增1行，仅此改动】定义operate_year_list，修复未定义报错 ==========
+        operate_year_list = [y for y in all_years if is_operate[y]]
     
-    # 1. 基础年份数据生成
-    all_years, month_dict, is_operate = generate_year_list(build_years, operate_years)
-    operate_start_year = operate_years[0]  # 运营期起始年，用于还款判断
-    # ========== 【新增1行，仅此改动】定义operate_year_list，修复未定义报错 ==========
-    operate_year_list = [y for y in all_years if is_operate[y]]
-
-    show_park = st.session_state.get("show_park", True)
-    if not show_park: #防止不选车位后报错
-        park_count = 0
-        park_rent_start_price = 0
-        park_income_ratio = 0
-        park_occupancy_ramp_dict = {}
-        park_stable_start = 0
-        park_stable_end = 0
-        park_occupancy_stable = 0
-    
-    # 2. 收入测算（原有逻辑完全不变）
-    income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = calc_income(
-        all_years, month_dict, is_operate,
-        residential_area, rent_start_price,
-        rent_increase_span, rent_increase_rate,
-        occupancy_ramp_dict, stable_start, stable_end, occupancy_stable,
-        park_count, park_rent_start_price, park_income_ratio,
-        park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable,
-        other_income_name, other_income_total
-    )
-    # ===================== 【仅改参数·100%复用】出售类新增收入项 ======================
-    if "sale_and_commercial" in PROJECT_CONFIG[project_type].get("ui_components", []):
-        # 1. 商业出租：完全复用calc_income函数，传入商业专属参数，零重复代码
-        comm_income_df, _, _, _, _ = calc_income(
+        show_park = st.session_state.get("show_park", True)
+        if not show_park: #防止不选车位后报错
+            park_count = 0
+            park_rent_start_price = 0
+            park_income_ratio = 0
+            park_occupancy_ramp_dict = {}
+            park_stable_start = 0
+            park_stable_end = 0
+            park_occupancy_stable = 0
+        
+        # 2. 收入测算（原有逻辑完全不变）
+        income_df, resi_occupancy, resi_rent_price, park_occupancy, park_rent_price = calc_income(
             all_years, month_dict, is_operate,
-            comm_area, comm_rent_start_price,
-            comm_rent_increase_span, comm_rent_increase_rate,
-            comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable,
-            0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
-         )
-        income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
-        #不加下面的这部分 就会报错(出租净收益现值)
-        rental_cost_df = calc_rental_operation_table(
-            all_years=all_years,
-            is_operate=is_operate,
-            operate_year_list=operate_year_list,
-            comm_area=comm_area,
-            comm_rent_start_price=comm_rent_start_price,
-            comm_rent_increase_span=comm_rent_increase_span,
-            comm_rent_increase_rate=comm_rent_increase_rate,
-            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
-            comm_stable_start=comm_stable_start,
-            comm_stable_end=comm_stable_end,
-            comm_occupancy_stable=comm_occupancy_stable,
-            park_count=park_count,
-            land_cost=land_cost,
-            construction_cost=construction_cost,
-            infra_cost=infra_cost,
-            other_eng_cost=other_eng_cost,
-            lease_months=lease_months if 'lease_months' in locals() else 12,
-            land_use_area=land_use_area,
-            project_input_tax=project_input_tax,
-            comm_custom_increase_list=comm_custom_increase_list,
+            residential_area, rent_start_price,
+            rent_increase_span, rent_increase_rate,
+            occupancy_ramp_dict, stable_start, stable_end, occupancy_stable,
+            park_count, park_rent_start_price, park_income_ratio,
+            park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable,
+            other_income_name, other_income_total
         )
-        # 【核心】顺便把现值赋给 income_df()
-        income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
-        #2.配保房销售逻辑
-        for year in all_years:
-            sale_rate = sale_ramp_dict.get(year, 0.0)  # 只有你选的销售年份有销售率，其他年份0
-            income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
-        
-        # 3. 更新总收入：原有逻辑完全不动
-        #income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df[f"{other_income_name}(万元)"]+ income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] +income_df["出租净收益现值(万元)"] +income_df["总收入(万元)"] 
-    
-    # 3. 经营成本测算
-    park_income_dict = income_df["车位收入(万元)"].to_dict()
-    operating_cost_df = calc_operating_cost(
-        all_years, month_dict, is_operate,
-        residential_area, resi_occupancy, resi_rent_price,
-        park_income_dict, total_build_area, manage_coeff,
-        residential_decoration_cost, house_type, total_investment, operate_years
-    )
-    
-    # 4. 还本付息与财务费用测算（完全基于配置）
-    current_config = PROJECT_CONFIG[project_type]
-    loan_df, financial_cost_dict = calc_loan_repayment(
-        all_years, operate_start_year,
-        loan_plan_dict, loan_annual_rate,
-        first_repay_ratio, repay_increase_rate, loan_total_years,
-        custom_repay_plan=repay_plan_dict,
-        project_config=current_config
-    )
-    
-    # 4.5 新增：税金及其附加测算
-    tax_df = calc_taxes(
-        all_years, month_dict, is_operate,
-        income_df, resi_occupancy, operate_years,
-        land_area, construction_cost
-    )
-    
-    # 5. 生成总成本费用表（经营成本+财务费用，不含税金）
-    total_cost_df = operating_cost_df.copy()
-    build_year_set, operate_year_set = set(build_years), set(operate_years)
-    total_cost_df["财务费用(建设期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in build_year_set else 0.0)
-    total_cost_df["财务费用(运营期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in operate_year_set else 0.0)
-    total_cost_df["税金及其附加总和(万元)"] = tax_df["税金及其附加总和(万元)"]
-    # 总成本费用：仅含经营成本+运营期财务费用，不含税金、不含建设期财务费用
-    total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
-
-    # ===================== 【最小新增】出售类专属总成本费用表重写 =====================
-    if project_type == "出售类(配保房/可售型人才房等)":
-        # 初始化出售类总成本表，index和原有表完全一致
-        sale_cost_df = pd.DataFrame(index=all_years)
-        # 基础参数预计算（一行搞定，防除0）
-        area_total = sale_area + comm_area
-        area_ratio_sale = sale_area / area_total if area_total != 0 else 0.0
-        area_ratio_comm = 1 - area_ratio_sale
-        land_deduct_total = sale_area * land_floor_price / 10000  # 地价抵减总额（转万元）
-        non_sale_dev_cost = land_cost + dev_cost  # 非配售开发成本=土地成本费+开发成本费
-        build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
-        total_sale_income_all = income_df["配保房销售收入(万元)"].sum()
-         # 销售部分全周期合计(总投资-建设期财务费用×销售面积比-配保房收入×1.5%)
-        # 【新增1行】全周期销售费用合计（固定值）
-        total_sale_fee_all = total_sale_income_all * 0.015
-        total_dev_cost_sale_base = total_investment - build_fin_total * area_ratio_sale-total_sale_income_all * 0.015
-         # 折旧摊销部分全周期合计
-        total_dev_cost_dep_base = (non_sale_dev_cost - build_fin_total * area_ratio_comm) * 0.8
-        
-        
-        # 预计算累计值变量
-        cum_output_vat = 0.0
-        cum_input_vat = 0.0
-        cum_vat_total = 0.0
-        cum_vat_surcharge_total = 0.0
-        
-        # 按年份循环计算所有指标（一行公式，严格匹配你的要求）
-        for year in all_years:
-            # 1. 基础当年值
-            sale_income_year = income_df.loc[year, "配保房销售收入(万元)"]
-            sale_rate_year = sale_ramp_dict.get(year, 0.0)
-            # 【新增1行】取当年其他收入
-            other_income_year = income_df.loc[year, f"{other_income_name}(万元)"]
-            # 2. 销售费用=当年配保房销售收入×1.5%
-            sale_fee_year = sale_income_year * 0.015
-            # 3. 增值税销项税=(当年销售款-地价抵减总额×当年销售率)×9%/(1+9%)
-            output_vat_year = (sale_income_year + other_income_year - land_deduct_total * sale_rate_year) * (0.09 / 1.09) if sale_income_year > 0 else 0.0
-            # 4. 增值税进项税（修正公式笔误，一行搞定）
-            input_vat_6 = (other_eng_cost /area_ratio_comm + total_sale_fee_all) * sale_rate_year * (0.06 / 1.06)
-            input_vat_9 = (sale_construction_cost + sale_infra_cost+construction_cost + infra_cost) * sale_rate_year * (0.09 / 1.09)
-            input_vat_year = input_vat_6 + input_vat_9
-            # 5. 累计值计算
-            cum_output_vat += output_vat_year
-            cum_input_vat += input_vat_year
-            vat_year = max(cum_output_vat - cum_input_vat - cum_vat_total, 0.0)
-            cum_vat_total += vat_year
-            vat_surcharge_year = vat_year * 0.12
-            cum_vat_surcharge_total += vat_surcharge_year
-            # 6. 印花税=当期销售款×印花税率/(1+9%)
-            stamp_year = sale_income_year * stamp_tax_rate / 1.09 if sale_income_year > 0 else 0.0
-            # 7. 销售税金及其附加=增值税+增值税附加+印花税
-            sale_tax_total_year = vat_year + vat_surcharge_year + stamp_year
-            # 8. 当年开发成本（销售部分）= 全周期合计基数 × 当年销售率
-            dev_cost_sale_year = total_dev_cost_sale_base * sale_rate_year
-            # 9. 当年开发成本（折旧摊销部分）= 全周期合计基数 × 当年销售率
-            dev_cost_dep_year = total_dev_cost_dep_base * sale_rate_year
-
-            # 当年地价款抵减额（匹配销售率）
-            land_deduct_year = land_deduct_total * sale_rate_year
-            # 填入表格（和原有财务费用、总成本列完全对齐）
-            sale_cost_df.loc[year, "累计开发成本（销售部分）(万元)"] = round(dev_cost_sale_year, 4)
-            sale_cost_df.loc[year, "累计开发成本（折旧摊销部分）(万元)"] = round(dev_cost_dep_year, 4)
-            sale_cost_df.loc[year, "销售费用(万元)"] = round(sale_fee_year, 4)
-            sale_cost_df.loc[year, "销售税金及其附加(万元)"] = round(sale_tax_total_year, 4)
-            # 新增税金核对行（复用循环内已计算的变量，无额外计算）
-            sale_cost_df.loc[year, "增值税(万元)"] = round(vat_year, 4)
-            sale_cost_df.loc[year, "增值税销项税额(万元)"] = round(output_vat_year, 4)
-            sale_cost_df.loc[year, "增值税进项税额(万元)"] = round(input_vat_year, 4)
-            sale_cost_df.loc[year, "地价款抵减(万元)"] = round(land_deduct_year, 4)
-            sale_cost_df.loc[year, "增值税附加(万元)"] = round(vat_surcharge_year, 4)
-            sale_cost_df.loc[year, "财务费用(建设期)(万元)"] = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
-            sale_cost_df.loc[year, "财务费用(运营期)(万元)"] = total_cost_df.loc[year, "财务费用(运营期)(万元)"]
-            # 总成本费用=开发成本销售部分+开发成本折旧摊部分+销售费用+销售税金+运营期财务费用
-            total_cost_year = dev_cost_sale_year + dev_cost_dep_year + sale_fee_year + sale_tax_total_year + total_cost_df.loc[year, "财务费用(建设期)(万元)"]+total_cost_df.loc[year, "财务费用(运营期)(万元)"]
-            sale_cost_df.loc[year, "总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_year, 4)
-        
-        # 替换原有总成本表，仅出售类生效
-        total_cost_df = sale_cost_df
-    # ===================== 出售类总成本表重写结束 =====================
-    # 【关键：统一计算最终正确的总收入，确保损益表和收入明细表用的是同一套数据】
-    if project_type == "出售类(配保房/可售型人才房等)":
-        # 先把出租净收益现值同步到收入表
-        income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
-        # 重新计算最终总收入，和收入明细表的公式完全一致，无重复累加
-        income_df["总收入(万元)"] = (income_df["配保房销售收入(万元)"]  + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"] )
-    # 提前计算损益表，用于核心指标的净利润
-    is_sale = (project_type == "出售类(配保房/可售型人才房等)")
-    profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=is_sale)
-
-    # ===================== 新增：全投资现金流量表计算 =====================
-    cf_df = pd.DataFrame(index=all_years)
-    # 1. 现金流入：直接调用现成的总收入
-    cf_df["现金流入(万元)"] = income_df["总收入(万元)"]
-
-    # 现金流入：先按项目类型拆分明细，再汇总
-    if project_type == "出售类(配保房/可售型人才房等)":
-        # 1. 先定义各项明细
-        cf_df["配保房销售收入(万元)"] = income_df["配保房销售收入(万元)"] if "配保房销售收入(万元)" in income_df.columns else 0
-        cf_df["其他收入(万元)"] = income_df[f"{other_income_name}(万元)"] if f"{other_income_name}(万元)" in income_df.columns else 0
-        cf_df["商业出租收入(万元)"] = income_df["商业出租收入(万元)"] if "商业出租收入(万元)" in income_df.columns else 0
-        #cf_df["商业出租收入(万元)"] = rental_cost_df.get("商业出租收入(万元)", 0.0).astype(float)
-        # 回收固定资产余值（公式不变，先设为0，再给最后一行赋值）
-        area_total = sale_area + comm_area
-        comm_ratio = comm_area / area_total if area_total != 0 else 0
-        recover_fixed = (land_cost + dev_cost - total_cost_df["财务费用(建设期)(万元)"].sum() * comm_ratio) * 0.2
-        cf_df["回收固定资产余值(万元)"] = 0.0
-        operate_first_year = operate_years[0]  # 👈 改这里：[-1]→[0]，取运营期第一年
-        if operate_first_year in cf_df.index:
-            cf_df.loc[operate_first_year, "回收固定资产余值(万元)"] = recover_fixed  # 👈 改这里：变量名对应
-    
-        # 2. 关键：现金流入 = 四项之和（解决合计为/的问题）
-        cf_df["现金流入(万元)"] = (cf_df["配保房销售收入(万元)"] + cf_df["其他收入(万元)"] + cf_df["商业出租收入(万元)"] + cf_df["回收固定资产余值(万元)"])
-
-        # 🔥 【仅新增这一段：出售类专属现金流出，其他全不动】
-        area_total = sale_area + comm_area
-        dev_cost_base = total_investment * (sale_area / area_total) if area_total != 0 else 0.0
-        # 初始化新列
-        cf_df[["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = 0.0
-        
-        # 合计计算：严格按你给的公式
-        for year in all_years:
-            # 一行提取所有现成数据
-            sale_fee, sale_tax = total_cost_df.loc[year, ["销售费用(万元)", "销售税金及其附加(万元)"]]
-            rent_tax = rental_cost_df.loc[year, "出租经营税金合计(万元)"] if year in rental_cost_df.index else 0.0
-            rent_cost = rental_cost_df.loc[year, "出租营运成本合计(万元)"] if year in rental_cost_df.index else 0.0
-            build_fin_fee = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
-            dev_cost_sale, dev_cost_dep = total_cost_df.loc[year, ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)"]]
-
-            dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
-             
-            # 年度值统一填/，不做逐年计算，仅合计行生效
-            cf_df["开发成本投资(万元)"] = float('nan')
+        # ===================== 【仅改参数·100%复用】出售类新增收入项 ======================
+        if "sale_and_commercial" in PROJECT_CONFIG[project_type].get("ui_components", []):
+            # 1. 商业出租：完全复用calc_income函数，传入商业专属参数，零重复代码
+            comm_income_df, _, _, _, _ = calc_income(
+                all_years, month_dict, is_operate,
+                comm_area, comm_rent_start_price,
+                comm_rent_increase_span, comm_rent_increase_rate,
+                comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable,
+                0, 0, 0, {}, 0, 0, 0, "无", 0  # 车位、其他收入全传0，仅计算商业租金
+             )
+            income_df["商业出租收入(万元)"] = comm_income_df["住宅租金收入(万元)"]
+            #不加下面的这部分 就会报错(出租净收益现值)
+            rental_cost_df = calc_rental_operation_table(
+                all_years=all_years,
+                is_operate=is_operate,
+                operate_year_list=operate_year_list,
+                comm_area=comm_area,
+                comm_rent_start_price=comm_rent_start_price,
+                comm_rent_increase_span=comm_rent_increase_span,
+                comm_rent_increase_rate=comm_rent_increase_rate,
+                comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
+                comm_stable_start=comm_stable_start,
+                comm_stable_end=comm_stable_end,
+                comm_occupancy_stable=comm_occupancy_stable,
+                park_count=park_count,
+                land_cost=land_cost,
+                construction_cost=construction_cost,
+                infra_cost=infra_cost,
+                other_eng_cost=other_eng_cost,
+                lease_months=lease_months if 'lease_months' in locals() else 12,
+                land_use_area=land_use_area,
+                project_input_tax=project_input_tax,
+                comm_custom_increase_list=comm_custom_increase_list,
+            )
+            # 【核心】顺便把现值赋给 income_df()
+            income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+            #2.配保房销售逻辑
+            for year in all_years:
+                sale_rate = sale_ramp_dict.get(year, 0.0)  # 只有你选的销售年份有销售率，其他年份0
+                income_df.loc[year, "配保房销售收入(万元)"] = round(sale_area * sale_avg_price * sale_rate / 10000, 4) if is_operate[year] else 0
             
-            # 一行计算调整所得税（负数自动取0）
-            adjust_tax = max( (cf_df.loc[year, "现金流入(万元)"] - cf_df.loc[year, "回收固定资产余值(万元)"] - (dev_cost_sale + dev_cost_dep + sale_fee + sale_tax + rent_cost + rent_tax)) * 0.25, 0.0 )
+            # 3. 更新总收入：原有逻辑完全不动
+            #income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df[f"{other_income_name}(万元)"]+ income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] +income_df["出租净收益现值(万元)"] +income_df["总收入(万元)"] 
         
-            # 一行填入所有数值
-             # 🔥 修复2：年度开发成本投资 = 0（不参与年度计算，仅合计有数）
-            cf_df.loc[year, ["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [round(dev_cost_total,4), round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
-            # 🔥 修复3：年度现金流出合计 = 仅费用+税，不加开发成本
-            cf_df.loc[year, "现金流出合计(万元)"] = round( dev_cost_sale + sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
-            cf_df = cf_df.reindex(columns=["现金流入(万元)","配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)", "现金流出合计(万元)", "开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"])
-    else:
-        # 其他类型保持原来的逻辑不变
-        cf_df["现金流入(万元)"] = income_df["总收入(万元)"]
-
-    # 2. 现金流出：全调用现成表数据，按你的公式汇总
-    # 2. 现金流出：全调用现成表数据，按你的公式汇总
-    if project_type != "出售类(配保房/可售型人才房等)": 
-        for year in all_years:
-            build_invest = invest_plan_dict.get(year, 0.0)
-            tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
-            # 【最小修复】用get方法兜底，出售类无对应列自动返回0，不触发KeyError
-            manage_total = total_cost_df.loc[year, :].get("管理费用(住房)(万元)", 0) + total_cost_df.loc[year, :].get("管理费用(停车位)(万元)", 0)
-            vacancy_fee = total_cost_df.loc[year, :].get("空置期物业管理费(万元)", 0)
-            repair_fee = total_cost_df.loc[year, :].get("维修费用(万元)", 0)
-            insurance_fee = total_cost_df.loc[year, :].get("保险费(万元)", 0)
-            decoration_reset = total_cost_df.loc[year, :].get("装修重置费(万元)", 0)
-            maintain_fund = total_cost_df.loc[year, :].get("日常物业维修基金(万元)", 0)
-            income_tax = profit_df.loc[year, "所得税(万元)"]
-        
-            # 现金流出合计
-            cash_out_total = build_invest + tax_total + manage_total + vacancy_fee + repair_fee + insurance_fee + decoration_reset + maintain_fund + income_tax
-            cf_df.loc[year, "建设投资(万元)"] = round(build_invest, 4)
-            cf_df.loc[year, "现金流出合计(万元)"] = round(cash_out_total, 4)
-
-    # 3. 净现金流量
-    cf_df["净现金流量(万元)"] = round(cf_df["现金流入(万元)"] - cf_df["现金流出合计(万元)"], 4)
-
-    # 4. 累计净现金流量
-    cum_cf_list = []
-    last_cum_cf = 0
-    for year in all_years:
-        current_cum = cf_df.loc[year, "净现金流量(万元)"] + last_cum_cf
-        cum_cf_list.append(current_cum)
-        last_cum_cf = current_cum
-    cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
-
-    # 5. 净现值（严格按你给的公式计算）
-    discount_rate_decimal = discount_rate / 100
-    npv_list = []
-    for idx, year in enumerate(all_years):
-        n = idx + 1  # 从建设期开始的第n年，从1开始计数
-        discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
-        current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
-        npv_list.append(current_npv)
-    cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
-
-    # 6. 累计净现值
-    cum_npv_list = []
-    last_cum_npv = 0
-    for year in all_years:
-        current_cum_npv = cf_df.loc[year, "净现值(万元)"] + last_cum_npv
-        cum_npv_list.append(current_cum_npv)
-        last_cum_npv = current_cum_npv
-    cf_df["累计净现值(万元)"] = round(pd.Series(cum_npv_list, index=all_years), 4)
-  
-    # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
-    # --- 收入表处理 ---
-    income_df_T = income_df.T
-   # 【最小改动：仅加if判断，分项目类型处理】
-    if project_type == "出售类(配保房/可售型人才房等)":
-     # 仅出售类：配保房+商业+住宅的顺序，且都算合计
-        # 仅出售类：配保房+商业+住宅的顺序，且都算合计
-        income_sum_rows = ["配保房销售收入(万元)", "住宅租金收入(万元)", "出租净收益现值(万元)", "车位收入(万元)", f"{other_income_name}(万元)","总收入(万元)"]
-        income_df_T["全周期合计(万元)"] = income_df_T.apply(
-        lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
+        # 3. 经营成本测算
+        park_income_dict = income_df["车位收入(万元)"].to_dict()
+        operating_cost_df = calc_operating_cost(
+            all_years, month_dict, is_operate,
+            residential_area, resi_occupancy, resi_rent_price,
+            park_income_dict, total_build_area, manage_coeff,
+            residential_decoration_cost, house_type, total_investment, operate_years
         )
-        # 仅出售类：调整行顺序
-        income_df_T = income_df_T.reindex(income_sum_rows + [idx for idx in income_df_T.index if idx not in income_sum_rows])
-    else:
-    # 出租型：完全保持你原来的逻辑，一丝不动
-        income_sum_rows = ["住宅租金收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
-        income_df_T["全周期合计(万元)"] = income_df_T.apply(
-            lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
-    )
-    income_df_T = income_df_T[ ["全周期合计(万元)"] + [col for col in income_df_T.columns if col != "全周期合计(万元)"] ]
-    income_df_T = income_df_T.fillna("/")
-
-     # --- 总成本费用表处理 ---
-    cost_df_T = total_cost_df.T
-    if project_type == "出售类(配保房/可售型人才房等)":
-        # 出售类：仅对数值行求和，严格匹配新的行
-        cost_sum_rows = ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)", "销售费用(万元)", "销售税金及其附加(万元)", "增值税(万元)","增值税销项税额(万元)","增值税进项税额(万元)","地价款抵减(万元)","增值税附加(万元)","财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
-    else:
-        # 出租型：完全保留原有逻辑，一丝不动
-        cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
-    #cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
-    cost_df_T["全周期合计(万元)"] = cost_df_T.apply(lambda row: round(row.sum(), 4) if row.name in cost_sum_rows else "/", axis=1)
-    cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
-
-    # --- 还本付息表处理 ---
-    loan_df_T = loan_df.T
-    loan_df_T["全周期合计(万元)"] = loan_df_T.sum(axis=1).round(4)
-    # 期初/期末借款的合计无意义，填/
-    loan_no_sum_rows = ["期初借款本金(万元)", "期末借款累计(万元)"]
-    loan_df_T.loc[:, "全周期合计(万元)"] = loan_df_T.apply(
-        lambda row: np.nan if row.name in loan_no_sum_rows else row["全周期合计(万元)"], axis=1
-    )
-    loan_df_T = loan_df_T[ ["全周期合计(万元)"] + [col for col in loan_df_T.columns if col != "全周期合计(万元)"] ]
-
-    # 7. 计算最终核心指标
-    if project_type == "出售类(配保房/可售型人才房等)":
-        total_income = round(income_df["配保房销售收入(万元)"].sum()+ income_df["出租净收益现值(万元)"].sum()+ income_df["住宅租金收入(万元)"].sum()+ income_df["车位收入(万元)"].sum()+ income_df[f"{other_income_name}(万元)"].sum(),2)
-    else:
-        total_income = round(income_df["总收入(万元)"].sum(), 2)
-    #total_income = round(income_df["总收入(万元)"].sum(), 2)
-    total_cost = round(total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"].sum(), 2)
-    total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
-    total_net_profit = round(profit_df["净利润(万元)"].sum(), 2)
+        
+        # 4. 还本付息与财务费用测算（完全基于配置）
+        current_config = PROJECT_CONFIG[project_type]
+        loan_df, financial_cost_dict = calc_loan_repayment(
+            all_years, operate_start_year,
+            loan_plan_dict, loan_annual_rate,
+            first_repay_ratio, repay_increase_rate, loan_total_years,
+            custom_repay_plan=repay_plan_dict,
+            project_config=current_config
+        )
+        
+        # 4.5 新增：税金及其附加测算
+        tax_df = calc_taxes(
+            all_years, month_dict, is_operate,
+            income_df, resi_occupancy, operate_years,
+            land_area, construction_cost
+        )
+        
+        # 5. 生成总成本费用表（经营成本+财务费用，不含税金）
+        total_cost_df = operating_cost_df.copy()
+        build_year_set, operate_year_set = set(build_years), set(operate_years)
+        total_cost_df["财务费用(建设期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in build_year_set else 0.0)
+        total_cost_df["财务费用(运营期)(万元)"] = total_cost_df.index.map(lambda y: round(financial_cost_dict.get(y, 0.0), 4) if y in operate_year_set else 0.0)
+        total_cost_df["税金及其附加总和(万元)"] = tax_df["税金及其附加总和(万元)"]
+        # 总成本费用：仅含经营成本+运营期财务费用，不含税金、不含建设期财务费用
+        total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_df["经营成本(万元)"] + total_cost_df["财务费用(运营期)(万元)"], 4)
     
-     # 新增：利息保障倍数计算（简化版：借款期从建设期第一年开始）
-    # 1. 简化判断：借款期起始年=建设期第一年，结束年=起始年+借款年限-1
-    first_loan_year = min(build_years) if build_years else min(all_years)
-    last_loan_year = first_loan_year + loan_total_years -1
-    loan_period_valid_years = [y for y in all_years if first_loan_year <= y <= last_loan_year]
+        # ===================== 【最小新增】出售类专属总成本费用表重写 =====================
+        if project_type == "出售类(配保房/可售型人才房等)":
+            # 初始化出售类总成本表，index和原有表完全一致
+            sale_cost_df = pd.DataFrame(index=all_years)
+            # 基础参数预计算（一行搞定，防除0）
+            area_total = sale_area + comm_area
+            area_ratio_sale = sale_area / area_total if area_total != 0 else 0.0
+            area_ratio_comm = 1 - area_ratio_sale
+            land_deduct_total = sale_area * land_floor_price / 10000  # 地价抵减总额（转万元）
+            non_sale_dev_cost = land_cost + dev_cost  # 非配售开发成本=土地成本费+开发成本费
+            build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
+            total_sale_income_all = income_df["配保房销售收入(万元)"].sum()
+             # 销售部分全周期合计(总投资-建设期财务费用×销售面积比-配保房收入×1.5%)
+            # 【新增1行】全周期销售费用合计（固定值）
+            total_sale_fee_all = total_sale_income_all * 0.015
+            total_dev_cost_sale_base = total_investment - build_fin_total * area_ratio_sale-total_sale_income_all * 0.015
+             # 折旧摊销部分全周期合计
+            total_dev_cost_dep_base = (non_sale_dev_cost - build_fin_total * area_ratio_comm) * 0.8
+            
+            
+            # 预计算累计值变量
+            cum_output_vat = 0.0
+            cum_input_vat = 0.0
+            cum_vat_total = 0.0
+            cum_vat_surcharge_total = 0.0
+            
+            # 按年份循环计算所有指标（一行公式，严格匹配你的要求）
+            for year in all_years:
+                # 1. 基础当年值
+                sale_income_year = income_df.loc[year, "配保房销售收入(万元)"]
+                sale_rate_year = sale_ramp_dict.get(year, 0.0)
+                # 【新增1行】取当年其他收入
+                other_income_year = income_df.loc[year, f"{other_income_name}(万元)"]
+                # 2. 销售费用=当年配保房销售收入×1.5%
+                sale_fee_year = sale_income_year * 0.015
+                # 3. 增值税销项税=(当年销售款-地价抵减总额×当年销售率)×9%/(1+9%)
+                output_vat_year = (sale_income_year + other_income_year - land_deduct_total * sale_rate_year) * (0.09 / 1.09) if sale_income_year > 0 else 0.0
+                # 4. 增值税进项税（修正公式笔误，一行搞定）
+                input_vat_6 = (other_eng_cost /area_ratio_comm + total_sale_fee_all) * sale_rate_year * (0.06 / 1.06)
+                input_vat_9 = (sale_construction_cost + sale_infra_cost+construction_cost + infra_cost) * sale_rate_year * (0.09 / 1.09)
+                input_vat_year = input_vat_6 + input_vat_9
+                # 5. 累计值计算
+                cum_output_vat += output_vat_year
+                cum_input_vat += input_vat_year
+                vat_year = max(cum_output_vat - cum_input_vat - cum_vat_total, 0.0)
+                cum_vat_total += vat_year
+                vat_surcharge_year = vat_year * 0.12
+                cum_vat_surcharge_total += vat_surcharge_year
+                # 6. 印花税=当期销售款×印花税率/(1+9%)
+                stamp_year = sale_income_year * stamp_tax_rate / 1.09 if sale_income_year > 0 else 0.0
+                # 7. 销售税金及其附加=增值税+增值税附加+印花税
+                sale_tax_total_year = vat_year + vat_surcharge_year + stamp_year
+                # 8. 当年开发成本（销售部分）= 全周期合计基数 × 当年销售率
+                dev_cost_sale_year = total_dev_cost_sale_base * sale_rate_year
+                # 9. 当年开发成本（折旧摊销部分）= 全周期合计基数 × 当年销售率
+                dev_cost_dep_year = total_dev_cost_dep_base * sale_rate_year
     
-    # 2. 提取核心数据
-    build_fin_cost = total_cost_df["财务费用(建设期)(万元)"].sum()
-    operate_fin_cost = total_cost_df["财务费用(运营期)(万元)"].sum()
-    total_fin_cost = build_fin_cost + operate_fin_cost
-    loan_period_profit = profit_df.loc[loan_period_valid_years, "利润总额(万元)"].sum()
+                # 当年地价款抵减额（匹配销售率）
+                land_deduct_year = land_deduct_total * sale_rate_year
+                # 填入表格（和原有财务费用、总成本列完全对齐）
+                sale_cost_df.loc[year, "累计开发成本（销售部分）(万元)"] = round(dev_cost_sale_year, 4)
+                sale_cost_df.loc[year, "累计开发成本（折旧摊销部分）(万元)"] = round(dev_cost_dep_year, 4)
+                sale_cost_df.loc[year, "销售费用(万元)"] = round(sale_fee_year, 4)
+                sale_cost_df.loc[year, "销售税金及其附加(万元)"] = round(sale_tax_total_year, 4)
+                # 新增税金核对行（复用循环内已计算的变量，无额外计算）
+                sale_cost_df.loc[year, "增值税(万元)"] = round(vat_year, 4)
+                sale_cost_df.loc[year, "增值税销项税额(万元)"] = round(output_vat_year, 4)
+                sale_cost_df.loc[year, "增值税进项税额(万元)"] = round(input_vat_year, 4)
+                sale_cost_df.loc[year, "地价款抵减(万元)"] = round(land_deduct_year, 4)
+                sale_cost_df.loc[year, "增值税附加(万元)"] = round(vat_surcharge_year, 4)
+                sale_cost_df.loc[year, "财务费用(建设期)(万元)"] = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
+                sale_cost_df.loc[year, "财务费用(运营期)(万元)"] = total_cost_df.loc[year, "财务费用(运营期)(万元)"]
+                # 总成本费用=开发成本销售部分+开发成本折旧摊部分+销售费用+销售税金+运营期财务费用
+                total_cost_year = dev_cost_sale_year + dev_cost_dep_year + sale_fee_year + sale_tax_total_year + total_cost_df.loc[year, "财务费用(建设期)(万元)"]+total_cost_df.loc[year, "财务费用(运营期)(万元)"]
+                sale_cost_df.loc[year, "总成本费用(不含建设期财务费用、不含税金)(万元)"] = round(total_cost_year, 4)
+            
+            # 替换原有总成本表，仅出售类生效
+            total_cost_df = sale_cost_df
+        # ===================== 出售类总成本表重写结束 =====================
+        # 【关键：统一计算最终正确的总收入，确保损益表和收入明细表用的是同一套数据】
+        if project_type == "出售类(配保房/可售型人才房等)":
+            # 先把出租净收益现值同步到收入表
+            income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+            # 重新计算最终总收入，和收入明细表的公式完全一致，无重复累加
+            income_df["总收入(万元)"] = (income_df["配保房销售收入(万元)"]  + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"] )
+        # 提前计算损益表，用于核心指标的净利润
+        is_sale = (project_type == "出售类(配保房/可售型人才房等)")
+        profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=is_sale)
     
-    # 3. 计算倍数
-    interest_coverage_ratio = round((loan_period_profit + operate_fin_cost) / total_fin_cost, 2) if total_fin_cost != 0 else 0.0
-
-    # 全投资全周期累计净现值（取最后一年的累计值，即全周期最终净现值）
-    total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
-
-        # ===================== 最终版IRR计算（已用你的2025-2095数据验证，结果准确）=====================
-    # 1. 全局NPV计算函数（和Excel公式完全一致，供IRR调用）
-    def calc_npv(rate, cash_flows):
-        npv_total = 0.0
-        for period, cf in enumerate(cash_flows):
-            npv_total += cf / ((1 + rate) ** period)
-        return npv_total
-
-    # 2. 最终版Excel IRR函数（100%对齐Excel逻辑，针对你的亏损项目优化）
-    def excel_irr_final(cash_flows, max_iter=1000, tol=1e-7):
-        # 基础校验：必须有正有负的现金流
-        has_positive = any(cf > 0 for cf in cash_flows)
-        has_negative = any(cf < 0 for cf in cash_flows)
-        if not has_positive or not has_negative:
-            return None
-
-        # 核心策略：你的项目是亏损项目（全周期现金流总和负），优先尝试-1%~-5%的负初始值（Excel优先解区间）
-        priority_guesses = [-0.01, -0.02, -0.03, -0.04, -0.05, 0.0, 0.1]
-
-        # 按优先级迭代计算，确保得到财务合理的解（避免极端值）
-        for guess in priority_guesses:
-            rate = guess
-            for _ in range(max_iter):
-                current_npv = calc_npv(rate, cash_flows)
+        # ===================== 新增：全投资现金流量表计算 =====================
+        cf_df = pd.DataFrame(index=all_years)
+        # 1. 现金流入：直接调用现成的总收入
+        cf_df["现金流入(万元)"] = income_df["总收入(万元)"]
+    
+        # 现金流入：先按项目类型拆分明细，再汇总
+        if project_type == "出售类(配保房/可售型人才房等)":
+            # 1. 先定义各项明细
+            cf_df["配保房销售收入(万元)"] = income_df["配保房销售收入(万元)"] if "配保房销售收入(万元)" in income_df.columns else 0
+            cf_df["其他收入(万元)"] = income_df[f"{other_income_name}(万元)"] if f"{other_income_name}(万元)" in income_df.columns else 0
+            cf_df["商业出租收入(万元)"] = income_df["商业出租收入(万元)"] if "商业出租收入(万元)" in income_df.columns else 0
+            #cf_df["商业出租收入(万元)"] = rental_cost_df.get("商业出租收入(万元)", 0.0).astype(float)
+            # 回收固定资产余值（公式不变，先设为0，再给最后一行赋值）
+            area_total = sale_area + comm_area
+            comm_ratio = comm_area / area_total if area_total != 0 else 0
+            recover_fixed = (land_cost + dev_cost - total_cost_df["财务费用(建设期)(万元)"].sum() * comm_ratio) * 0.2
+            cf_df["回收固定资产余值(万元)"] = 0.0
+            operate_first_year = operate_years[0]  # 👈 改这里：[-1]→[0]，取运营期第一年
+            if operate_first_year in cf_df.index:
+                cf_df.loc[operate_first_year, "回收固定资产余值(万元)"] = recover_fixed  # 👈 改这里：变量名对应
+        
+            # 2. 关键：现金流入 = 四项之和（解决合计为/的问题）
+            cf_df["现金流入(万元)"] = (cf_df["配保房销售收入(万元)"] + cf_df["其他收入(万元)"] + cf_df["商业出租收入(万元)"] + cf_df["回收固定资产余值(万元)"])
+    
+            # 🔥 【仅新增这一段：出售类专属现金流出，其他全不动】
+            area_total = sale_area + comm_area
+            dev_cost_base = total_investment * (sale_area / area_total) if area_total != 0 else 0.0
+            # 初始化新列
+            cf_df[["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = 0.0
+            
+            # 合计计算：严格按你给的公式
+            for year in all_years:
+                # 一行提取所有现成数据
+                sale_fee, sale_tax = total_cost_df.loc[year, ["销售费用(万元)", "销售税金及其附加(万元)"]]
+                rent_tax = rental_cost_df.loc[year, "出租经营税金合计(万元)"] if year in rental_cost_df.index else 0.0
+                rent_cost = rental_cost_df.loc[year, "出租营运成本合计(万元)"] if year in rental_cost_df.index else 0.0
+                build_fin_fee = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
+                dev_cost_sale, dev_cost_dep = total_cost_df.loc[year, ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)"]]
+    
+                dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
+                 
+                # 年度值统一填/，不做逐年计算，仅合计行生效
+                cf_df["开发成本投资(万元)"] = float('nan')
                 
-                # 收敛判断：NPV接近0，且IRR在财务合理区间（-50%~50%）
-                if abs(current_npv) < tol and -0.5 <= rate <= 0.5:
-                    return rate
-                
-                # 计算导数（牛顿迭代必需），避免除以0
-                h = 1e-8
-                npv_h = calc_npv(rate + h, cash_flows)
-                derivative = (npv_h - current_npv) / h
-                if abs(derivative) < 1e-12:
-                    break
-                
-                # 更新折现率，限制在合理区间（避免1000%这类极端值）
-                new_rate = rate - current_npv / derivative
-                new_rate = max(-0.5, min(new_rate, 0.5))
-                
-                # 迭代收敛，返回结果
-                if abs(new_rate - rate) < tol:
-                    if -0.5 <= new_rate <= 0.5:
-                        return new_rate
-                    break
-                
-                rate = new_rate
-
-        return None
-
-    # 3. 提取你的净现金流量数据（和Excel时间顺序完全一致：2025-2095年）
-    valid_years = sorted(list(set(build_years + operate_years)))
-    cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
-
-    # 4. 计算IRR并处理结果
-    irr_result = excel_irr_final(cf_list)
-    irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
-
-    # ===================== 【最小新增】项目类型特殊计算与指标展示（插在测算完成后、结果展示前）=====================
-    current_config = PROJECT_CONFIG[project_type]
-    extra_metrics = {}
-    # 1. 招拍挂项目：调整建设投资（自动把土地成本加到建设期第一年的建设投资里）
-    if "build_invest_adjust" in current_config["calc_rules"]:
-        invest_plan_dict = current_config["calc_rules"]["build_invest_adjust"](invest_plan_dict, build_years, extra_params_global)
-        # 重新计算现金流量表的建设投资（因为调整了投资计划）
-        for year in all_years:
-            cf_df.loc[year, "建设投资(万元)"] = round(invest_plan_dict.get(year, 0.0), 4)
-            # 重新计算现金流出合计
-            build_invest = invest_plan_dict.get(year, 0.0)
-            tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
-            manage_total = total_cost_df.loc[year, "管理费用(住房)(万元)"] + total_cost_df.loc[year, "管理费用(停车位)(万元)"]
-            vacancy_fee = total_cost_df.loc[year, "空置期物业管理费(万元)"]
-            repair_fee = total_cost_df.loc[year, "维修费用(万元)"]
-            insurance_fee = total_cost_df.loc[year, "保险费(万元)"]
-            decoration_reset = total_cost_df.loc[year, "装修重置费(万元)"]
-            maintain_fund = total_cost_df.loc[year, "日常物业维修基金(万元)"]
-            income_tax = profit_df.loc[year, "所得税(万元)"]
-            cash_out_total = build_invest + tax_total + manage_total + vacancy_fee + repair_fee + insurance_fee + decoration_reset + maintain_fund + income_tax
-            cf_df.loc[year, "现金流出合计(万元)"] = round(cash_out_total, 4)
-        # 重新计算净现金流量、累计值、IRR相关
+                # 一行计算调整所得税（负数自动取0）
+                adjust_tax = max( (cf_df.loc[year, "现金流入(万元)"] - cf_df.loc[year, "回收固定资产余值(万元)"] - (dev_cost_sale + dev_cost_dep + sale_fee + sale_tax + rent_cost + rent_tax)) * 0.25, 0.0 )
+            
+                # 一行填入所有数值
+                 # 🔥 修复2：年度开发成本投资 = 0（不参与年度计算，仅合计有数）
+                cf_df.loc[year, ["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [round(dev_cost_total,4), round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
+                # 🔥 修复3：年度现金流出合计 = 仅费用+税，不加开发成本
+                cf_df.loc[year, "现金流出合计(万元)"] = round( dev_cost_sale + sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
+                cf_df = cf_df.reindex(columns=["现金流入(万元)","配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)", "现金流出合计(万元)", "开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"])
+        else:
+            # 其他类型保持原来的逻辑不变
+            cf_df["现金流入(万元)"] = income_df["总收入(万元)"]
+    
+        # 2. 现金流出：全调用现成表数据，按你的公式汇总
+        # 2. 现金流出：全调用现成表数据，按你的公式汇总
+        if project_type != "出售类(配保房/可售型人才房等)": 
+            for year in all_years:
+                build_invest = invest_plan_dict.get(year, 0.0)
+                tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
+                # 【最小修复】用get方法兜底，出售类无对应列自动返回0，不触发KeyError
+                manage_total = total_cost_df.loc[year, :].get("管理费用(住房)(万元)", 0) + total_cost_df.loc[year, :].get("管理费用(停车位)(万元)", 0)
+                vacancy_fee = total_cost_df.loc[year, :].get("空置期物业管理费(万元)", 0)
+                repair_fee = total_cost_df.loc[year, :].get("维修费用(万元)", 0)
+                insurance_fee = total_cost_df.loc[year, :].get("保险费(万元)", 0)
+                decoration_reset = total_cost_df.loc[year, :].get("装修重置费(万元)", 0)
+                maintain_fund = total_cost_df.loc[year, :].get("日常物业维修基金(万元)", 0)
+                income_tax = profit_df.loc[year, "所得税(万元)"]
+            
+                # 现金流出合计
+                cash_out_total = build_invest + tax_total + manage_total + vacancy_fee + repair_fee + insurance_fee + decoration_reset + maintain_fund + income_tax
+                cf_df.loc[year, "建设投资(万元)"] = round(build_invest, 4)
+                cf_df.loc[year, "现金流出合计(万元)"] = round(cash_out_total, 4)
+    
+        # 3. 净现金流量
         cf_df["净现金流量(万元)"] = round(cf_df["现金流入(万元)"] - cf_df["现金流出合计(万元)"], 4)
-        # 重新算累计净现金流量
+    
+        # 4. 累计净现金流量
         cum_cf_list = []
         last_cum_cf = 0
         for year in all_years:
@@ -1959,15 +1789,18 @@ if calc_button:
             cum_cf_list.append(current_cum)
             last_cum_cf = current_cum
         cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
-        # 重新算净现值、累计净现值
+    
+        # 5. 净现值（严格按你给的公式计算）
         discount_rate_decimal = discount_rate / 100
         npv_list = []
         for idx, year in enumerate(all_years):
-            n = idx + 1
+            n = idx + 1  # 从建设期开始的第n年，从1开始计数
             discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
             current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
             npv_list.append(current_npv)
         cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
+    
+        # 6. 累计净现值
         cum_npv_list = []
         last_cum_npv = 0
         for year in all_years:
@@ -1975,233 +1808,413 @@ if calc_button:
             cum_npv_list.append(current_cum_npv)
             last_cum_npv = current_cum_npv
         cf_df["累计净现值(万元)"] = round(pd.Series(cum_npv_list, index=all_years), 4)
-        # 重新计算IRR
-        valid_years = sorted(list(set(build_years + operate_years)))
-        cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
-        irr_result = excel_irr_final(cf_list)
-        irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
-        # 重新计算核心汇总指标
+      
+        # 6. 统一给所有表格加「全周期合计列」（放在第二列，和之前格式完全一致）
+        # --- 收入表处理 ---
+        income_df_T = income_df.T
+       # 【最小改动：仅加if判断，分项目类型处理】
+        if project_type == "出售类(配保房/可售型人才房等)":
+         # 仅出售类：配保房+商业+住宅的顺序，且都算合计
+            # 仅出售类：配保房+商业+住宅的顺序，且都算合计
+            income_sum_rows = ["配保房销售收入(万元)", "住宅租金收入(万元)", "出租净收益现值(万元)", "车位收入(万元)", f"{other_income_name}(万元)","总收入(万元)"]
+            income_df_T["全周期合计(万元)"] = income_df_T.apply(
+            lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
+            )
+            # 仅出售类：调整行顺序
+            income_df_T = income_df_T.reindex(income_sum_rows + [idx for idx in income_df_T.index if idx not in income_sum_rows])
+        else:
+        # 出租型：完全保持你原来的逻辑，一丝不动
+            income_sum_rows = ["住宅租金收入(万元)", "车位收入(万元)", f"{other_income_name}(万元)", "总收入(万元)"]
+            income_df_T["全周期合计(万元)"] = income_df_T.apply(
+                lambda row: round(row.sum(), 4) if row.name in income_sum_rows else "/", axis=1
+        )
+        income_df_T = income_df_T[ ["全周期合计(万元)"] + [col for col in income_df_T.columns if col != "全周期合计(万元)"] ]
+        income_df_T = income_df_T.fillna("/")
+    
+         # --- 总成本费用表处理 ---
+        cost_df_T = total_cost_df.T
+        if project_type == "出售类(配保房/可售型人才房等)":
+            # 出售类：仅对数值行求和，严格匹配新的行
+            cost_sum_rows = ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)", "销售费用(万元)", "销售税金及其附加(万元)", "增值税(万元)","增值税销项税额(万元)","增值税进项税额(万元)","地价款抵减(万元)","增值税附加(万元)","财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
+        else:
+            # 出租型：完全保留原有逻辑，一丝不动
+            cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
+        #cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
+        cost_df_T["全周期合计(万元)"] = cost_df_T.apply(lambda row: round(row.sum(), 4) if row.name in cost_sum_rows else "/", axis=1)
+        cost_df_T = cost_df_T[ ["全周期合计(万元)"] + [col for col in cost_df_T.columns if col != "全周期合计(万元)"] ]
+    
+        # --- 还本付息表处理 ---
+        loan_df_T = loan_df.T
+        loan_df_T["全周期合计(万元)"] = loan_df_T.sum(axis=1).round(4)
+        # 期初/期末借款的合计无意义，填/
+        loan_no_sum_rows = ["期初借款本金(万元)", "期末借款累计(万元)"]
+        loan_df_T.loc[:, "全周期合计(万元)"] = loan_df_T.apply(
+            lambda row: np.nan if row.name in loan_no_sum_rows else row["全周期合计(万元)"], axis=1
+        )
+        loan_df_T = loan_df_T[ ["全周期合计(万元)"] + [col for col in loan_df_T.columns if col != "全周期合计(万元)"] ]
+    
+        # 7. 计算最终核心指标
+        if project_type == "出售类(配保房/可售型人才房等)":
+            total_income = round(income_df["配保房销售收入(万元)"].sum()+ income_df["出租净收益现值(万元)"].sum()+ income_df["住宅租金收入(万元)"].sum()+ income_df["车位收入(万元)"].sum()+ income_df[f"{other_income_name}(万元)"].sum(),2)
+        else:
+            total_income = round(income_df["总收入(万元)"].sum(), 2)
+        #total_income = round(income_df["总收入(万元)"].sum(), 2)
+        total_cost = round(total_cost_df["总成本费用(不含建设期财务费用、不含税金)(万元)"].sum(), 2)
+        total_interest = round(loan_df["本期付息(万元)"].sum(), 2)
+        total_net_profit = round(profit_df["净利润(万元)"].sum(), 2)
+        
+         # 新增：利息保障倍数计算（简化版：借款期从建设期第一年开始）
+        # 1. 简化判断：借款期起始年=建设期第一年，结束年=起始年+借款年限-1
+        first_loan_year = min(build_years) if build_years else min(all_years)
+        last_loan_year = first_loan_year + loan_total_years -1
+        loan_period_valid_years = [y for y in all_years if first_loan_year <= y <= last_loan_year]
+        
+        # 2. 提取核心数据
+        build_fin_cost = total_cost_df["财务费用(建设期)(万元)"].sum()
+        operate_fin_cost = total_cost_df["财务费用(运营期)(万元)"].sum()
+        total_fin_cost = build_fin_cost + operate_fin_cost
+        loan_period_profit = profit_df.loc[loan_period_valid_years, "利润总额(万元)"].sum()
+        
+        # 3. 计算倍数
+        interest_coverage_ratio = round((loan_period_profit + operate_fin_cost) / total_fin_cost, 2) if total_fin_cost != 0 else 0.0
+    
+        # 全投资全周期累计净现值（取最后一年的累计值，即全周期最终净现值）
         total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
     
-    # 2. 计算额外指标
-    total_invest = sum(invest_plan_dict.values())
-    if "extra_metrics" in current_config["calc_rules"]:
-        extra_metrics.update(current_config["calc_rules"]["extra_metrics"](extra_params_global, total_invest))
-    if "invest_split" in current_config["calc_rules"]:
-        extra_metrics.update(current_config["calc_rules"]["invest_split"](total_investment, extra_params_global))
-    if "profit_split" in current_config["calc_rules"]:
-        extra_metrics.update(current_config["calc_rules"]["profit_split"](total_net_profit, extra_params_global))
+            # ===================== 最终版IRR计算（已用你的2025-2095数据验证，结果准确）=====================
+        # 1. 全局NPV计算函数（和Excel公式完全一致，供IRR调用）
+        def calc_npv(rate, cash_flows):
+            npv_total = 0.0
+            for period, cf in enumerate(cash_flows):
+                npv_total += cf / ((1 + rate) ** period)
+            return npv_total
     
-    # 3. 展示项目类型专属指标
-    if current_config["show_metrics"] and extra_metrics:
-        st.subheader(f"📌 {project_type}专属核心指标")
-        cols = st.columns(len(current_config["show_metrics"]))
-        for idx, metric_name in enumerate(current_config["show_metrics"]):
-            cols[idx].metric(metric_name, extra_metrics.get(metric_name, "-"))
-        st.markdown("---")
-   # ===================== 【最小新增】项目类型特殊计算与指标展示（插在测算完成后、结果展示前）=====================
+        # 2. 最终版Excel IRR函数（100%对齐Excel逻辑，针对你的亏损项目优化）
+        def excel_irr_final(cash_flows, max_iter=1000, tol=1e-7):
+            # 基础校验：必须有正有负的现金流
+            has_positive = any(cf > 0 for cf in cash_flows)
+            has_negative = any(cf < 0 for cf in cash_flows)
+            if not has_positive or not has_negative:
+                return None
     
-    # 8. 页面结果展示
-    st.header("📊 测算结果")
-    st.markdown("---")
+            # 核心策略：你的项目是亏损项目（全周期现金流总和负），优先尝试-1%~-5%的负初始值（Excel优先解区间）
+            priority_guesses = [-0.01, -0.02, -0.03, -0.04, -0.05, 0.0, 0.1]
     
-    # --- 核心指标汇总 ---
-    st.subheader("🎯 最终财务结果汇总")
-    # 第一行：总收入、总成本
-    col1, col2 = st.columns(2)
-    with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
-    with col2: st.metric(":red[项目全周期总成本费用]", f"{total_cost} 万元")
+            # 按优先级迭代计算，确保得到财务合理的解（避免极端值）
+            for guess in priority_guesses:
+                rate = guess
+                for _ in range(max_iter):
+                    current_npv = calc_npv(rate, cash_flows)
+                    
+                    # 收敛判断：NPV接近0，且IRR在财务合理区间（-50%~50%）
+                    if abs(current_npv) < tol and -0.5 <= rate <= 0.5:
+                        return rate
+                    
+                    # 计算导数（牛顿迭代必需），避免除以0
+                    h = 1e-8
+                    npv_h = calc_npv(rate + h, cash_flows)
+                    derivative = (npv_h - current_npv) / h
+                    if abs(derivative) < 1e-12:
+                        break
+                    
+                    # 更新折现率，限制在合理区间（避免1000%这类极端值）
+                    new_rate = rate - current_npv / derivative
+                    new_rate = max(-0.5, min(new_rate, 0.5))
+                    
+                    # 迭代收敛，返回结果
+                    if abs(new_rate - rate) < tol:
+                        if -0.5 <= new_rate <= 0.5:
+                            return new_rate
+                        break
+                    
+                    rate = new_rate
     
-    # 第二行：总付息、净利润
-    col3, col4 = st.columns(2)
-    with col3: st.metric("项目全周期总付息", f"{total_interest} 万元")
-    with col4: st.metric("项目全周期净利润", f"{total_net_profit} 万元")
+            return None
     
-    # 第三行：利息保障倍数、净现值合计
-    col5, col6 = st.columns(2)
-    with col5: st.metric("利息保障倍数", f"{interest_coverage_ratio}")
-    with col6: st.metric("净现值(合计)", f"{total_npv_sum} 万元")
+        # 3. 提取你的净现金流量数据（和Excel时间顺序完全一致：2025-2095年）
+        valid_years = sorted(list(set(build_years + operate_years)))
+        cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
     
-    # 第四行：全投资内部收益率
-    col7, _ = st.columns(2)
-    with col7: st.metric("全投资内部收益率(IRR)", irr_value)
+        # 4. 计算IRR并处理结果
+        irr_result = excel_irr_final(cf_list)
+        irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
     
-    st.markdown("---")
-
-    # ===================== ✅ 出售类：插入出租营运成本表 =====================
-    # 仅出售类项目显示该表，非出售类完全不执行，避免报错
-    rental_cost_df = pd.DataFrame()
-    if project_type == "出售类(配保房/可售型人才房等)":
-        # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
-        rental_cost_df = calc_rental_operation_table(
-            all_years=all_years,
-            is_operate=is_operate,
-            operate_year_list=operate_year_list,
-            comm_area=comm_area,
-            comm_rent_start_price=comm_rent_start_price,
-            comm_rent_increase_span=comm_rent_increase_span,
-            comm_rent_increase_rate=comm_rent_increase_rate,
-            comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
-            comm_stable_start=comm_stable_start,
-            comm_stable_end=comm_stable_end,
-            comm_occupancy_stable=comm_occupancy_stable,
-            park_count=park_count,
-            land_cost=land_cost,
-            construction_cost=construction_cost,
-            infra_cost=infra_cost,
-            other_eng_cost=other_eng_cost,
-            lease_months=lease_months if 'lease_months' in locals() else 12,
-            land_use_area=land_use_area,
-            project_input_tax=project_input_tax,
-        )   #plot_ratio_area=plot_ratio_area,
-        rental_cost_df_T = rental_cost_df.T
-        # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
-        rental_sum_rows = [
-            "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
-            "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
-            "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
-            "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)","销项税(万元)",
-            "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)",
-            "出租净收入(万元)","出租净收益现值(万元)"
-        ]
-        # （3）. 新增全周期合计列
-        rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
-            lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
-        )
-
-        # 1. 直接从表格里取已有的各年数据，算累计
-        total_manage = rental_cost_df.loc[:, "运营管理费用（商业）(万元)"].sum()
-        total_insurance = rental_cost_df.loc[:, "保险费用(万元)"].sum()
-        total_vacancy = rental_cost_df.loc[:, "空置物业服务费(万元)"].sum()
-        # 2. 严格按你的公式算合计
-        input_tax_total = (total_manage + total_insurance) * (0.06 / 1.06) + total_vacancy * (0.09 / 1.09) + project_input_tax
-        # 3. 直接填到合计列
-        rental_cost_df_T.loc["进项税(万元)", "全周期合计(万元)"] = round(input_tax_total, 4)
+        # ===================== 【最小新增】项目类型特殊计算与指标展示（插在测算完成后、结果展示前）=====================
+        current_config = PROJECT_CONFIG[project_type]
+        extra_metrics = {}
+        # 1. 招拍挂项目：调整建设投资（自动把土地成本加到建设期第一年的建设投资里）
+        if "build_invest_adjust" in current_config["calc_rules"]:
+            invest_plan_dict = current_config["calc_rules"]["build_invest_adjust"](invest_plan_dict, build_years, extra_params_global)
+            # 重新计算现金流量表的建设投资（因为调整了投资计划）
+            for year in all_years:
+                cf_df.loc[year, "建设投资(万元)"] = round(invest_plan_dict.get(year, 0.0), 4)
+                # 重新计算现金流出合计
+                build_invest = invest_plan_dict.get(year, 0.0)
+                tax_total = tax_df.loc[year, "税金及其附加总和(万元)"]
+                manage_total = total_cost_df.loc[year, "管理费用(住房)(万元)"] + total_cost_df.loc[year, "管理费用(停车位)(万元)"]
+                vacancy_fee = total_cost_df.loc[year, "空置期物业管理费(万元)"]
+                repair_fee = total_cost_df.loc[year, "维修费用(万元)"]
+                insurance_fee = total_cost_df.loc[year, "保险费(万元)"]
+                decoration_reset = total_cost_df.loc[year, "装修重置费(万元)"]
+                maintain_fund = total_cost_df.loc[year, "日常物业维修基金(万元)"]
+                income_tax = profit_df.loc[year, "所得税(万元)"]
+                cash_out_total = build_invest + tax_total + manage_total + vacancy_fee + repair_fee + insurance_fee + decoration_reset + maintain_fund + income_tax
+                cf_df.loc[year, "现金流出合计(万元)"] = round(cash_out_total, 4)
+            # 重新计算净现金流量、累计值、IRR相关
+            cf_df["净现金流量(万元)"] = round(cf_df["现金流入(万元)"] - cf_df["现金流出合计(万元)"], 4)
+            # 重新算累计净现金流量
+            cum_cf_list = []
+            last_cum_cf = 0
+            for year in all_years:
+                current_cum = cf_df.loc[year, "净现金流量(万元)"] + last_cum_cf
+                cum_cf_list.append(current_cum)
+                last_cum_cf = current_cum
+            cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
+            # 重新算净现值、累计净现值
+            discount_rate_decimal = discount_rate / 100
+            npv_list = []
+            for idx, year in enumerate(all_years):
+                n = idx + 1
+                discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
+                current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
+                npv_list.append(current_npv)
+            cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
+            cum_npv_list = []
+            last_cum_npv = 0
+            for year in all_years:
+                current_cum_npv = cf_df.loc[year, "净现值(万元)"] + last_cum_npv
+                cum_npv_list.append(current_cum_npv)
+                last_cum_npv = current_cum_npv
+            cf_df["累计净现值(万元)"] = round(pd.Series(cum_npv_list, index=all_years), 4)
+            # 重新计算IRR
+            valid_years = sorted(list(set(build_years + operate_years)))
+            cf_list = cf_df.loc[valid_years, "净现金流量(万元)"].tolist()
+            irr_result = excel_irr_final(cf_list)
+            irr_value = f"{round(irr_result * 100, 2)} %" if irr_result is not None else "无法计算"
+            # 重新计算核心汇总指标
+            total_npv_sum = round(cf_df["净现值(万元)"].sum(), 2)
         
-        #（4）. 调整列顺序：合计列放最前面，和其他表格格式完全统一
-        rental_cost_df_T = rental_cost_df_T[ ["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"] ]
-    
-        # （5）. 展示转置后的表格
-        # 表格展示放在if块内，仅出售类执行，非出售类不运行，彻底避免变量未定义
-        st.subheader("📊 出租情况表")
-        st.dataframe(rental_cost_df_T, use_container_width=True)
-
-    # 第1行：把上一个表的净收益现值复制到收入表
-    if project_type == "出售类(配保房/可售型人才房等)": income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
-    # 【核心修复1行：重新计算总收入，把出租净收益现值加进去】
-    if project_type == "出售类(配保房/可售型人才房等)": income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"]
-    # 第2行：重新生成带合计的转置表
-    if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df.T; income_df_T["全周期合计(万元)"] = income_df_T.apply(lambda r: round(r.sum(),4) if r.name in income_sum_rows else "/", axis=1); income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
-    # 第3行：【核心1行】把指定行强制放到最前面
-    if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.reindex(["配保房销售收入(万元)", "出租净收益现值(万元)"] + [idx for idx in income_df_T.index if idx not in ["配保房销售收入(万元)", "出租净收益现值(万元)"]])
-    
-    # --- 收入明细 ---
-    st.subheader("📋 收入明细表")
-    # 出售类自动隐藏指定行，非出售类正常显示
-    if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.drop(["计算过程说明", "住宅租金单价(元/㎡/月)", "住宅出租率", "车位租金单价(元/个/月)", "车位出租率","商业出租收入(万元)"], errors="ignore")
-    st.dataframe(income_df_T, use_container_width=True)
-    
-    st.markdown("---")
-    
-      # --- 总成本费用明细 ---
-    st.subheader("💸 总成本费用明细")
-    # 给总成本费用行的文字标红
-    cost_styled = cost_df_T.style.apply(
-        lambda x: ['color: red; font-weight: bold' if x.name == "总成本费用(不含建设期财务费用、不含税金)(万元)" else '' for _ in x],
-        axis=1
-    )
-    st.dataframe(cost_styled, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # --- 新增：还本付息明细 ---
-    st.subheader("🏦 还本付息明细")
-    st.dataframe(loan_df_T, use_container_width=True)
-
-    st.markdown("---")
-
-    if project_type != "出售类(配保房/可售型人才房等)":
-        # --- 新增：税金及其附加明细 ---
-        st.subheader("📝 税金及其附加明细")
-        tax_df_T = tax_df.T
-        tax_df_T["全周期合计(万元)"] = tax_df_T.sum(axis=1).round(4)
-        tax_df_T = tax_df_T[ ["全周期合计(万元)"] + [col for col in tax_df_T.columns if col != "全周期合计(万元)"] ]
-        st.dataframe(tax_df_T, use_container_width=True)
+        # 2. 计算额外指标
+        total_invest = sum(invest_plan_dict.values())
+        if "extra_metrics" in current_config["calc_rules"]:
+            extra_metrics.update(current_config["calc_rules"]["extra_metrics"](extra_params_global, total_invest))
+        if "invest_split" in current_config["calc_rules"]:
+            extra_metrics.update(current_config["calc_rules"]["invest_split"](total_investment, extra_params_global))
+        if "profit_split" in current_config["calc_rules"]:
+            extra_metrics.update(current_config["calc_rules"]["profit_split"](total_net_profit, extra_params_global))
+        
+        # 3. 展示项目类型专属指标
+        if current_config["show_metrics"] and extra_metrics:
+            st.subheader(f"📌 {project_type}专属核心指标")
+            cols = st.columns(len(current_config["show_metrics"]))
+            for idx, metric_name in enumerate(current_config["show_metrics"]):
+                cols[idx].metric(metric_name, extra_metrics.get(metric_name, "-"))
+            st.markdown("---")
+       # ===================== 【最小新增】项目类型特殊计算与指标展示（插在测算完成后、结果展示前）=====================
+        
+        # 8. 页面结果展示
+        st.header("📊 测算结果")
+        st.markdown("---")
+        
+        # --- 核心指标汇总 ---
+        st.subheader("🎯 最终财务结果汇总")
+        # 第一行：总收入、总成本
+        col1, col2 = st.columns(2)
+        with col1: st.metric("项目全周期总收入", f"{total_income} 万元")
+        with col2: st.metric(":red[项目全周期总成本费用]", f"{total_cost} 万元")
+        
+        # 第二行：总付息、净利润
+        col3, col4 = st.columns(2)
+        with col3: st.metric("项目全周期总付息", f"{total_interest} 万元")
+        with col4: st.metric("项目全周期净利润", f"{total_net_profit} 万元")
+        
+        # 第三行：利息保障倍数、净现值合计
+        col5, col6 = st.columns(2)
+        with col5: st.metric("利息保障倍数", f"{interest_coverage_ratio}")
+        with col6: st.metric("净现值(合计)", f"{total_npv_sum} 万元")
+        
+        # 第四行：全投资内部收益率
+        col7, _ = st.columns(2)
+        with col7: st.metric("全投资内部收益率(IRR)", irr_value)
+        
         st.markdown("---")
     
-    # --- 新增：损益表明细 ---
-    # --- 新增：损益表明细 ---
-    st.subheader("📈 损益表明细")
-    # 【修复】直接复用前面已经用最终收入算好的profit_df，确保和收入明细表100%一致
-    # 仅出租型需要重新计算（出售型前面已经算好）
-    is_sale = (project_type == "出售类(配保房/可售型人才房等)")
-    #profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
-    if not is_sale:
-        profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=False)
+        # ===================== ✅ 出售类：插入出租营运成本表 =====================
+        # 仅出售类项目显示该表，非出售类完全不执行，避免报错
+        rental_cost_df = pd.DataFrame()
+        if project_type == "出售类(配保房/可售型人才房等)":
+            # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
+            rental_cost_df = calc_rental_operation_table(
+                all_years=all_years,
+                is_operate=is_operate,
+                operate_year_list=operate_year_list,
+                comm_area=comm_area,
+                comm_rent_start_price=comm_rent_start_price,
+                comm_rent_increase_span=comm_rent_increase_span,
+                comm_rent_increase_rate=comm_rent_increase_rate,
+                comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
+                comm_stable_start=comm_stable_start,
+                comm_stable_end=comm_stable_end,
+                comm_occupancy_stable=comm_occupancy_stable,
+                park_count=park_count,
+                land_cost=land_cost,
+                construction_cost=construction_cost,
+                infra_cost=infra_cost,
+                other_eng_cost=other_eng_cost,
+                lease_months=lease_months if 'lease_months' in locals() else 12,
+                land_use_area=land_use_area,
+                project_input_tax=project_input_tax,
+            )   #plot_ratio_area=plot_ratio_area,
+            rental_cost_df_T = rental_cost_df.T
+            # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
+            rental_sum_rows = [
+                "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
+                "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
+                "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
+                "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)","销项税(万元)",
+                "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)",
+                "出租净收入(万元)","出租净收益现值(万元)"
+            ]
+            # （3）. 新增全周期合计列
+            rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
+                lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
+            )
     
-    # 下面的合计、展示代码完全不动，只改上面的调用部分
-    profit_df_T = profit_df.T
-    # 出售型剔除税金及其附加行，出租型保持完整
-    if is_sale:
-        profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
-        profit_df_T = profit_df_T.drop("税金及其附加总和(万元)", errors="ignore")
-    else:
-        profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "税金及其附加总和(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
-    # 全周期合计计算    
-    profit_df_T["全周期合计(万元)"] = profit_df_T.apply(lambda row: round(row.sum(), 4) if row.name in profit_sum_rows else "/", axis=1)
-    profit_df_T = profit_df_T[ ["全周期合计(万元)"] + [col for col in profit_df_T.columns if col != "全周期合计(万元)"] ]
-    st.dataframe(profit_df_T, use_container_width=True)
-
-    st.markdown("---")
-
-    # --- 新增：全投资现金流量表明细 ---
-    st.subheader("💵 全投资现金流量表明细")
-    cf_df_T = cf_df.T
-    # 合计行规则：普通行求和，累计行取最后一年的期末值（符合财务表规范）
-    #cf_sum_rows = ["现金流入(万元)", "配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)","建设投资(万元)", "现金流出合计(万元)", "净现金流量(万元)", "净现值(万元)"]
-    cf_sum_rows = ["现金流入(万元)", "配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)", "现金流出合计(万元)", "开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)", "净现金流量(万元)", "净现值(万元)"] if project_type == "出售类(配保房/可售型人才房等)" else ["现金流入(万元)","建设投资(万元)", "现金流出合计(万元)", "净现金流量(万元)", "净现值(万元)"]
-    cf_df_T["全周期合计/期末值"] = cf_df_T.apply(
-        lambda row: round(row.sum(), 4) if row.name in cf_sum_rows 
-        else (round(row.iloc[-1], 4) if "累计" in row.name else "/"), 
-        axis=1
-    )
-    # 调整列顺序，合计列放最前面
-    cf_df_T = cf_df_T[ ["全周期合计/期末值"] + [col for col in cf_df_T.columns if col != "全周期合计/期末值"] ]
-    st.dataframe(cf_df_T, use_container_width=True)
+            # 1. 直接从表格里取已有的各年数据，算累计
+            total_manage = rental_cost_df.loc[:, "运营管理费用（商业）(万元)"].sum()
+            total_insurance = rental_cost_df.loc[:, "保险费用(万元)"].sum()
+            total_vacancy = rental_cost_df.loc[:, "空置物业服务费(万元)"].sum()
+            # 2. 严格按你的公式算合计
+            input_tax_total = (total_manage + total_insurance) * (0.06 / 1.06) + total_vacancy * (0.09 / 1.09) + project_input_tax
+            # 3. 直接填到合计列
+            rental_cost_df_T.loc["进项税(万元)", "全周期合计(万元)"] = round(input_tax_total, 4)
+            
+            #（4）. 调整列顺序：合计列放最前面，和其他表格格式完全统一
+            rental_cost_df_T = rental_cost_df_T[ ["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"] ]
+        
+            # （5）. 展示转置后的表格
+            # 表格展示放在if块内，仅出售类执行，非出售类不运行，彻底避免变量未定义
+            st.subheader("📊 出租情况表")
+            st.dataframe(rental_cost_df_T, use_container_width=True)
     
-    # 9. 一键下载Excel
-    st.markdown("---")
-    excel_file_name = f"{project_name}_财务测算结果_{datetime.now().strftime('%Y%m%d')}.csv"
-    st.download_button(
-        label="📥 下载完整测算表（含计算过程）",
-        data=income_df_T.to_csv().encode("utf-8-sig"),
-        file_name=excel_file_name,
-        mime="text/csv",
-        use_container_width=True
-    )
+        # 第1行：把上一个表的净收益现值复制到收入表
+        if project_type == "出售类(配保房/可售型人才房等)": income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+        # 【核心修复1行：重新计算总收入，把出租净收益现值加进去】
+        if project_type == "出售类(配保房/可售型人才房等)": income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"]
+        # 第2行：重新生成带合计的转置表
+        if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df.T; income_df_T["全周期合计(万元)"] = income_df_T.apply(lambda r: round(r.sum(),4) if r.name in income_sum_rows else "/", axis=1); income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
+        # 第3行：【核心1行】把指定行强制放到最前面
+        if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.reindex(["配保房销售收入(万元)", "出租净收益现值(万元)"] + [idx for idx in income_df_T.index if idx not in ["配保房销售收入(万元)", "出租净收益现值(万元)"]])
+        
+        # --- 收入明细 ---
+        st.subheader("📋 收入明细表")
+        # 出售类自动隐藏指定行，非出售类正常显示
+        if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.drop(["计算过程说明", "住宅租金单价(元/㎡/月)", "住宅出租率", "车位租金单价(元/个/月)", "车位出租率","商业出租收入(万元)"], errors="ignore")
+        st.dataframe(income_df_T, use_container_width=True)
+        
+        st.markdown("---")
+        
+          # --- 总成本费用明细 ---
+        st.subheader("💸 总成本费用明细")
+        # 给总成本费用行的文字标红
+        cost_styled = cost_df_T.style.apply(
+            lambda x: ['color: red; font-weight: bold' if x.name == "总成本费用(不含建设期财务费用、不含税金)(万元)" else '' for _ in x],
+            axis=1
+        )
+        st.dataframe(cost_styled, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # --- 新增：还本付息明细 ---
+        st.subheader("🏦 还本付息明细")
+        st.dataframe(loan_df_T, use_container_width=True)
     
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        st.markdown("---")
+    
+        if project_type != "出售类(配保房/可售型人才房等)":
+            # --- 新增：税金及其附加明细 ---
+            st.subheader("📝 税金及其附加明细")
+            tax_df_T = tax_df.T
+            tax_df_T["全周期合计(万元)"] = tax_df_T.sum(axis=1).round(4)
+            tax_df_T = tax_df_T[ ["全周期合计(万元)"] + [col for col in tax_df_T.columns if col != "全周期合计(万元)"] ]
+            st.dataframe(tax_df_T, use_container_width=True)
+            st.markdown("---")
+        
+        # --- 新增：损益表明细 ---
+        # --- 新增：损益表明细 ---
+        st.subheader("📈 损益表明细")
+        # 【修复】直接复用前面已经用最终收入算好的profit_df，确保和收入明细表100%一致
+        # 仅出租型需要重新计算（出售型前面已经算好）
+        is_sale = (project_type == "出售类(配保房/可售型人才房等)")
+        #profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df)
+        if not is_sale:
+            profit_df = calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=False)
+        
+        # 下面的合计、展示代码完全不动，只改上面的调用部分
+        profit_df_T = profit_df.T
+        # 出售型剔除税金及其附加行，出租型保持完整
+        if is_sale:
+            profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
+            profit_df_T = profit_df_T.drop("税金及其附加总和(万元)", errors="ignore")
+        else:
+            profit_sum_rows = ["总收入(万元)", "总成本费用(万元)", "税金及其附加总和(万元)", "利润总额(万元)", "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]
+        # 全周期合计计算    
+        profit_df_T["全周期合计(万元)"] = profit_df_T.apply(lambda row: round(row.sum(), 4) if row.name in profit_sum_rows else "/", axis=1)
+        profit_df_T = profit_df_T[ ["全周期合计(万元)"] + [col for col in profit_df_T.columns if col != "全周期合计(万元)"] ]
+        st.dataframe(profit_df_T, use_container_width=True)
+    
+        st.markdown("---")
+    
+        # --- 新增：全投资现金流量表明细 ---
+        st.subheader("💵 全投资现金流量表明细")
+        cf_df_T = cf_df.T
+        # 合计行规则：普通行求和，累计行取最后一年的期末值（符合财务表规范）
+        #cf_sum_rows = ["现金流入(万元)", "配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)","建设投资(万元)", "现金流出合计(万元)", "净现金流量(万元)", "净现值(万元)"]
+        cf_sum_rows = ["现金流入(万元)", "配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)", "现金流出合计(万元)", "开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)", "净现金流量(万元)", "净现值(万元)"] if project_type == "出售类(配保房/可售型人才房等)" else ["现金流入(万元)","建设投资(万元)", "现金流出合计(万元)", "净现金流量(万元)", "净现值(万元)"]
+        cf_df_T["全周期合计/期末值"] = cf_df_T.apply(
+            lambda row: round(row.sum(), 4) if row.name in cf_sum_rows 
+            else (round(row.iloc[-1], 4) if "累计" in row.name else "/"), 
+            axis=1
+        )
+        # 调整列顺序，合计列放最前面
+        cf_df_T = cf_df_T[ ["全周期合计/期末值"] + [col for col in cf_df_T.columns if col != "全周期合计/期末值"] ]
+        st.dataframe(cf_df_T, use_container_width=True)
+        
+        # 9. 一键下载Excel
+        st.markdown("---")
+        excel_file_name = f"{project_name}_财务测算结果_{datetime.now().strftime('%Y%m%d')}.csv"
+        st.download_button(
+            label="📥 下载完整测算表（含计算过程）",
+            data=income_df_T.to_csv().encode("utf-8-sig"),
+            file_name=excel_file_name,
+            mime="text/csv",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"测算过程报错：{e}")
+        st.exception(e)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
