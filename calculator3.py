@@ -2370,25 +2370,7 @@ if calc_button or has_ai_result_snapshot():
                 "interest_coverage_ratio": interest_coverage_ratio
             }
                 # ===================== 保存结果快照，供聊天和刷新后继续展示 =====================
-        if calc_button:
-            snapshot_dict = {
-                "project_name": project_name,
-                "total_income": total_income,
-                "total_cost": total_cost,
-                "total_interest": total_interest,
-                "total_net_profit": total_net_profit,
-                "interest_coverage_ratio": interest_coverage_ratio,
-                "total_npv_sum": total_npv_sum,
-                "irr_value": irr_value,
-                "income_df_T": income_df_T.copy(),
-                "cost_df_T": cost_df_T.copy(),
-                "loan_df_T": loan_df_T.copy(),
-                "profit_df_T": profit_df_T.copy(),
-                "cf_df_T": cf_df_T.copy(),
-                "tax_df_T": tax_df_T.copy() if 'tax_df_T' in locals() else pd.DataFrame(),
-                "rental_cost_df_T": rental_cost_df_T.copy() if 'rental_cost_df_T' in locals() else pd.DataFrame()
-            }
-            save_ai_result_snapshot(snapshot_dict)
+        
         # 8. 页面结果展示
         st.header("📊 测算结果")
         st.markdown("---")
@@ -2555,6 +2537,25 @@ if calc_button or has_ai_result_snapshot():
         )
         # 调整列顺序，合计列放最前面
         cf_df_T = cf_df_T[ ["全周期合计/期末值"] + [col for col in cf_df_T.columns if col != "全周期合计/期末值"] ]
+        if calc_button:
+            snapshot_dict = {
+                "project_name": project_name,
+                "total_income": total_income,
+                "total_cost": total_cost,
+                "total_interest": total_interest,
+                "total_net_profit": total_net_profit,
+                "interest_coverage_ratio": interest_coverage_ratio,
+                "total_npv_sum": total_npv_sum,
+                "irr_value": irr_value,
+                "income_df_T": income_df_T.copy(),
+                "cost_df_T": cost_df_T.copy(),
+                "loan_df_T": loan_df_T.copy(),
+                "profit_df_T": profit_df_T.copy(),
+                "cf_df_T": cf_df_T.copy(),
+                "tax_df_T": tax_df_T.copy() if 'tax_df_T' in locals() else pd.DataFrame(),
+                "rental_cost_df_T": rental_cost_df_T.copy() if 'rental_cost_df_T' in locals() else pd.DataFrame()
+            }
+            save_ai_result_snapshot(snapshot_dict)
         st.dataframe(cf_df_T, use_container_width=True)
         
         # 9. 一键下载Excel
