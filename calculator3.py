@@ -1024,31 +1024,49 @@ def get_loading_text(elapsed):
     idx = int(elapsed // 1.5) % len(texts)
     return f"{texts[idx]} 已等待 {elapsed:.1f} 秒"
 
-def call_external_llm_with_timer(messages, context_text):
+def call_external_llm_with_timer(messages, context_text, hard_timeout=20):
     """
     带前端等待提示和计时的大模型调用
+    超过 hard_timeout 秒自动回退本地规则回答，避免一直转圈
     """
     status_box = st.empty()
     start_ts = time.time()
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(call_external_llm_for_chat, messages, context_text)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(call_external_llm_for_chat, messages, context_text)
 
-        while not future.done():
-            elapsed = time.time() - start_ts
-            #status_box.info(f"🧠 正在结合测算表分析，请稍候… 已等待 {elapsed:.1f} 秒")
-            status_box.info(get_loading_text(elapsed))
-            time.sleep(0.2)
+            while not future.done():
+                elapsed = time.time() - start_ts
 
-        answer = future.result()
-        total_elapsed = time.time() - start_ts
+                # 硬超时：直接回退
+                if elapsed >= hard_timeout:
+                    set_llm_debug_status(False, f"云端调用超时（>{hard_timeout}秒），已回退本地规则回答")
+                    status_box.warning(f"⚠️ 云端分析超时，已回退本地规则回答，用时 {elapsed:.1f} 秒")
+                    return None
 
-    if answer:
-        status_box.success(f"✅ 分析完成，用时 {total_elapsed:.1f} 秒")
-    else:
-        status_box.warning(f"⚠️ 大模型未返回结果，已回退本地规则回答，用时 {total_elapsed:.1f} 秒")
+                status_box.info(get_loading_text(elapsed))
+                time.sleep(0.2)
 
-    return answer
+            try:
+                answer = future.result(timeout=1)
+            except Exception as e:
+                set_llm_debug_status(False, f"大模型调用异常：{type(e).__name__}: {e}")
+                answer = None
+
+            total_elapsed = time.time() - start_ts
+
+        if answer:
+            status_box.success(f"✅ 分析完成，用时 {total_elapsed:.1f} 秒")
+        else:
+            status_box.warning(f"⚠️ 大模型未返回结果，已回退本地规则回答，用时 {total_elapsed:.1f} 秒")
+
+        return answer
+
+    except Exception as e:
+        set_llm_debug_status(False, f"计时调用异常：{type(e).__name__}: {e}")
+        status_box.warning("⚠️ 大模型调用失败，已回退本地规则回答")
+        return None
 
 def render_ai_chat_panel():
     """
@@ -1295,6 +1313,10 @@ st.markdown("---")
 
 # ===================== 【最终版】AI模式 / 普通模式 彻底分流 =====================
 is_ai_mode = "ai_mode" in current_config.get("ui_components", [])
+# ===================== 修复：离开AI模式时，清掉AI专属触发状态 =====================
+if not is_ai_mode:
+    st.session_state["ai_mode_ready"] = False
+    st.session_state["ai_calc_trigger"] = False
 
 # 初始化所有测算需要的变量（先给默认值，避免报错）
 residential_area, rent_start_price = 0, 0.0
@@ -2405,9 +2427,10 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=Fal
     return profit_df
 
 # ===================== 结果展示区 =====================
-if calc_button or has_ai_result_snapshot():
+# 仅AI模式允许使用历史快照；普通模式必须点击按钮才测算
+if calc_button or (is_ai_mode and has_ai_result_snapshot()):
     try:
-        use_snapshot_only = (not calc_button) and has_ai_result_snapshot()
+        use_snapshot_only = is_ai_mode and (not calc_button) and has_ai_result_snapshot()
         if use_snapshot_only:
             snap = get_ai_result_snapshot()
 
@@ -2944,7 +2967,8 @@ if calc_button or has_ai_result_snapshot():
 
         # ===================== AI模式专属：测算说明 + 补参说明 =====================
                 # ===================== AI模式专属：测算说明 + 补参说明 =====================
-        if st.session_state.get("ai_mode_ready", False):
+                # ===================== AI模式专属：测算说明 + 补参说明 =====================
+        if is_ai_mode and st.session_state.get("ai_mode_ready", False):
             ai_core_input = st.session_state.get("ai_core_input", {})
             ai_params_state = st.session_state.get("ai_params", {})
             ai_similar_projects = st.session_state.get("ai_similar_projects", [])
@@ -2974,10 +2998,7 @@ if calc_button or has_ai_result_snapshot():
 
         # ===================== 所有模式统一生成AI问答上下文 =====================
         history_df_for_chat = load_builtin_history_projects()
-        # 新项目测算完成后，重置聊天记录，避免串项目
-        st.session_state["ai_chat_messages"] = [
-            {"role": "assistant", "content": "你好，我可以基于当前测算结果继续解释项目收益、成本、IRR、净现值、参考项目、异常指标和优化建议。"}
-        ]
+
         st.session_state["ai_result_context"] = build_general_project_chat_context(
             project_type=project_type,
             total_build_area=total_build_area,
@@ -3003,6 +3024,12 @@ if calc_button or has_ai_result_snapshot():
             sale_area=sale_area if 'sale_area' in locals() else 0,
             comm_rent_start_price=comm_rent_start_price if 'comm_rent_start_price' in locals() else 0
         )
+
+        # 只有用户刚完成新的测算时，才重置聊天记录
+        if calc_button:
+            st.session_state["ai_chat_messages"] = [
+                {"role": "assistant", "content": "你好，我可以基于当前测算结果继续解释项目收益、成本、IRR、净现值、参考项目、异常指标和优化建议。"}
+            ]
                 # ===================== 保存结果快照，供聊天和刷新后继续展示 =====================
         
         # 8. 页面结果展示
