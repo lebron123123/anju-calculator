@@ -1923,11 +1923,14 @@ if run_manual_inputs:
         else:
             st.subheader("💰 开发成本核心参数")
             total_investment = st.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
-            # 【一行搞定开发成本投资计划输入，和银行借款逻辑完全一致】
+            # 【修复后代码，仅改这一段】
             st.markdown("#### 开发成本投资计划")
             dev_cost_years = st.multiselect("请选择有开发成本投资的年份", options=sorted(list(set(build_years + operate_years))), default=build_years if build_years else [], key="dev_cost_years")
-            dev_cost_plan_dict = {year: st.columns(len(dev_cost_years))[idx].number_input(f"{year}年投资额（万元）", min_value=0.0, value=0.0, step=100.0, key=f"dev_cost_{year}") for idx, year in enumerate(dev_cost_years)} if dev_cost_years else {}
-    
+            dev_cost_plan_dict = {}
+            if dev_cost_years:
+                col_dev_cost = st.columns(len(dev_cost_years))  # 仅创建1次横向列，和银行借款完全一致
+                for idx, year in enumerate(dev_cost_years):
+                    dev_cost_plan_dict[year] = col_dev_cost[idx].number_input(f"{year}年投资额（万元）", min_value=0.0, value=0.0, step=100.0, key=f"dev_cost_{year}")
         # ---------------------- 【原代码完全不动】银行借款与还本付息参数 ----------------------
         st.markdown("---")
         st.subheader("🏦 银行借款与还本付息参数")
