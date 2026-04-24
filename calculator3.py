@@ -1357,6 +1357,7 @@ sale_area, sale_avg_price, sale_ramp_dict = 0, 0.0, {}
 build_years, operate_years = [], []
 house_type = "公租房"
 invest_plan_dict, loan_plan_dict, repay_plan_dict = {}, {}, {}
+dev_cost_plan_dict = {}
 
 # ===================== 【AI模式：纯核心输入，无任何多余界面】 =====================
 # ===================== 【最终修复版】AI模式 =====================
@@ -1588,6 +1589,7 @@ if is_ai_mode:
     invest_plan_dict = {y: total_investment / len(build_years) for y in build_years} if build_years else {}
     loan_plan_dict = {y: total_investment * 0.7 / len(build_years) for y in build_years} if build_years else {}
     repay_plan_dict = {}
+    dev_cost_plan_dict = {y: total_investment / len(build_years) for y in build_years} if build_years else {}
 
     st.success("AI参数已生成完成")
     st.caption(st.session_state.get("ai_msg", ""))
