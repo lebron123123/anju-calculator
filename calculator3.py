@@ -1041,7 +1041,7 @@ def call_external_llm_with_timer(messages, context_text, hard_timeout=20):
 
                 # 硬超时：直接回退
                 if elapsed >= hard_timeout:
-                    set_llm_debug_status(False, f"云端调用超时（>{hard_timeout}秒），已回退本地规则回答")
+                    set_llm_debug_status(False, f"云端调用超时（>{hard_timeout}秒），将回退本地规则回答")
                     status_box.warning(f"⚠️ 云端分析超时，已回退本地规则回答，用时 {elapsed:.1f} 秒")
                     return None
 
