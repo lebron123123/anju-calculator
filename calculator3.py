@@ -1906,14 +1906,29 @@ if run_manual_inputs:
     
     # 3. 总成本费用参数
     with st.expander("3. 总成本费用参数", expanded=True):
-        st.subheader("💰 经营成本核心参数")
-        col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
-        manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=1.92, step=0.01, help="1.92×区域系数")
-        total_build_area = col_cost2.number_input("总建筑面积（㎡）", min_value=0, value=50000, step=100)
-        residential_decoration_cost = col_cost3.number_input("住宅精装修工程费（万元）", min_value=0.0, value=5000.0, step=100.0)
-        total_investment = col_cost4.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
+        # 【一行判断出售类模式】
+        is_sale_mode = "sale_and_commercial" in current_config.get("ui_components", [])
+        # 【一行给隐藏参数赋默认值，彻底避免未定义报错】
+        manage_coeff, total_build_area, residential_decoration_cost, dev_cost_plan_dict = 1.92, 50000, 5000.0, {}
     
-        # ---------------------- 新增：银行借款与还本付息参数 ----------------------
+        # 非出售类：显示完整经营成本参数（原逻辑完全不动）
+        if not is_sale_mode:
+            st.subheader("💰 经营成本核心参数")
+            col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
+            manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=1.92, step=0.01, help="1.92×区域系数")
+            total_build_area = col_cost2.number_input("总建筑面积（㎡）", min_value=0, value=50000, step=100)
+            residential_decoration_cost = col_cost3.number_input("住宅精装修工程费（万元）", min_value=0.0, value=5000.0, step=100.0)
+            total_investment = col_cost4.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
+        # 出售类：仅显示总投资+开发成本投资计划，自动隐藏3个不需要的参数
+        else:
+            st.subheader("💰 开发成本核心参数")
+            total_investment = st.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
+            # 【一行搞定开发成本投资计划输入，和银行借款逻辑完全一致】
+            st.markdown("#### 开发成本投资计划")
+            dev_cost_years = st.multiselect("请选择有开发成本投资的年份", options=sorted(list(set(build_years + operate_years))), default=build_years if build_years else [], key="dev_cost_years")
+            dev_cost_plan_dict = {year: st.columns(len(dev_cost_years))[idx].number_input(f"{year}年投资额（万元）", min_value=0.0, value=0.0, step=100.0, key=f"dev_cost_{year}") for idx, year in enumerate(dev_cost_years)} if dev_cost_years else {}
+    
+        # ---------------------- 【原代码完全不动】银行借款与还本付息参数 ----------------------
         st.markdown("---")
         st.subheader("🏦 银行借款与还本付息参数")
         # 基础参数
@@ -1939,7 +1954,7 @@ if run_manual_inputs:
         if "custom_repay_plan" in current_config.get("ui_components", []):
             st.markdown("#### 银行还款计划")
             repay_available_years = operate_years
-            repay_years = st.multiselect("请选择有还款的年份", options=repay_available_years, default=operate_years[:3] if len(operate_years)>=loan_total_years else operate_years) #默认3年,免得太大了我靠
+            repay_years = st.multiselect("请选择有还款的年份", options=repay_available_years, default=operate_years[:3] if len(operate_years)>=loan_total_years else operate_years)
             if repay_years:
                 col_repay_year = st.columns(len(repay_years))
                 for idx, year in enumerate(repay_years):
@@ -2721,6 +2736,8 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             dev_cost_base = total_investment * (sale_area / area_total) if area_total != 0 else 0.0
             # 初始化新列
             cf_df[["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = 0.0
+            # 【新增1行：填入用户输入的开发成本投资，其余年份保持默认0】
+            for y in dev_cost_plan_dict: cf_df.loc[y, "开发成本投资(万元)"] = round(dev_cost_plan_dict[y],4)
             
             # 合计计算：严格按你给的公式
             for year in all_years:
@@ -2732,16 +2749,13 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 dev_cost_sale, dev_cost_dep = total_cost_df.loc[year, ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)"]]
     
                 dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
-                 
-                # 年度值统一填/，不做逐年计算，仅合计行生效
-                cf_df["开发成本投资(万元)"] = float('nan')
                 
                 # 一行计算调整所得税（负数自动取0）
                 adjust_tax = max( (cf_df.loc[year, "现金流入(万元)"] - cf_df.loc[year, "回收固定资产余值(万元)"] - (dev_cost_sale + dev_cost_dep + sale_fee + sale_tax + rent_cost + rent_tax)) * 0.25, 0.0 )
             
                 # 一行填入所有数值
                  # 🔥 修复2：年度开发成本投资 = 0（不参与年度计算，仅合计有数）
-                cf_df.loc[year, ["开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [round(dev_cost_total,4), round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
+                cf_df.loc[year, ["销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"]] = [round(sale_fee,4), round(sale_tax,4), round(rent_tax,4), round(rent_cost,4), round(adjust_tax,4)]
                 # 🔥 修复3：年度现金流出合计 = 仅费用+税，不加开发成本
                 cf_df.loc[year, "现金流出合计(万元)"] = round( dev_cost_sale + sale_fee + sale_tax + rent_tax + rent_cost + adjust_tax, 4)
                 cf_df = cf_df.reindex(columns=["现金流入(万元)","配保房销售收入(万元)", "其他收入(万元)", "商业出租收入(万元)", "回收固定资产余值(万元)", "现金流出合计(万元)", "开发成本投资(万元)", "销售费用(万元)", "销售税金及附加(万元)", "出租经营税金(万元)", "出租营运成本(万元)", "调整所得税(万元)"])
