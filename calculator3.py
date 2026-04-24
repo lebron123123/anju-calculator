@@ -607,6 +607,11 @@ def answer_ai_chat_local(question, context_dict):
     if "怎么测" in q or "怎么来的" in q or "依据" in q:
         return "当前测算逻辑是：先根据你输入的核心指标匹配同类历史项目，再结合行业规则自动补齐缺失参数，最后进入完整财务模型生成收入、成本、税金、损益和现金流表。"
 
+    if "公式" in q or "怎么算" in q or "计算逻辑" in q or "依据什么" in q:
+        formula_text = context_dict.get("formula_knowledge", "")
+        if formula_text:
+            return "当前系统内置的核心测算公式如下：\n\n" + formula_text
+
     return (
         "我已经拿到当前项目的测算上下文。"
         "你可以继续问我：为什么IRR为负、净现值为什么偏低、有哪些优化建议、参考了哪些历史项目、如何提升收益或改善偿债能力。"
@@ -692,6 +697,56 @@ def build_ai_table_digest(project_type, income_df, total_cost_df, loan_df, profi
     digest["project_type"] = project_type
     return digest
 
+def build_formula_knowledge_text(project_type):
+    """
+    把当前系统关键测算公式整理成大模型可理解的文字说明
+    只放核心公式，避免太长
+    """
+    common_text = """
+【通用核心公式】
+1. 总收入(出租/普通模式) = 住宅租金收入 + 车位收入 + 其他收入
+2. 住宅租金收入 = 住宅面积 × 当年租金单价 × 当年出租率 × 月数 ÷ 10000
+3. 车位收入 = 车位个数 × 车位租金单价 × 车位出租率 × 月数 × 车位收入系数 ÷ 10000
+4. 总成本费用(不含建设期财务费用、不含税金) = 经营成本 + 财务费用(运营期)
+5. 财务费用来自还本付息表中的本期付息
+6. 净现金流量 = 现金流入 - 现金流出合计
+7. 净现值(NPV)按折现率对各年净现金流量逐年折现后求和
+8. IRR按全周期净现金流序列迭代求解
+""".strip()
+
+    rental_text = """
+【出租类 / 租售结合类补充公式】
+1. 管理费用(住房) = 住宅面积 × 出租率 × 12 × 管理系数 ÷ 10000
+2. 管理费用(停车位) = 车位收入 × 0.4
+3. 保险费 = 总建筑面积 × 0.3 ÷ 10000
+4. 维修费用 = 住宅租金收入 × 2%
+5. 日常物业维修基金 = 住宅面积 × 出租率 × 月数 × 0.25 ÷ 10000
+6. 空置期物业管理费 = 住宅面积 × (1-出租率) × 月数 × 3.9 ÷ 10000
+7. 折旧摊销 = 总投资 × (1-20%) ÷ 50
+8. 税金及其附加总和 = 增值税 + 印花税 + 城建税 + 教育附加及地方教育附加 + 房产税 + 城镇土地使用税
+9. 利润总额(出租类) = 总收入 - 总成本费用 - 税金及其附加总和
+10. 净利润 = 利润总额 - 所得税
+""".strip()
+
+    sale_text = """
+【出售类补充公式】
+1. 配保房销售收入 = 销售面积 × 售价 × 当年销售率 ÷ 10000
+2. 出售类总收入 = 配保房销售收入 + 出租净收益现值 + 住宅租金收入 + 车位收入 + 其他收入
+3. 销售费用 = 当年配保房销售收入 × 1.5%
+4. 销售税金及其附加 = 增值税 + 增值税附加 + 印花税
+5. 出租净收入 = 商业出租收入 - 出租营运成本合计 - 出租经营税金合计
+6. 出租净收益现值 = 将各年出租净收入按现值规则折现后汇总
+7. 出售类利润总额 = 总收入 - 总成本费用
+8. 开发成本投资会进入出售类现金流出合计
+9. 出售类现金流出合计 = 开发成本投资 + 销售费用 + 销售税金及附加 + 出租经营税金 + 出租营运成本 + 调整所得税
+10. 利息保障倍数(出售类) = (净利润合计 + 经营期财务费用 + 所得税 + 累计开发成本(折旧摊销部分) - 0.8×其他收入) ÷ (建设期财务费用 + 经营期财务费用)
+""".strip()
+
+    if project_type == "出售类(配保房/可售型人才房等)":
+        return common_text + "\n\n" + sale_text
+    else:
+        return common_text + "\n\n" + rental_text
+
 def build_ai_enhanced_context_text(context_dict):
     """
     生成更贴表格的上下文文本
@@ -708,6 +763,7 @@ def build_ai_enhanced_context_text(context_dict):
     best_cf_text = "；".join([f"{k}年={v}万元" for k, v in table_digest.get("best_net_cf_years", [])]) or "暂无"
 
     rental_operation = table_digest.get("rental_operation", {})
+    formula_knowledge = context_dict.get("formula_knowledge", "")
 
     rental_text = ""
     if rental_operation:
@@ -748,6 +804,9 @@ def build_ai_enhanced_context_text(context_dict):
 - 正向现金流较大的年份：{best_cf_text}
 
 {rental_text}
+
+系统内置测算公式说明：
+{formula_knowledge}
 """.strip()
 
 def build_general_project_chat_context(
@@ -835,7 +894,8 @@ def build_general_project_chat_context(
         "total_npv_sum": total_npv_sum,
         "irr_value": irr_value,
         "interest_coverage_ratio": interest_coverage_ratio,
-        "table_digest": table_digest
+        "table_digest": table_digest,
+        "formula_knowledge": build_formula_knowledge_text(project_type)
     }
 
 def call_kimi_cloud_for_chat(messages, context_text):
@@ -873,6 +933,8 @@ def call_kimi_cloud_for_chat(messages, context_text):
 8. 如果是出售类项目，要区分销售收入、商业出租、出租净收益现值、销售税金及附加、开发成本投资；
 9. 如果是出租类项目，要区分住宅租金收入、车位收入、经营成本、税金及现金流；
 10. 优先分析“影响最大”的项目，不要平均用力。
+11. 如果上下文中提供了“系统内置测算公式说明”，应优先按这些公式回答，不要臆造其他公式；
+12. 当用户问“公式是什么、怎么算、依据什么公式”时，应直接引用系统内置公式说明，并结合当前项目数字举例。
 
 当前项目测算上下文：
 {context_text}
