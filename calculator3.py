@@ -10,6 +10,8 @@ import json
 import pandas as pd
 import requests
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 LLM_MODE = "cloud"   # "ollama" 或 "cloud"
 CLOUD_PROVIDER = "kimi"
@@ -545,6 +547,144 @@ def answer_ai_chat_local(question, context_dict):
         "你可以继续问我：为什么IRR为负、净现值为什么偏低、有哪些优化建议、参考了哪些历史项目、如何提升收益或改善偿债能力。"
     )
 
+def build_ai_table_digest(project_type, income_df, total_cost_df, loan_df, profit_df, cf_df, tax_df=None, rental_cost_df=None):
+    """
+    把核心表格压缩成适合大模型理解的摘要
+    """
+    digest = {}
+
+    # 收入结构
+    income_items = {
+        "住宅租金收入": _safe_get_sum(income_df, "住宅租金收入(万元)"),
+        "车位收入": _safe_get_sum(income_df, "车位收入(万元)"),
+        "配保房销售收入": _safe_get_sum(income_df, "配保房销售收入(万元)"),
+        "商业出租收入": _safe_get_sum(income_df, "商业出租收入(万元)"),
+        "出租净收益现值": _safe_get_sum(income_df, "出租净收益现值(万元)"),
+        "总收入": _safe_get_sum(income_df, "总收入(万元)")
+    }
+    digest["income_items"] = income_items
+    digest["top_income_items"] = _top_n_dict(
+        {k: v for k, v in income_items.items() if k != "总收入" and v != 0},
+        n=3
+    )
+
+    # 成本结构
+    cost_candidates = {}
+    if total_cost_df is not None:
+        for col in total_cost_df.columns:
+            if "万元" in col and "总成本费用" not in col:
+                cost_candidates[col] = _safe_get_sum(total_cost_df, col)
+
+    digest["top_cost_items"] = _top_n_dict(
+        {k: v for k, v in cost_candidates.items() if v != 0},
+        n=5
+    )
+    digest["total_cost"] = _safe_get_sum(total_cost_df, "总成本费用(不含建设期财务费用、不含税金)(万元)")
+
+    # 财务费用
+    digest["interest_total"] = _safe_get_sum(loan_df, "本期付息(万元)")
+    digest["repay_total"] = _safe_get_sum(loan_df, "本期还本(万元)")
+
+    # 利润与税
+    digest["profit_total"] = _safe_get_sum(profit_df, "净利润(万元)")
+    digest["profit_before_tax_total"] = _safe_get_sum(profit_df, "利润总额(万元)")
+    digest["income_tax_total"] = _safe_get_sum(profit_df, "所得税(万元)")
+    digest["tax_total"] = _safe_get_sum(tax_df, "税金及其附加总和(万元)") if tax_df is not None else 0.0
+
+    # 现金流关键年份
+    net_cf_years = {}
+    npv_years = {}
+    if cf_df is not None:
+        for y in cf_df.index:
+            try:
+                net_cf_years[int(y)] = _round2(cf_df.loc[y, "净现金流量(万元)"], 0.0)
+            except:
+                pass
+            try:
+                npv_years[int(y)] = _round2(cf_df.loc[y, "净现值(万元)"], 0.0)
+            except:
+                pass
+
+    digest["worst_net_cf_years"] = _top_n_dict(
+        {k: v for k, v in net_cf_years.items() if v < 0},
+        n=3
+    )
+    digest["best_net_cf_years"] = _top_n_dict(
+        {k: v for k, v in net_cf_years.items() if v > 0},
+        n=3
+    )
+
+    # 出售类补充：出租经营情况
+    if rental_cost_df is not None and not rental_cost_df.empty:
+        digest["rental_operation"] = {
+            "商业出租收入合计": _safe_get_sum(rental_cost_df, "商业出租收入(万元)"),
+            "出租营运成本合计": _safe_get_sum(rental_cost_df, "出租营运成本合计(万元)"),
+            "出租经营税金合计": _safe_get_sum(rental_cost_df, "出租经营税金合计(万元)"),
+            "出租净收入合计": _safe_get_sum(rental_cost_df, "出租净收入(万元)"),
+            "出租净收益现值合计": _safe_get_sum(rental_cost_df, "出租净收益现值(万元)")
+        }
+
+    digest["project_type"] = project_type
+    return digest
+
+def build_ai_enhanced_context_text(context_dict):
+    """
+    生成更贴表格的上下文文本
+    """
+    if not context_dict:
+        return "暂无测算上下文。"
+
+    table_digest = context_dict.get("table_digest", {})
+    similar_names = "、".join(context_dict.get("similar_project_names", [])) if context_dict.get("similar_project_names") else "暂无"
+
+    top_income_text = "；".join([f"{k}={v}万元" for k, v in table_digest.get("top_income_items", [])]) or "暂无"
+    top_cost_text = "；".join([f"{k}={v}万元" for k, v in table_digest.get("top_cost_items", [])]) or "暂无"
+    worst_cf_text = "；".join([f"{k}年={v}万元" for k, v in table_digest.get("worst_net_cf_years", [])]) or "暂无"
+    best_cf_text = "；".join([f"{k}年={v}万元" for k, v in table_digest.get("best_net_cf_years", [])]) or "暂无"
+
+    rental_operation = table_digest.get("rental_operation", {})
+
+    rental_text = ""
+    if rental_operation:
+        rental_text = f"""
+出租经营补充：
+- 商业出租收入合计：{rental_operation.get("商业出租收入合计", 0)}万元
+- 出租营运成本合计：{rental_operation.get("出租营运成本合计", 0)}万元
+- 出租经营税金合计：{rental_operation.get("出租经营税金合计", 0)}万元
+- 出租净收入合计：{rental_operation.get("出租净收入合计", 0)}万元
+- 出租净收益现值合计：{rental_operation.get("出租净收益现值合计", 0)}万元
+""".strip()
+
+    return f"""
+项目类型：{context_dict.get("project_type", "")}
+项目子类型：{context_dict.get("sub_type", "")}
+总建筑面积：{context_dict.get("total_build_area", 0)}㎡
+总投资：{context_dict.get("total_investment", 0)}万元
+售价：{context_dict.get("sale_price", 0)}元/㎡
+租金：{context_dict.get("rent_price", 0)}元/㎡/月
+参考项目：{similar_names}
+
+核心测算结果：
+- 全周期总收入：{context_dict.get("total_income", 0)}万元
+- 全周期总成本：{context_dict.get("total_cost", 0)}万元
+- 全周期净利润：{context_dict.get("total_net_profit", 0)}万元
+- 净现值：{context_dict.get("total_npv_sum", 0)}万元
+- IRR：{context_dict.get("irr_value", "")}
+- 利息保障倍数：{context_dict.get("interest_coverage_ratio", 0)}
+
+收入结构重点：
+- 主要收入项：{top_income_text}
+
+成本结构重点：
+- 主要成本项：{top_cost_text}
+
+现金流重点：
+- 负向现金流较大的年份：{worst_cf_text}
+- 正向现金流较大的年份：{best_cf_text}
+
+{rental_text}
+""".strip()
+
 def call_kimi_cloud_for_chat(messages, context_text):
     """
     调用 Kimi 云端聊天接口
@@ -560,17 +700,26 @@ def call_kimi_cloud_for_chat(messages, context_text):
     kimi_chat_url = "https://api.moonshot.cn/v1/chat/completions"
 
     try:
-        recent_messages = messages[-8:] if messages else []
+        recent_messages = messages[-4:] if messages else []
 
         api_messages = []
         system_prompt = f"""
-你是一个安居房/保障房项目财务测算分析助手。
+你是一个安居房/保障房项目财务测算分析助手，你的任务不是泛泛讲财务理论，而是“紧贴当前这张测算表”回答。
 
-要求：
-1. 基于当前测算结果回答用户问题；
-2. 优先解释IRR、净现值、利润、成本、现金流、异常指标和优化建议；
-3. 不要虚构上下文中不存在的数据；
-4. 回答要简洁、专业、适合项目汇报。
+回答规则：
+1. 必须优先引用当前测算结果中的具体数字，不要只讲泛泛理论；
+2. 如果用户问“为什么净现值不高/为什么IRR低/为什么利润差”，要从收入结构、成本结构、现金流时点、融资费用、税金等角度结合数字解释；
+3. 如果用户问“怎么优化”，要优先提出对当前模型可落地的参数优化建议，如售价、租金、出租率、车位收入系数、总投资、土地成本、建安成本、借款结构、回款节奏；
+4. 不要虚构表格里没有的数据；
+5. 回答尽量采用以下格式：
+   - 先给结论
+   - 再列 2~4 条结合本项目数字的原因
+   - 最后给 2~4 条针对性的优化建议
+6. 如果用户的问题很短，例如“为什么净现值不高”，你要默认理解为：请结合当前测算表解释，而不是给教材定义；
+7. 回答语言简洁、专业，适合汇报场景；
+8. 如果是出售类项目，要区分销售收入、商业出租、出租净收益现值、销售税金及附加、开发成本投资；
+9. 如果是出租类项目，要区分住宅租金收入、车位收入、经营成本、税金及现金流；
+10. 优先分析“影响最大”的项目，不要平均用力。
 
 当前项目测算上下文：
 {context_text}
@@ -581,13 +730,17 @@ def call_kimi_cloud_for_chat(messages, context_text):
             "content": system_prompt
         })
 
-        for msg in recent_messages:
+        for i, msg in enumerate(recent_messages):
             role = msg.get("role", "user")
             content = str(msg.get("content", "")).strip()
             if not content:
                 continue
             if role not in ["user", "assistant"]:
                 role = "user"
+        
+            if role == "user" and i == len(recent_messages) - 1:
+                content = f"请严格结合当前测算表中的数字回答这个问题：{content}"
+        
             api_messages.append({
                 "role": role,
                 "content": content
@@ -708,6 +861,41 @@ def call_external_llm_for_chat(messages, context_text):
         set_llm_debug_status(False, f"未知 LLM_MODE：{LLM_MODE}")
         return None
 
+def get_loading_text(elapsed):
+    texts = [
+        "🧠 正在读取测算结果与关键指标…",
+        "📊 正在比对收入、成本、利润与现金流…",
+        "🔍 正在定位影响IRR/NPV的核心因素…",
+        "✍️ 正在生成针对性的解释与优化建议…"
+    ]
+    idx = int(elapsed // 1.5) % len(texts)
+    return f"{texts[idx]} 已等待 {elapsed:.1f} 秒"
+
+def call_external_llm_with_timer(messages, context_text):
+    """
+    带前端等待提示和计时的大模型调用
+    """
+    status_box = st.empty()
+    start_ts = time.time()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(call_external_llm_for_chat, messages, context_text)
+
+        while not future.done():
+            elapsed = time.time() - start_ts
+            #status_box.info(f"🧠 正在结合测算表分析，请稍候… 已等待 {elapsed:.1f} 秒")
+            status_box.info(get_loading_text(elapsed))
+            time.sleep(0.2)
+
+        answer = future.result()
+        total_elapsed = time.time() - start_ts
+
+    if answer:
+        status_box.success(f"✅ 分析完成，用时 {total_elapsed:.1f} 秒")
+    else:
+        status_box.warning(f"⚠️ 大模型未返回结果，已回退本地规则回答，用时 {total_elapsed:.1f} 秒")
+
+    return answer
 
 def render_ai_chat_panel():
     """
@@ -742,10 +930,10 @@ def render_ai_chat_panel():
         st.session_state["ai_chat_messages"].append({"role": "user", "content": user_question})
 
         context_dict = st.session_state.get("ai_result_context", {})
-        context_text = build_ai_context_text(context_dict)
+        context_text = build_ai_enhanced_context_text(context_dict)
 
         # 先尝试外部大模型；如果没有，就回退到本地规则回答
-        llm_answer = call_external_llm_for_chat(
+        llm_answer = call_external_llm_with_timer(
             messages=st.session_state["ai_chat_messages"],
             context_text=context_text
         )
@@ -852,6 +1040,30 @@ def get_secret_value(name, default=""):
     except Exception:
         pass
     return os.getenv(name, default)
+
+def _round2(x, default=0.0):
+    try:
+        if pd.isna(x):
+            return default
+        return round(float(x), 2)
+    except:
+        return default
+
+
+def _safe_get_sum(df, col):
+    try:
+        if df is not None and col in df.columns:
+            return _round2(df[col].sum(), 0.0)
+    except:
+        pass
+    return 0.0
+
+
+def _top_n_dict(d, n=3):
+    if not d:
+        return []
+    items = sorted(d.items(), key=lambda x: abs(x[1]), reverse=True)
+    return items[:n]
 
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
@@ -2552,6 +2764,16 @@ if calc_button or has_ai_result_snapshot():
                 )
                 st.dataframe(assumption_df, use_container_width=True)
 
+            table_digest = build_ai_table_digest(
+                project_type=project_type,
+                income_df=income_df,
+                total_cost_df=total_cost_df,
+                loan_df=loan_df,
+                profit_df=profit_df,
+                cf_df=cf_df,
+                tax_df=tax_df if 'tax_df' in locals() else None,
+                rental_cost_df=rental_cost_df if 'rental_cost_df' in locals() else None
+           )
             # 存聊天上下文
             st.session_state["ai_result_context"] = {
                 "project_type": project_type,
@@ -2566,7 +2788,8 @@ if calc_button or has_ai_result_snapshot():
                 "total_net_profit": total_net_profit,
                 "total_npv_sum": total_npv_sum,
                 "irr_value": irr_value,
-                "interest_coverage_ratio": interest_coverage_ratio
+                "interest_coverage_ratio": interest_coverage_ratio,
+                "table_digest": table_digest
             }
                 # ===================== 保存结果快照，供聊天和刷新后继续展示 =====================
         
