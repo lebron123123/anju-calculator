@@ -1116,6 +1116,11 @@ def render_ai_chat_panel():
 
         # 关键：标记已有结果，避免聊天导致页面回退
         st.session_state["ai_result_ready"] = True
+        save_ai_result_snapshot({
+            **get_ai_result_snapshot(),
+            "page_key": get_ai_result_snapshot().get("page_key", ""),
+            "ai_result_context": st.session_state.get("ai_result_context", {}).copy()
+        })
         st.rerun()
         
 def build_risk_and_suggestion_text(context_dict):
@@ -1190,9 +1195,27 @@ def save_ai_result_snapshot(result_dict):
 def get_ai_result_snapshot():
     return st.session_state.get("ai_result_snapshot", {})
 
-
 def has_ai_result_snapshot():
     return st.session_state.get("ai_result_ready", False)
+
+def get_current_page_key(is_ai_mode, selected_project_type):
+    """
+    生成当前页面唯一标识：
+    - AI页固定为 AI_MODE
+    - 普通页按项目类型区分
+    """
+    return "AI_MODE" if is_ai_mode else selected_project_type
+def has_result_snapshot_for_current_page(current_page_key):
+    """
+    只有当快照属于当前页面时，才允许直接回显
+    避免从AI页切到普通页时误显示旧结果
+    """
+    snap = get_ai_result_snapshot()
+    if not st.session_state.get("ai_result_ready", False):
+        return False
+    if not snap:
+        return False
+    return snap.get("page_key") == current_page_key
 
 def set_llm_debug_status(ok, message):
     st.session_state["llm_debug_ok"] = ok
@@ -1313,6 +1336,7 @@ st.markdown("---")
 
 # ===================== 【最终版】AI模式 / 普通模式 彻底分流 =====================
 is_ai_mode = "ai_mode" in current_config.get("ui_components", [])
+current_page_key = get_current_page_key(is_ai_mode, project_type)
 # ===================== 修复：离开AI模式时，清掉AI专属触发状态 =====================
 if not is_ai_mode:
     st.session_state["ai_mode_ready"] = False
@@ -2428,9 +2452,9 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=Fal
 
 # ===================== 结果展示区 =====================
 # 仅AI模式允许使用历史快照；普通模式必须点击按钮才测算
-if calc_button or (is_ai_mode and has_ai_result_snapshot()):
+if calc_button or has_result_snapshot_for_current_page(current_page_key):
     try:
-        use_snapshot_only = is_ai_mode and (not calc_button) and has_ai_result_snapshot()
+        use_snapshot_only = (not calc_button) and has_result_snapshot_for_current_page(current_page_key)
         if use_snapshot_only:
             snap = get_ai_result_snapshot()
 
@@ -2450,7 +2474,22 @@ if calc_button or (is_ai_mode and has_ai_result_snapshot()):
             tax_df_T = snap.get("tax_df_T", pd.DataFrame())
             rental_cost_df_T = snap.get("rental_cost_df_T", pd.DataFrame())
 
-            project_name = snap.get("project_name", "AI测算项目")
+            project_name = snap.get("project_name", "测算项目")
+            project_type = snap.get("project_type", project_type)
+
+            # 关键：聊天上下文直接从快照恢复，不再依赖下面重新拼装
+            if snap.get("ai_result_context"):
+                st.session_state["ai_result_context"] = snap.get("ai_result_context", {})
+
+            # AI模式说明所需内容也恢复
+            if snap.get("ai_core_input") is not None:
+                st.session_state["ai_core_input"] = snap.get("ai_core_input", {})
+            if snap.get("ai_params") is not None:
+                st.session_state["ai_params"] = snap.get("ai_params", {})
+            if snap.get("ai_similar_projects") is not None:
+                st.session_state["ai_similar_projects"] = snap.get("ai_similar_projects", [])
+            if snap.get("ai_similar_project_names") is not None:
+                st.session_state["ai_similar_project_names"] = snap.get("ai_similar_project_names", [])
         st.session_state["ai_calc_trigger"] = False
         # 前置校验，避免参数缺失报错
         show_resi = st.session_state.get("show_resi", True) #不设置这个就会报错
@@ -2997,33 +3036,35 @@ if calc_button or (is_ai_mode and has_ai_result_snapshot()):
                 st.dataframe(assumption_df, use_container_width=True)
 
         # ===================== 所有模式统一生成AI问答上下文 =====================
-        history_df_for_chat = load_builtin_history_projects()
+        # ===================== 所有模式统一生成AI问答上下文 =====================
+        if not use_snapshot_only:
+            history_df_for_chat = load_builtin_history_projects()
 
-        st.session_state["ai_result_context"] = build_general_project_chat_context(
-            project_type=project_type,
-            total_build_area=total_build_area,
-            total_investment=total_investment,
-            sale_avg_price=sale_avg_price,
-            rent_start_price=rent_start_price,
-            total_income=total_income,
-            total_cost=total_cost,
-            total_net_profit=total_net_profit,
-            total_npv_sum=total_npv_sum,
-            irr_value=irr_value,
-            interest_coverage_ratio=interest_coverage_ratio,
-            income_df=income_df,
-            total_cost_df=total_cost_df,
-            loan_df=loan_df,
-            profit_df=profit_df,
-            cf_df=cf_df,
-            history_df=history_df_for_chat,
-            tax_df=tax_df if 'tax_df' in locals() else None,
-            rental_cost_df=rental_cost_df if 'rental_cost_df' in locals() else None,
-            residential_area=residential_area if 'residential_area' in locals() else 0,
-            comm_area=comm_area if 'comm_area' in locals() else 0,
-            sale_area=sale_area if 'sale_area' in locals() else 0,
-            comm_rent_start_price=comm_rent_start_price if 'comm_rent_start_price' in locals() else 0
-        )
+            st.session_state["ai_result_context"] = build_general_project_chat_context(
+                project_type=project_type,
+                total_build_area=total_build_area,
+                total_investment=total_investment,
+                sale_avg_price=sale_avg_price,
+                rent_start_price=rent_start_price,
+                total_income=total_income,
+                total_cost=total_cost,
+                total_net_profit=total_net_profit,
+                total_npv_sum=total_npv_sum,
+                irr_value=irr_value,
+                interest_coverage_ratio=interest_coverage_ratio,
+                income_df=income_df,
+                total_cost_df=total_cost_df,
+                loan_df=loan_df,
+                profit_df=profit_df,
+                cf_df=cf_df,
+                history_df=history_df_for_chat,
+                tax_df=tax_df if 'tax_df' in locals() else None,
+                rental_cost_df=rental_cost_df if 'rental_cost_df' in locals() else None,
+                residential_area=residential_area if 'residential_area' in locals() else 0,
+                comm_area=comm_area if 'comm_area' in locals() else 0,
+                sale_area=sale_area if 'sale_area' in locals() else 0,
+                comm_rent_start_price=comm_rent_start_price if 'comm_rent_start_price' in locals() else 0
+            )
 
         # 只有用户刚完成新的测算时，才重置聊天记录
         if calc_button:
@@ -3063,68 +3104,76 @@ if calc_button or (is_ai_mode and has_ai_result_snapshot()):
         # 仅出售类项目显示该表，非出售类完全不执行，避免报错
         rental_cost_df = pd.DataFrame()
         if project_type == "出售类(配保房/可售型人才房等)":
-            # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
-            rental_cost_df = calc_rental_operation_table(
-                all_years=all_years,
-                is_operate=is_operate,
-                operate_year_list=operate_year_list,
-                comm_area=comm_area,
-                comm_rent_start_price=comm_rent_start_price,
-                comm_rent_increase_span=comm_rent_increase_span,
-                comm_rent_increase_rate=comm_rent_increase_rate,
-                comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
-                comm_stable_start=comm_stable_start,
-                comm_stable_end=comm_stable_end,
-                comm_occupancy_stable=comm_occupancy_stable,
-                park_count=park_count,
-                land_cost=land_cost,
-                construction_cost=construction_cost,
-                infra_cost=infra_cost,
-                other_eng_cost=other_eng_cost,
-                lease_months=lease_months if 'lease_months' in locals() else 12,
-                land_use_area=land_use_area,
-                project_input_tax=project_input_tax,
-            )   #plot_ratio_area=plot_ratio_area,
-            rental_cost_df_T = rental_cost_df.T
-            # （2）. 定义需要求和的行（比率类不合计，数值类全合计）
-            rental_sum_rows = [
-                "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
-                "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
-                "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
-                "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)","销项税(万元)",
-                "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)",
-                "出租净收入(万元)","出租净收益现值(万元)"
-            ]
-            # （3）. 新增全周期合计列
-            rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
-                lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
+            if use_snapshot_only and 'rental_cost_df_T' in locals() and not rental_cost_df_T.empty:
+                st.subheader("📊 出租情况表")
+                st.dataframe(rental_cost_df_T, use_container_width=True)
+            else:
+                # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
+                rental_cost_df = calc_rental_operation_table(
+                    all_years=all_years,
+                    is_operate=is_operate,
+                    operate_year_list=operate_year_list,
+                    comm_area=comm_area,
+                    comm_rent_start_price=comm_rent_start_price,
+                    comm_rent_increase_span=comm_rent_increase_span,
+                    comm_rent_increase_rate=comm_rent_increase_rate,
+                    comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
+                    comm_stable_start=comm_stable_start,
+                    comm_stable_end=comm_stable_end,
+                    comm_occupancy_stable=comm_occupancy_stable,
+                    park_count=park_count,
+                    land_cost=land_cost,
+                    construction_cost=construction_cost,
+                    infra_cost=infra_cost,
+                    other_eng_cost=other_eng_cost,
+                    lease_months=lease_months if 'lease_months' in locals() else 12,
+                    land_use_area=land_use_area,
+                    project_input_tax=project_input_tax,
+                )
+                rental_cost_df_T = rental_cost_df.T
+
+                rental_sum_rows = [
+                    "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
+                    "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
+                    "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
+                    "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)", "销项税(万元)",
+                    "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)",
+                    "出租净收入(万元)", "出租净收益现值(万元)"
+                ]
+
+                rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
+                    lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
+                )
+
+                total_manage = rental_cost_df.loc[:, "运营管理费用（商业）(万元)"].sum()
+                total_insurance = rental_cost_df.loc[:, "保险费用(万元)"].sum()
+                total_vacancy = rental_cost_df.loc[:, "空置物业服务费(万元)"].sum()
+                input_tax_total = (total_manage + total_insurance) * (0.06 / 1.06) + total_vacancy * (0.09 / 1.09) + project_input_tax
+                rental_cost_df_T.loc["进项税(万元)", "全周期合计(万元)"] = round(input_tax_total, 4)
+
+                rental_cost_df_T = rental_cost_df_T[["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"]]
+
+                st.subheader("📊 出租情况表")
+                st.dataframe(rental_cost_df_T, use_container_width=True)
+    
+        if (not use_snapshot_only) and project_type == "出售类(配保房/可售型人才房等)":
+            income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+            income_df["总收入(万元)"] = (
+                income_df["配保房销售收入(万元)"]
+                + income_df["出租净收益现值(万元)"]
+                + income_df["住宅租金收入(万元)"]
+                + income_df["车位收入(万元)"]
+                + income_df[f"{other_income_name}(万元)"]
             )
-    
-            # 1. 直接从表格里取已有的各年数据，算累计
-            total_manage = rental_cost_df.loc[:, "运营管理费用（商业）(万元)"].sum()
-            total_insurance = rental_cost_df.loc[:, "保险费用(万元)"].sum()
-            total_vacancy = rental_cost_df.loc[:, "空置物业服务费(万元)"].sum()
-            # 2. 严格按你的公式算合计
-            input_tax_total = (total_manage + total_insurance) * (0.06 / 1.06) + total_vacancy * (0.09 / 1.09) + project_input_tax
-            # 3. 直接填到合计列
-            rental_cost_df_T.loc["进项税(万元)", "全周期合计(万元)"] = round(input_tax_total, 4)
-            
-            #（4）. 调整列顺序：合计列放最前面，和其他表格格式完全统一
-            rental_cost_df_T = rental_cost_df_T[ ["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"] ]
-        
-            # （5）. 展示转置后的表格
-            # 表格展示放在if块内，仅出售类执行，非出售类不运行，彻底避免变量未定义
-            st.subheader("📊 出租情况表")
-            st.dataframe(rental_cost_df_T, use_container_width=True)
-    
-        # 第1行：把上一个表的净收益现值复制到收入表
-        if project_type == "出售类(配保房/可售型人才房等)": income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
-        # 【核心修复1行：重新计算总收入，把出租净收益现值加进去】
-        if project_type == "出售类(配保房/可售型人才房等)": income_df["总收入(万元)"] = income_df["配保房销售收入(万元)"] + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"]
-        # 第2行：重新生成带合计的转置表
-        if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df.T; income_df_T["全周期合计(万元)"] = income_df_T.apply(lambda r: round(r.sum(),4) if r.name in income_sum_rows else "/", axis=1); income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
-        # 第3行：【核心1行】把指定行强制放到最前面
-        if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.reindex(["配保房销售收入(万元)", "出租净收益现值(万元)"] + [idx for idx in income_df_T.index if idx not in ["配保房销售收入(万元)", "出租净收益现值(万元)"]])
+            income_df_T = income_df.T
+            income_df_T["全周期合计(万元)"] = income_df_T.apply(
+                lambda r: round(r.sum(), 4) if r.name in income_sum_rows else "/", axis=1
+            )
+            income_df_T = income_df_T[["全周期合计(万元)"] + [c for c in income_df_T.columns if c != "全周期合计(万元)"]].fillna("/")
+            income_df_T = income_df_T.reindex(
+                ["配保房销售收入(万元)", "出租净收益现值(万元)"] +
+                [idx for idx in income_df_T.index if idx not in ["配保房销售收入(万元)", "出租净收益现值(万元)"]]
+            )
         
         # --- 收入明细 ---
         st.subheader("📋 收入明细表")
@@ -3200,7 +3249,10 @@ if calc_button or (is_ai_mode and has_ai_result_snapshot()):
         cf_df_T = cf_df_T[ ["全周期合计/期末值"] + [col for col in cf_df_T.columns if col != "全周期合计/期末值"] ]
         if calc_button:
             snapshot_dict = {
+                "page_key": current_page_key,
+                "project_type": project_type,
                 "project_name": project_name,
+
                 "total_income": total_income,
                 "total_cost": total_cost,
                 "total_interest": total_interest,
@@ -3208,13 +3260,23 @@ if calc_button or (is_ai_mode and has_ai_result_snapshot()):
                 "interest_coverage_ratio": interest_coverage_ratio,
                 "total_npv_sum": total_npv_sum,
                 "irr_value": irr_value,
+
                 "income_df_T": income_df_T.copy(),
                 "cost_df_T": cost_df_T.copy(),
                 "loan_df_T": loan_df_T.copy(),
                 "profit_df_T": profit_df_T.copy(),
                 "cf_df_T": cf_df_T.copy(),
                 "tax_df_T": tax_df_T.copy() if 'tax_df_T' in locals() else pd.DataFrame(),
-                "rental_cost_df_T": rental_cost_df_T.copy() if 'rental_cost_df_T' in locals() else pd.DataFrame()
+                "rental_cost_df_T": rental_cost_df_T.copy() if 'rental_cost_df_T' in locals() else pd.DataFrame(),
+
+                # 聊天直接恢复用
+                "ai_result_context": st.session_state.get("ai_result_context", {}).copy(),
+
+                # AI模式说明恢复用
+                "ai_core_input": st.session_state.get("ai_core_input", {}).copy() if st.session_state.get("ai_core_input") else {},
+                "ai_params": st.session_state.get("ai_params", {}).copy() if st.session_state.get("ai_params") else {},
+                "ai_similar_projects": list(st.session_state.get("ai_similar_projects", [])),
+                "ai_similar_project_names": list(st.session_state.get("ai_similar_project_names", [])),
             }
             save_ai_result_snapshot(snapshot_dict)
         st.dataframe(cf_df_T, use_container_width=True)
