@@ -750,6 +750,94 @@ def build_ai_enhanced_context_text(context_dict):
 {rental_text}
 """.strip()
 
+def build_general_project_chat_context(
+    project_type,
+    total_build_area,
+    total_investment,
+    sale_avg_price,
+    rent_start_price,
+    total_income,
+    total_cost,
+    total_net_profit,
+    total_npv_sum,
+    irr_value,
+    interest_coverage_ratio,
+    income_df,
+    total_cost_df,
+    loan_df,
+    profit_df,
+    cf_df,
+    history_df=None,
+    tax_df=None,
+    rental_cost_df=None,
+    residential_area=0,
+    comm_area=0,
+    sale_area=0,
+    comm_rent_start_price=0
+):
+    """
+    给所有模式统一生成问答上下文
+    """
+    # 1. 统一映射子类型
+    if project_type == "出售类(配保房/可售型人才房等)":
+        sub_type = "出售类"
+    elif project_type == "出租型(协议出让/合作类等)":
+        sub_type = "出租类"
+    else:
+        sub_type = "租售结合类"
+
+    # 2. 普通模式也尝试匹配历史项目
+    core_input = {
+        "项目子类型": sub_type,
+        "总建筑面积": total_build_area,
+        "总投资": total_investment,
+        "售价": sale_avg_price if sub_type in ["出售类", "租售结合类"] else 0,
+        "租金": rent_start_price if sub_type in ["出租类", "租售结合类"] else 0,
+        "土地成本": 0,
+        "可售面积占比": (sale_area / total_build_area) if total_build_area and sale_area > 0 else 0,
+        "商业面积占比": (comm_area / total_build_area) if total_build_area and comm_area > 0 else 0,
+        "住宅稳定期出租率": 0,
+        "商业起始租金": comm_rent_start_price
+    }
+
+    similar_project_names = []
+    if history_df is not None and not history_df.empty:
+        try:
+            similar_df = find_similar_projects(core_input, history_df, top_n=3)
+            if similar_df is not None and not similar_df.empty:
+                similar_project_names = similar_df["项目名称"].tolist()
+        except:
+            similar_project_names = []
+
+    # 3. 表格摘要
+    table_digest = build_ai_table_digest(
+        project_type=project_type,
+        income_df=income_df,
+        total_cost_df=total_cost_df,
+        loan_df=loan_df,
+        profit_df=profit_df,
+        cf_df=cf_df,
+        tax_df=tax_df,
+        rental_cost_df=rental_cost_df
+    )
+
+    return {
+        "project_type": project_type,
+        "sub_type": sub_type,
+        "total_build_area": total_build_area,
+        "total_investment": total_investment,
+        "sale_price": sale_avg_price if sub_type in ["出售类", "租售结合类"] else 0,
+        "rent_price": rent_start_price if sub_type in ["出租类", "租售结合类"] else 0,
+        "similar_project_names": similar_project_names,
+        "total_income": total_income,
+        "total_cost": total_cost,
+        "total_net_profit": total_net_profit,
+        "total_npv_sum": total_npv_sum,
+        "irr_value": irr_value,
+        "interest_coverage_ratio": interest_coverage_ratio,
+        "table_digest": table_digest
+    }
+
 def call_kimi_cloud_for_chat(messages, context_text):
     """
     调用 Kimi 云端聊天接口
@@ -1839,7 +1927,11 @@ if run_manual_inputs:
                 invest_plan_dict[year] = col_invest_year[idx].number_input(f"{year}年建设投资额（万元）", min_value=0.0, value=0.0, step=100.0)
     
     # 6. 一键测算按钮
-calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True) or st.session_state.get("ai_calc_trigger", False)
+# ===================== 6. 一键测算按钮（AI模式隐藏手动按钮） =====================
+if is_ai_mode:
+    calc_button = st.session_state.get("ai_calc_trigger", False)
+else:
+    calc_button = st.button("🔽 一键开始测算", type="primary", use_container_width=True)
 
 # ===================== 核心测算函数=====================
 def generate_year_list(build_yrs, operate_yrs):
@@ -2851,7 +2943,8 @@ if calc_button or has_ai_result_snapshot():
 
 
         # ===================== AI模式专属：测算说明 + 补参说明 =====================
-        if st.session_state.get("ai_mode_ready", False) and has_ai_result_snapshot():
+                # ===================== AI模式专属：测算说明 + 补参说明 =====================
+        if st.session_state.get("ai_mode_ready", False):
             ai_core_input = st.session_state.get("ai_core_input", {})
             ai_params_state = st.session_state.get("ai_params", {})
             ai_similar_projects = st.session_state.get("ai_similar_projects", [])
@@ -2879,33 +2972,37 @@ if calc_button or has_ai_result_snapshot():
                 )
                 st.dataframe(assumption_df, use_container_width=True)
 
-            table_digest = build_ai_table_digest(
-                project_type=project_type,
-                income_df=income_df,
-                total_cost_df=total_cost_df,
-                loan_df=loan_df,
-                profit_df=profit_df,
-                cf_df=cf_df,
-                tax_df=tax_df if 'tax_df' in locals() else None,
-                rental_cost_df=rental_cost_df if 'rental_cost_df' in locals() else None
-           )
-            # 存聊天上下文
-            st.session_state["ai_result_context"] = {
-                "project_type": project_type,
-                "sub_type": ai_core_input.get("项目子类型", ""),
-                "total_build_area": ai_core_input.get("总建筑面积", 0),
-                "total_investment": ai_core_input.get("总投资", 0),
-                "sale_price": ai_core_input.get("售价", 0),
-                "rent_price": ai_core_input.get("租金", 0),
-                "similar_project_names": ai_similar_project_names,
-                "total_income": total_income,
-                "total_cost": total_cost,
-                "total_net_profit": total_net_profit,
-                "total_npv_sum": total_npv_sum,
-                "irr_value": irr_value,
-                "interest_coverage_ratio": interest_coverage_ratio,
-                "table_digest": table_digest
-            }
+        # ===================== 所有模式统一生成AI问答上下文 =====================
+        history_df_for_chat = load_builtin_history_projects()
+        # 新项目测算完成后，重置聊天记录，避免串项目
+        st.session_state["ai_chat_messages"] = [
+            {"role": "assistant", "content": "你好，我可以基于当前测算结果继续解释项目收益、成本、IRR、净现值、参考项目、异常指标和优化建议。"}
+        ]
+        st.session_state["ai_result_context"] = build_general_project_chat_context(
+            project_type=project_type,
+            total_build_area=total_build_area,
+            total_investment=total_investment,
+            sale_avg_price=sale_avg_price,
+            rent_start_price=rent_start_price,
+            total_income=total_income,
+            total_cost=total_cost,
+            total_net_profit=total_net_profit,
+            total_npv_sum=total_npv_sum,
+            irr_value=irr_value,
+            interest_coverage_ratio=interest_coverage_ratio,
+            income_df=income_df,
+            total_cost_df=total_cost_df,
+            loan_df=loan_df,
+            profit_df=profit_df,
+            cf_df=cf_df,
+            history_df=history_df_for_chat,
+            tax_df=tax_df if 'tax_df' in locals() else None,
+            rental_cost_df=rental_cost_df if 'rental_cost_df' in locals() else None,
+            residential_area=residential_area if 'residential_area' in locals() else 0,
+            comm_area=comm_area if 'comm_area' in locals() else 0,
+            sale_area=sale_area if 'sale_area' in locals() else 0,
+            comm_rent_start_price=comm_rent_start_price if 'comm_rent_start_price' in locals() else 0
+        )
                 # ===================== 保存结果快照，供聊天和刷新后继续展示 =====================
         
         # 8. 页面结果展示
@@ -3105,8 +3202,9 @@ if calc_button or has_ai_result_snapshot():
             mime="text/csv",
             use_container_width=True
         )
-        # ===================== AI模式专属：结果问答 =====================
-        if st.session_state.get("ai_mode_ready", False):
+        
+        # ===================== 所有模式通用：结果问答 =====================
+        if st.session_state.get("ai_result_context"):
             st.markdown("---")
             render_ai_chat_panel()
     except Exception as e:
