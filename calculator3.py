@@ -138,7 +138,7 @@ def _safe_num(x, default=0.0):
 
 def find_similar_projects(core_input, history_df, top_n=3):
     """
-    按项目子类型 + 面积 + 投资 + 售价/租金做简单相似匹配
+    按项目子类型 + 面积 + 投资 + 售价/租金 + 结构比例 + 成本关键项做相似匹配
     """
     if history_df is None or history_df.empty:
         return pd.DataFrame()
@@ -156,15 +156,44 @@ def find_similar_projects(core_input, history_df, top_n=3):
     sale0 = _safe_num(core_input.get("售价", 0))
     rent0 = _safe_num(core_input.get("租金", 0))
 
+    land0 = _safe_num(core_input.get("土地成本", 0))
+    sale_ratio0 = _safe_num(core_input.get("可售面积占比", 0))
+    comm_ratio0 = _safe_num(core_input.get("商业面积占比", 0))
+    occ0 = _safe_num(core_input.get("住宅稳定期出租率", 0))
+    comm_rent0 = _safe_num(core_input.get("商业起始租金", 0))
+
     def calc_score(row):
         score = 0.0
+        row_area = max(_safe_num(row.get("总建筑面积", 0)), 1)
+
+        # 1) 基础规模
         score += abs(_safe_num(row.get("总建筑面积")) - area0) / area0
         score += abs(_safe_num(row.get("总投资")) - invest0) / invest0
 
+        # 2) 收入单价
         if sale0 > 0:
             score += abs(_safe_num(row.get("售价")) - sale0) / max(sale0, 1)
         if rent0 > 0:
             score += abs(_safe_num(row.get("租金")) - rent0) / max(rent0, 1)
+
+        # 3) 成本结构
+        if land0 > 0:
+            score += abs(_safe_num(row.get("land_cost")) - land0) / max(land0, 1)
+
+        # 4) 面积结构比例
+        row_sale_ratio = _safe_num(row.get("sale_area", 0)) / row_area
+        row_comm_ratio = _safe_num(row.get("comm_area", 0)) / row_area
+
+        if sale_ratio0 > 0:
+            score += abs(row_sale_ratio - sale_ratio0) / max(sale_ratio0, 0.01)
+        if comm_ratio0 > 0:
+            score += abs(row_comm_ratio - comm_ratio0) / max(comm_ratio0, 0.01)
+
+        # 5) 运营关键参数
+        if occ0 > 0:
+            score += abs(_safe_num(row.get("occupancy_stable")) - occ0) / max(occ0, 0.01)
+        if comm_rent0 > 0:
+            score += abs(_safe_num(row.get("comm_rent_start_price")) - comm_rent0) / max(comm_rent0, 1)
 
         return score
 
@@ -189,7 +218,7 @@ def ai_fill_indicators(core_input, history_df=None):
     AI补参：
     1）先按项目子类型生成规则默认值
     2）再用相似历史项目做加权修正
-    3）最后返回补齐后的参数
+    3）最后叠加用户补充的关键参数
     """
     core = core_input
     total_area = _safe_num(core.get("总建筑面积", 50000))
@@ -199,10 +228,17 @@ def ai_fill_indicators(core_input, history_df=None):
     sale_price = _safe_num(core.get("售价", 0))
     rent_price = _safe_num(core.get("租金", 0))
 
+    # 新增的AI核心输入
+    user_land_cost = _safe_num(core.get("土地成本", 0))
+    user_sale_ratio = _safe_num(core.get("可售面积占比", 0))
+    user_comm_ratio = _safe_num(core.get("商业面积占比", 0))
+    user_occ_stable = _safe_num(core.get("住宅稳定期出租率", 0))
+    user_comm_rent = _safe_num(core.get("商业起始租金", 0))
+
     if not operate_years:
         operate_years = [2027, 2028, 2029]
 
-    # ---------- 1）先给一套规则默认值 ----------
+    # ---------- 1）规则默认值 ----------
     if sub_type == "出售类":
         rule_params = {
             "residential_area": 0,
@@ -312,7 +348,7 @@ def ai_fill_indicators(core_input, history_df=None):
 
     explain_list = ["已使用行业规则兜底"]
 
-    # ---------- 2）若有历史项目，则做相似项目修正 ----------
+    # ---------- 2）相似项目修正 ----------
     similar_df = pd.DataFrame()
     if history_df is not None and not history_df.empty:
         similar_df = find_similar_projects(core_input, history_df, top_n=3)
@@ -331,7 +367,46 @@ def ai_fill_indicators(core_input, history_df=None):
             if f in rule_params:
                 rule_params[f] = weighted_avg(similar_df, f, rule_params[f])
 
-    # ---------- 3）做一些类型修正 ----------
+    # ---------- 3）叠加用户关键输入 ----------
+    applied_tags = []
+
+    # 土地成本
+    if user_land_cost > 0:
+        rule_params["land_cost"] = user_land_cost
+        applied_tags.append("土地成本")
+
+    # 商业面积占比
+    applied_comm_ratio = min(max(user_comm_ratio, 0.0), 0.95)
+
+    # 可售面积占比
+    applied_sale_ratio = min(max(user_sale_ratio, 0.0), 0.95)
+
+    # 若租售结合/出售同时给了两个比例，避免超过100%
+    if sub_type in ["出售类", "租售结合类"] and applied_sale_ratio > 0 and applied_comm_ratio > 0:
+        total_ratio = applied_sale_ratio + applied_comm_ratio
+        if total_ratio > 0.95:
+            applied_sale_ratio = applied_sale_ratio / total_ratio * 0.95
+            applied_comm_ratio = applied_comm_ratio / total_ratio * 0.95
+
+    if applied_comm_ratio > 0:
+        rule_params["comm_area"] = total_area * applied_comm_ratio
+        applied_tags.append("商业面积占比")
+
+    if sub_type in ["出售类", "租售结合类"] and applied_sale_ratio > 0:
+        rule_params["sale_area"] = total_area * applied_sale_ratio
+        applied_tags.append("可售面积占比")
+
+    # 住宅稳定期出租率
+    if sub_type in ["出租类", "租售结合类"] and user_occ_stable > 0:
+        rule_params["occupancy_stable"] = min(max(user_occ_stable, 0.0), 1.0)
+        applied_tags.append("住宅稳定期出租率")
+
+    # 商业起始租金
+    if user_comm_rent > 0:
+        rule_params["comm_rent_start_price"] = user_comm_rent
+        applied_tags.append("商业起始租金")
+
+    # ---------- 4）类型修正 ----------
     if sub_type == "出售类":
         rule_params["residential_area"] = 0
         if sale_price <= 0:
@@ -340,8 +415,11 @@ def ai_fill_indicators(core_input, history_df=None):
     if sub_type == "出租类":
         rule_params["sale_area"] = 0
 
-    # 整数类字段修正
+    # 整数修正
     rule_params["park_count"] = int(round(rule_params["park_count"], 0))
+
+    if applied_tags:
+        explain_list.append("已采用用户补充关键参数：" + "、".join(applied_tags))
 
     return rule_params, "；".join(explain_list)
 
@@ -352,28 +430,56 @@ def build_ai_assumption_table(core_input, ai_params, similar_projects=None):
     similar_count = len(similar_projects) if similar_projects else 0
     infer_source = f"AI推断（参考{similar_count}个同类项目 + 行业规则）" if similar_count > 0 else "AI推断（行业规则）"
 
+    def source_if_user(key, infer=infer_source):
+        return "用户输入" if _safe_num(core_input.get(key, 0)) > 0 else infer
+
     rows = [
         {"参数": "项目子类型", "取值": core_input.get("项目子类型", ""), "来源": "用户输入"},
         {"参数": "总建筑面积(㎡)", "取值": core_input.get("总建筑面积", 0), "来源": "用户输入"},
         {"参数": "总投资(万元)", "取值": core_input.get("总投资", 0), "来源": "用户输入"},
-        {"参数": "售价(元/㎡)", "取值": core_input.get("售价", 0), "来源": "用户输入"},
-        {"参数": "租金(元/㎡/月)", "取值": core_input.get("租金", 0), "来源": "用户输入"},
+        {"参数": "借款年利率(%)", "取值": core_input.get("借款年利率", 0), "来源": "用户输入"},
+        {"参数": "折现率(%)", "取值": core_input.get("折现率", 0), "来源": "用户输入"},
+    ]
 
+    # 动态显示用户核心输入
+    if _safe_num(core_input.get("土地成本", 0)) > 0:
+        rows.append({"参数": "土地成本(万元)", "取值": core_input.get("土地成本", 0), "来源": "用户输入"})
+
+    if _safe_num(core_input.get("售价", 0)) > 0:
+        rows.append({"参数": "售价(元/㎡)", "取值": core_input.get("售价", 0), "来源": "用户输入"})
+
+    if _safe_num(core_input.get("租金", 0)) > 0:
+        rows.append({"参数": "住宅租金(元/㎡/月)", "取值": core_input.get("租金", 0), "来源": "用户输入"})
+
+    if _safe_num(core_input.get("可售面积占比", 0)) > 0:
+        rows.append({"参数": "可售面积占比(%)", "取值": round(core_input.get("可售面积占比", 0) * 100, 2), "来源": "用户输入"})
+
+    if _safe_num(core_input.get("商业面积占比", 0)) > 0:
+        rows.append({"参数": "商业面积占比(%)", "取值": round(core_input.get("商业面积占比", 0) * 100, 2), "来源": "用户输入"})
+
+    if _safe_num(core_input.get("住宅稳定期出租率", 0)) > 0:
+        rows.append({"参数": "住宅稳定期出租率(%)", "取值": round(core_input.get("住宅稳定期出租率", 0) * 100, 2), "来源": "用户输入"})
+
+    if _safe_num(core_input.get("商业起始租金", 0)) > 0:
+        rows.append({"参数": "商业起始租金(元/㎡/月)", "取值": core_input.get("商业起始租金", 0), "来源": "用户输入"})
+
+    # AI补参与最终采用值
+    rows.extend([
         {"参数": "住宅面积(㎡)", "取值": round(ai_params.get("residential_area", 0), 2), "来源": infer_source},
-        {"参数": "商业面积(㎡)", "取值": round(ai_params.get("comm_area", 0), 2), "来源": infer_source},
+        {"参数": "商业面积(㎡)", "取值": round(ai_params.get("comm_area", 0), 2), "来源": source_if_user("商业面积占比")},
         {"参数": "车位数量", "取值": int(ai_params.get("park_count", 0)), "来源": infer_source},
-        {"参数": "住宅稳定期出租率", "取值": round(ai_params.get("occupancy_stable", 0), 4), "来源": infer_source},
+        {"参数": "住宅稳定期出租率", "取值": round(ai_params.get("occupancy_stable", 0), 4), "来源": source_if_user("住宅稳定期出租率")},
         {"参数": "商业稳定期出租率", "取值": round(ai_params.get("comm_occupancy_stable", 0), 4), "来源": infer_source},
         {"参数": "车位稳定期出租率", "取值": round(ai_params.get("park_occupancy_stable", 0), 4), "来源": infer_source},
         {"参数": "管理系数", "取值": round(ai_params.get("manage_coeff", 0), 4), "来源": infer_source},
-        {"参数": "土地成本(万元)", "取值": round(ai_params.get("land_cost", 0), 2), "来源": infer_source},
+        {"参数": "土地成本(万元)", "取值": round(ai_params.get("land_cost", 0), 2), "来源": source_if_user("土地成本")},
         {"参数": "建安工程费(万元)", "取值": round(ai_params.get("construction_cost", 0), 2), "来源": infer_source},
         {"参数": "基础设施费(万元)", "取值": round(ai_params.get("infra_cost", 0), 2), "来源": infer_source},
-        {"参数": "可售面积(㎡)", "取值": round(ai_params.get("sale_area", 0), 2), "来源": infer_source},
-        {"参数": "商业起始租金(元/㎡/月)", "取值": round(ai_params.get("comm_rent_start_price", 0), 2), "来源": infer_source},
+        {"参数": "可售面积(㎡)", "取值": round(ai_params.get("sale_area", 0), 2), "来源": source_if_user("可售面积占比")},
+        {"参数": "商业起始租金(元/㎡/月)", "取值": round(ai_params.get("comm_rent_start_price", 0), 2), "来源": source_if_user("商业起始租金")},
         {"参数": "车位起始租金(元/个/月)", "取值": round(ai_params.get("park_rent_start_price", 0), 2), "来源": infer_source},
         {"参数": "车位收入系数", "取值": round(ai_params.get("park_income_ratio", 0), 4), "来源": infer_source},
-    ]
+    ])
     return pd.DataFrame(rows)
 
 
@@ -1124,20 +1230,61 @@ invest_plan_dict, loan_plan_dict, repay_plan_dict = {}, {}, {}
 # ===================== 【终极一步到位】AI智能测算模式（零报错·全自动）=====================
 # ===================== AI模式：核心输入 -> 历史项目匹配 -> 自动补参 -> 触发原测算 =====================
 if is_ai_mode:
-    st.header("🤖 AI智能测算（仅填10项以内）")
+    st.header("🤖 AI智能测算（按类型动态显示，最多15项）")
 
     with st.expander("核心指标", expanded=True):
+        # -------- 通用9项 --------
         ai_sub_type = st.radio("项目子类型", ["出售类", "出租类", "租售结合类"], horizontal=True)
-        total_build_area = st.number_input("总建筑面积（㎡）", value=50000)
-        total_investment = st.number_input("总投资（万元）", value=50000)
-        build_start = st.number_input("建设期起始年", value=2025)
-        build_end = st.number_input("建设期结束年", value=2026)
-        operate_start = st.number_input("运营起始年", value=2027)
-        operate_end = st.number_input("运营结束年", value=2057)
-        sale_avg_price = st.number_input("可售售价（元/㎡）", value=10000.0) if ai_sub_type in ["出售类", "租售结合类"] else 0.0
-        resi_rent_start = st.number_input("住宅租金（元/㎡/月）", value=19.2) if ai_sub_type in ["出租类", "租售结合类"] else 0.0
-        loan_annual_rate = st.number_input("借款年利率（%）", value=3.0)
-        discount_rate = st.number_input("折现率（%）", value=8.0)
+        total_build_area = st.number_input("总建筑面积（㎡）", min_value=1, value=50000, step=100)
+        total_investment = st.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
+
+        build_start = st.number_input("建设期起始年", value=2025, step=1)
+        build_end = st.number_input("建设期结束年", value=2026, step=1)
+        operate_start = st.number_input("运营起始年", value=2027, step=1)
+        operate_end = st.number_input("运营结束年", value=2057, step=1)
+
+        loan_annual_rate = st.number_input("借款年利率（%）", min_value=0.0, max_value=20.0, value=3.0, step=0.1)
+        discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=8.0, step=0.1)
+
+        # 默认值兜底
+        land_cost_input = 0.0
+        sale_avg_price = 0.0
+        resi_rent_start = 0.0
+        sale_area_ratio_pct = 0.0
+        comm_area_ratio_pct = 0.0
+        occupancy_stable_pct = 0.0
+        comm_rent_start_price_input = 0.0
+
+        st.markdown("---")
+        st.subheader("🎯 类型关键参数")
+
+        # -------- 出售类：5项，合计14项 --------
+        if ai_sub_type == "出售类":
+            st.caption("当前共 14 项：通用9项 + 出售类关键5项")
+            land_cost_input = st.number_input("土地成本（万元）", min_value=0.0, value=float(total_investment) * 0.25, step=100.0)
+            sale_avg_price = st.number_input("可售售价（元/㎡）", min_value=0.0, value=10000.0, step=100.0)
+            sale_area_ratio_pct = st.number_input("可售面积占比（%）", min_value=0.0, max_value=100.0, value=78.0, step=1.0)
+            comm_area_ratio_pct = st.number_input("商业面积占比（%）", min_value=0.0, max_value=100.0, value=8.0, step=1.0)
+            comm_rent_start_price_input = st.number_input("商业起始租金（元/㎡/月）", min_value=0.0, value=30.0, step=1.0)
+
+        # -------- 出租类：5项，合计14项 --------
+        elif ai_sub_type == "出租类":
+            st.caption("当前共 14 项：通用9项 + 出租类关键5项")
+            land_cost_input = st.number_input("土地成本（万元）", min_value=0.0, value=float(total_investment) * 0.25, step=100.0)
+            resi_rent_start = st.number_input("住宅租金（元/㎡/月）", min_value=0.0, value=19.2, step=0.1)
+            occupancy_stable_pct = st.number_input("住宅稳定期出租率（%）", min_value=0.0, max_value=100.0, value=90.0, step=1.0)
+            comm_area_ratio_pct = st.number_input("商业面积占比（%）", min_value=0.0, max_value=100.0, value=6.0, step=1.0)
+            comm_rent_start_price_input = st.number_input("商业起始租金（元/㎡/月）", min_value=0.0, value=28.0, step=1.0)
+
+        # -------- 租售结合类：6项，合计15项 --------
+        else:
+            st.caption("当前共 15 项：通用9项 + 租售结合类关键6项")
+            land_cost_input = st.number_input("土地成本（万元）", min_value=0.0, value=float(total_investment) * 0.25, step=100.0)
+            sale_avg_price = st.number_input("可售售价（元/㎡）", min_value=0.0, value=10000.0, step=100.0)
+            resi_rent_start = st.number_input("住宅租金（元/㎡/月）", min_value=0.0, value=19.2, step=0.1)
+            sale_area_ratio_pct = st.number_input("可售面积占比（%）", min_value=0.0, max_value=100.0, value=45.0, step=1.0)
+            comm_area_ratio_pct = st.number_input("商业面积占比（%）", min_value=0.0, max_value=100.0, value=8.0, step=1.0)
+            occupancy_stable_pct = st.number_input("住宅稳定期出租率（%）", min_value=0.0, max_value=100.0, value=90.0, step=1.0)
 
     if st.button("🤖 AI一键测算", type="primary", use_container_width=True):
         try:
@@ -1153,7 +1300,16 @@ if is_ai_mode:
                     "总投资": total_investment,
                     "运营期年份": operate_years_ai,
                     "售价": sale_avg_price,
-                    "租金": resi_rent_start
+                    "租金": resi_rent_start,
+                    # 新增核心字段
+                    "土地成本": land_cost_input,
+                    "可售面积占比": sale_area_ratio_pct / 100 if sale_area_ratio_pct > 0 else 0,
+                    "商业面积占比": comm_area_ratio_pct / 100 if comm_area_ratio_pct > 0 else 0,
+                    "住宅稳定期出租率": occupancy_stable_pct / 100 if occupancy_stable_pct > 0 else 0,
+                    "商业起始租金": comm_rent_start_price_input,
+                    # 便于说明表展示
+                    "借款年利率": loan_annual_rate,
+                    "折现率": discount_rate
                 }
                 similar_df = find_similar_projects(core_input, history_df, top_n=3)
                 ai_params, ai_msg = ai_fill_indicators(core_input, history_df)
