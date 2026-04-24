@@ -1977,18 +1977,21 @@ if run_manual_inputs:
     # 5. 全投资现金流量表参数
     with st.expander("5. 全投资现金流量表参数", expanded=True):
         st.subheader("📊 现金流量表核心参数")
-        # 折现率输入
+        # 折现率输入（所有项目类型都显示）
         discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=8.0, step=0.1)
-        # 建设投资计划（和银行借款计划模式完全一致，选年份动态生成输入框）
-        st.markdown("#### 建设投资计划")
-        invest_available_years = sorted(list(set(build_years + operate_years)))
-        invest_years = st.multiselect("请选择有建设投资的年份", options=invest_available_years, default=build_years if build_years else [])
-        # 动态生成每年建设投资输入框
-        invest_plan_dict = {}
-        if invest_years:
-            col_invest_year = st.columns(len(invest_years))
-            for idx, year in enumerate(invest_years):
-                invest_plan_dict[year] = col_invest_year[idx].number_input(f"{year}年建设投资额（万元）", min_value=0.0, value=0.0, step=100.0)
+        
+        # 【仅非出售类显示建设投资计划，出售类完全隐藏】
+        is_sale_mode = "sale_and_commercial" in current_config.get("ui_components", [])
+        invest_plan_dict = {}  # 出售类默认空字典，避免未定义报错
+        if not is_sale_mode:
+            # 建设投资计划（原有代码完全不动，仅加了外层条件）
+            st.markdown("#### 建设投资计划")
+            invest_available_years = sorted(list(set(build_years + operate_years)))
+            invest_years = st.multiselect("请选择有建设投资的年份", options=invest_available_years, default=build_years if build_years else [])
+            if invest_years:
+                col_invest_year = st.columns(len(invest_years))
+                for idx, year in enumerate(invest_years):
+                    invest_plan_dict[year] = col_invest_year[idx].number_input(f"{year}年建设投资额（万元）", min_value=0.0, value=0.0, step=100.0)
     
     # 6. 一键测算按钮
 # ===================== 6. 一键测算按钮（AI模式隐藏手动按钮） =====================
