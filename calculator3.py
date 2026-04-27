@@ -2322,7 +2322,7 @@ def calc_operating_cost(all_years, month_dict, is_operate, resi_area, resi_occup
             park_income = park_income_list.get(year, 0)
             
             # 各项经营成本（原有逻辑完全不变）
-            manage_house = resi_area * occ * 12 * manage_coeff  / 10000
+            manage_house = resi_area * occ * 12 * 1.92 * 0.85/0.75*manage_coeff  / 10000
             manage_park = park_income * 0.4
             insurance = total_build_area * 0.3 / 10000
             repair = (resi_area * resi_rent * occ * months / 10000) * 0.02
