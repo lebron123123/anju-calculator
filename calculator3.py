@@ -1823,6 +1823,8 @@ if run_manual_inputs:
         comm_area, comm_rent_start_price = 0, 0.0
         comm_rent_increase_span, comm_rent_increase_rate = 3, 2.0
         comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable = {}, 0, 0, 0.9
+        comm_custom_increase_list = []
+        comm_rent_stable_start = 0
     
         if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_basic" in current_config.get("ui_components", [])):
             st.markdown("---")
