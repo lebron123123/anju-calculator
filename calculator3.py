@@ -697,6 +697,10 @@ def build_ai_table_digest(project_type, income_df, total_cost_df, loan_df, profi
     digest["project_type"] = project_type
     return digest
 
+def _format_formula_text(text):
+    lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+    return "\n\n".join(lines)
+
 def build_formula_knowledge_text(project_type):
     """
     把当前系统关键测算公式整理成大模型可理解的文字说明
@@ -756,9 +760,9 @@ def build_formula_knowledge_text(project_type):
 """.strip()
 
     if project_type == "出售类(配保房/可售型人才房等)":
-        return common_text + "\n\n" + sale_text
+        return _format_formula_text(common_text) + "\n\n" + _format_formula_text(sale_text)
     else:
-        return common_text + "\n\n" + rental_text
+        return _format_formula_text(common_text) + "\n\n" + _format_formula_text(rental_text)
 
 def build_ai_enhanced_context_text(context_dict):
     """
