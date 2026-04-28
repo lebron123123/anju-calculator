@@ -2158,6 +2158,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     # （1）. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
     comm_occupancy, comm_rent_price, comm_rental_income = {}, {}, {} #创造空字典储存商业出租率、单价、收入
     remaining_input = 0 #增值税的2个临时变量
+    cum_vat, cum_rent = [], []
     total_input_tax_calc = 0
     n = 0  # 【仅新增这1行】现值计算的年份序号，从0开始
     for year in operate_year_list:
@@ -2214,8 +2215,9 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
                                    "维修费用(万元)", "空置物业服务费(万元)", "保险费用(万元)", "土地使用税(万元)", 
                                    "出租营运成本合计(万元)","销项税(万元)","进项税(万元)","增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"]] = 0.0
             # 仅新增这2行（初始化累计缓存）
-            if 'cum_vat' not in locals(): cum_vat, cum_rent = [], []
-            cum_vat.append(0.0); cum_rent.append(0.0) #累计列表中加0，保持长度一致
+            #if 'cum_vat' not in locals(): cum_vat, cum_rent = [], []
+            cum_vat.append(0.0)
+            cum_rent.append(0.0) #累计列表中加0，保持长度一致
             continue
         
         # 运营期核心参数
