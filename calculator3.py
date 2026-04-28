@@ -2371,13 +2371,20 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
     if calc_rules.get("repay_plan_mode") == "custom" and custom_repay_plan:
         for year in all_years: repay_principal_plan[year] = custom_repay_plan.get(year, 0.0) if year <= last_loan_year else 0.0
     else:
+        repay_step_n = 0
         for year in all_years:
             if year >= operate_start_year and year <= last_loan_year:
-                if not is_operate_start: repay_principal, is_operate_start = total_loan * first_repay_rate, True
-                else: repay_principal = last_repay_principal * (1 + increase_rate)
-                repay_principal_plan[year], last_repay_principal = repay_principal, repay_principal
-            else: repay_principal_plan[year] = 0.0
+                if not is_operate_start:
+                    repay_principal = total_loan * first_repay_rate
+                    is_operate_start = True
+                else:
+                    repay_step_n += 1
+                    repay_principal = last_repay_principal * (1 + first_repay_rate * ((1 + increase_rate) ** repay_step_n))
 
+                repay_principal_plan[year] = repay_principal
+                last_repay_principal = repay_principal
+            else:
+                repay_principal_plan[year] = 0.0
     # 第二步：迭代计算每年的还本付息数据（严格按你给的公式）
     for year in all_years:
         # 1. 期初借款本金 = 上一年期末借款累计
