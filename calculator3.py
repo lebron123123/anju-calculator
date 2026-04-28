@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 import os
 import time
+import io
 from concurrent.futures import ThreadPoolExecutor
 
 LLM_MODE = "cloud"   # "ollama" 或 "cloud"
@@ -3402,14 +3403,37 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             save_ai_result_snapshot(snapshot_dict)
         st.dataframe(cf_df_T, use_container_width=True)
         
-        # 9. 一键下载Excel
+        # 9. 一键下载Excel（下载所有已显示表）
         st.markdown("---")
-        excel_file_name = f"{project_name}_财务测算结果_{datetime.now().strftime('%Y%m%d')}.csv"
+        excel_buffer = io.BytesIO()
+
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+            income_df_T.to_excel(writer, sheet_name="收入明细表")
+            cost_df_T.to_excel(writer, sheet_name="总成本费用明细")
+            loan_df_T.to_excel(writer, sheet_name="还本付息明细")
+            profit_df_T.to_excel(writer, sheet_name="损益表明细")
+            cf_df_T.to_excel(writer, sheet_name="全投资现金流量表")
+
+            if project_type == "出售类(配保房/可售型人才房等)" and 'rental_cost_df_T' in locals() and not rental_cost_df_T.empty:
+                rental_cost_df_T.to_excel(writer, sheet_name="出租情况表")
+
+            if project_type != "出售类(配保房/可售型人才房等)" and 'tax_df_T' in locals() and not tax_df_T.empty:
+                tax_df_T.to_excel(writer, sheet_name="税金及附加明细")
+
+            if is_ai_mode and st.session_state.get("ai_mode_ready", False):
+                assumption_df = build_ai_assumption_table(
+                    core_input=st.session_state.get("ai_core_input", {}),
+                    ai_params=st.session_state.get("ai_params", {}),
+                    similar_projects=st.session_state.get("ai_similar_projects", [])
+                )
+                assumption_df.to_excel(writer, sheet_name="AI补参说明", index=False)
+
+        excel_file_name = f"{project_name}_财务测算结果_{datetime.now().strftime('%Y%m%d')}.xlsx"
         st.download_button(
-            label="📥 下载完整测算表（含计算过程）",
-            data=income_df_T.to_csv().encode("utf-8-sig"),
+            label="📥 下载完整测算表（含全部明细）",
+            data=excel_buffer.getvalue(),
             file_name=excel_file_name,
-            mime="text/csv",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
         
