@@ -1972,39 +1972,42 @@ if run_manual_inputs:
                 comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_stable_occ = {}, 0, 0, 0.0
             
         # ===================== 出售类专属：税金计算参数（每2个一行） ======================
+        # ===================== 出售类专属：税金计算参数（调整字段顺序） ======================
         if "sale_and_commercial" in current_config.get("ui_components", []):
             st.markdown("---")
             st.subheader("💸 税金及成本计算参数")
+        
             # 第1行：2个参数
             col1, col2 = st.columns(2)
             land_cost = col1.number_input("(非配售)土地成本费（万元）", min_value=0.0, value=0.0, step=10.0)
             construction_cost = col2.number_input("(非配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0)
-            st.markdown("")  # 换行
+            st.markdown("")
         
             # 第2行：2个参数
             col3, col4 = st.columns(2)
             infra_cost = col3.number_input("(非配售)基础设施建设费（万元）", min_value=0.0, value=0.0, step=10.0)
             other_eng_cost = col4.number_input("(非配售)工程建设其他费用（万元）", min_value=0.0, value=0.0, step=10.0)
-            st.markdown("")  # 换行
+            st.markdown("")
         
-            # 第3行：2个参数
+            # 第3行：把原来的 8/9/10 提前到这里
             col5, col6 = st.columns(2)
-            project_input_tax = col5.number_input("工程进项税（万元）", min_value=0.0, value=0.0, step=0.01, help="直接填入工程类合计进项税，用于增值税迭代计算")
-            land_use_area = col6.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
-            st.markdown("")  # 换行
-    
-            # 第4行：公式必填参数（一行2个）
+            dev_cost = col5.number_input("(非配售)开发成本费（万元）", min_value=0.0, value=0.0, step=10.0, help="非配售部分开发成本，用于累计开发成本计算")
+            sale_construction_cost = col6.number_input("(配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分建安工程费，用于增值税进项税计算")
+            st.markdown("")
+        
+            # 第4行：继续放配售基础设施费 + 原来的 5/6/7 顺延
             col7, col8 = st.columns(2)
-            land_floor_price = col7.number_input("划拨土地楼面价（元/㎡）", min_value=0.0, value=0.0, step=10.0, help="配保房地价抵减计算用")
-            dev_cost = col8.number_input("(非配售)开发成本费（万元）", min_value=0.0, value=0.0, step=10.0, help="非配售部分开发成本，用于累计开发成本计算")
-            # 印花税率固定默认0‰，无需用户输入，需要时再用
-    
-            # 第5行：配售专属参数（一行2个）
+            sale_infra_cost = col7.number_input("(配售)基础设施费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分基础设施费，用于增值税进项税计算")
+            project_input_tax = col8.number_input("工程进项税（万元）", min_value=0.0, value=0.0, step=0.01, help="直接填入工程类合计进项税，用于增值税迭代计算")
+            st.markdown("")
+        
+            # 第5行：原来的 6/7 顺延到这里
             col9, col10 = st.columns(2)
-            sale_construction_cost = col9.number_input("(配售)建安工程费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分建安工程费，用于增值税进项税计算")
-            sale_infra_cost = col10.number_input("(配售)基础设施费（万元）", min_value=0.0, value=0.0, step=10.0, help="配售部分基础设施费，用于增值税进项税计算")
-            stamp_tax_rate = 0 / 1000  # 固定0.5‰，转成小数
-    
+            land_use_area = col9.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
+            land_floor_price = col10.number_input("划拨土地楼面价（元/㎡）", min_value=0.0, value=0.0, step=10.0, help="配保房地价抵减计算用")
+
+    # 印花税率固定默认0‰，无需用户输入，需要时再用
+    stamp_tax_rate = 0 / 1000
             # 第4行：新增工程进项税（单独一行）
             #plot_ratio_area = col5.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
             #st.markdown("")  # 换行
