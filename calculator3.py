@@ -2219,7 +2219,7 @@ def calc_income(all_years, month_dict, is_operate, area, price, increase_span, i
 #(备注防忘)年份列表all_years，建设运营期判断is_operate，运营期年份列表operate_year_list，商业面积comm_area，商业起始租金comm_rent_start_price，商业租金递增跨度comm_rent_increase_span，爬坡期每年的商业出租率字典comm_occupancy_ramp_dict
 #商业稳定期起始年comm_stable_start，商业稳定期结束年comm_stable_end，商业稳定期固定出租率comm_occupancy_stable，车位个数park_count，土地成本land_cost，建安工程费construction_cost，基础设施建设费infra_cost，工程建设其他费用other_eng_cost
 #用地面积land_use_area，租赁月数lease_months，计容建筑面积plot_ratio_area
-def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost,land_use_area, lease_months,project_input_tax=0.0,comm_custom_increase_list=[], comm_first_increase_year=2):
+def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_area, comm_rent_start_price, comm_rent_increase_span, comm_rent_increase_rate, comm_occupancy_ramp_dict, comm_stable_start, comm_stable_end, comm_occupancy_stable, park_count, land_cost, construction_cost, infra_cost, other_eng_cost,land_use_area, lease_months,project_input_tax=0.0,comm_custom_increase_list=[], comm_first_increase_year=2, comm_rent_stable_start=None):
     """计算出租营运成本明细表（出租情况表），复用现有参数，最小改动"""
     rental_table = pd.DataFrame(index=all_years)
     # （1）. 预计算商业出租率、租金单价（复用住宅/车位的逻辑）
@@ -2239,28 +2239,49 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     else:
         stable_index = len(operate_year_list) - 1  # 默认最后一年
     
-    # 【修复：租金计算逻辑，先算完所有年份，无嵌套循环，完美匹配需求】
+    # 【修复：租金计算逻辑，先算完所有年份，无嵌套循环，且稳定年后冻结租金】
     comm_rent_price = {}
     if comm_custom_increase_list:
-        # 自定义区间模式：区间内按「每X年」递增，一次性算完
+        # 自定义区间模式：区间内按「每X年」递增
         current_price = comm_rent_start_price
-        # 按运营年份顺序逐年计算
+        last_price_before_stable = comm_rent_start_price
         for calc_year in sorted(operate_year_list):
+            year_price = current_price
             # 遍历所有区间，判断当年是否需要递增
             for (start_year, end_year, span, rate) in comm_custom_increase_list:
                 if start_year <= calc_year <= end_year:
-                    # 核心逻辑：(当年 - 起始年) 能被 跨度 整除，才递增
-                    if (calc_year - start_year) % span == 0:
-                        current_price *= (1 + rate / 100)
-            # 存入当年租金
-            comm_rent_price[calc_year] = current_price
+                    if (calc_year - start_year) % span == 0 and calc_year != start_year:
+                        year_price *= (1 + rate / 100)
+    
+            # 如果已经到稳定年及以后，则锁定为稳定年前最后价格
+            if calc_year >= comm_rent_stable_start:
+                if calc_year == comm_rent_stable_start:
+                    last_price_before_stable = year_price
+                year_price = last_price_before_stable
+            else:
+                last_price_before_stable = year_price
+            current_price = year_price
+            comm_rent_price[calc_year] = round(year_price, 4)
+    
     else:
-        # 固定规则模式：原有逻辑一丝不动，完全兼容
-        for year in operate_year_list:
+        # 固定规则模式：按“稳定年”冻结租金
+        base_price = comm_rent_start_price
+        last_price_before_stable = base_price
+    
+        for year in sorted(operate_year_list):
             year_index = operate_year_list.index(year)
-            effective_index = min(year_index, stable_index)
-            increase_times = (effective_index + 1) // comm_rent_increase_span
-            comm_rent_price[year] = comm_rent_start_price * (1 + comm_rent_increase_rate / 100) ** increase_times
+    
+            # 先计算当年是否应该递增
+            increase_times = year_index // comm_rent_increase_span
+            year_price = base_price * (1 + comm_rent_increase_rate / 100) ** increase_times
+    
+            # 稳定年及以后，冻结在稳定年当年的价格
+            if year >= comm_rent_stable_start:
+                if year == comm_rent_stable_start:
+                    last_price_before_stable = year_price
+                year_price = last_price_before_stable
+    
+            comm_rent_price[year] = round(year_price, 4)
             
     # ===================== 【仅新增】预循环算全周期累计（不填表，不影响其他） ======================
     total_manage_ins, total_vacancy = 0, 0
@@ -2738,6 +2759,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 land_use_area=land_use_area,
                 project_input_tax=project_input_tax,
                 comm_custom_increase_list=comm_custom_increase_list,
+                comm_rent_stable_start=comm_rent_stable_start,
             )
             # 【核心】顺便把现值赋给 income_df()
             income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
