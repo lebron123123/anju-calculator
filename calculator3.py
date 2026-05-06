@@ -2373,9 +2373,9 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         net_rental_income = rental_table.loc[year, "商业出租收入(万元)"] - rental_table.loc[year, "出租营运成本合计(万元)"] - rental_table.loc[year, "出租经营税金合计(万元)"]
         rental_table.loc[year, "出租净收入(万元)"] = round(net_rental_income, 4)
 
-        pv_net_rental = net_rental_income / ((1 + 0.035) ** n)
+        year_idx = operate_year_list.index(year) + 1
+        pv_net_rental = net_rental_income / ((1 + 0.035) ** year_idx)
         rental_table.loc[year, "出租净收益现值(万元)"] = round(pv_net_rental, 4)
-        n += 1  # 年份序号每年+1
 
         if "销项税(万元)" not in rental_table.columns: rental_table["销项税(万元)"] = 0.0
         rental_table["销项税(万元)"] = rental_table["销项税(万元)"].fillna(0.0)
