@@ -2301,7 +2301,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
     # （2）. 逐年份计算各项成本/税费
     for year in all_years:
         if not is_operate[year]:  # 建设期：各项为0
-            rental_table.loc[year, ["商业出租率", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
+            rental_table.loc[year, ["商业出租率", "商业租金(元/㎡/月)", "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
                                    "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", "物业专项维修金(万元)", 
                                    "维修费用(万元)", "空置物业服务费(万元)", "保险费用(万元)", "土地使用税(万元)", 
                                    "出租营运成本合计(万元)","销项税(万元)","进项税(万元)","增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)"]] = 0.0
@@ -2350,6 +2350,7 @@ def calc_rental_operation_table(all_years, is_operate, operate_year_list, comm_a
         
         # 填入表格（保留4位小数，和原有风格一致）
         rental_table.loc[year, "商业出租率"] = round(occ, 4)
+        rental_table.loc[year, "商业租金(元/㎡/月)"] = round(cr_price, 4)
         rental_table.loc[year, "商业出租收入(万元)"] = round(comm_income, 4)
         rental_table.loc[year, "房产税1(万元)"] = round(tax1, 4)
         rental_table.loc[year, "房产税2(万元)"] = round(tax2, 4)
@@ -2768,7 +2769,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
             rental_cost_df_T = rental_cost_df.T
             rental_sum_rows = [
-                "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)",
+                "商业出租收入(万元)","商业租金(元/㎡/月)", "房产税1(万元)", "房产税2(万元)",
                 "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)",
                 "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)",
                 "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)", "销项税(万元)",
