@@ -2766,7 +2766,12 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 comm_rent_stable_start=comm_rent_stable_start,
             )
             # 【核心】顺便把现值赋给 income_df()
-            income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+            # 【核心修正】出租情况表保持逐年现值不动；
+            # 但出售类收入表中，出租净收益现值按“全周期现值合计”一次性计入运营期第一年
+            income_df["出租净收益现值(万元)"] = 0.0
+            rental_pv_total = rental_cost_df["出租净收益现值(万元)"].fillna(0).sum()
+            if operate_years:
+                income_df.loc[operate_years[0], "出租净收益现值(万元)"] = round(rental_pv_total, 4)
             rental_cost_df_T = rental_cost_df.T
             rental_sum_rows = [
                 "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)",
@@ -2919,7 +2924,12 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         # 【关键：统一计算最终正确的总收入，确保损益表和收入明细表用的是同一套数据】
         if project_type == "出售类(配保房/可售型人才房等)":
             # 先把出租净收益现值同步到收入表
-            income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+            # 出租情况表保持逐年现值不动；
+            # 收入表口径改为：出租净收益现值全周期合计一次性计入运营期第一年
+            income_df["出租净收益现值(万元)"] = 0.0
+            rental_pv_total = rental_cost_df["出租净收益现值(万元)"].fillna(0).sum()
+            if operate_years:
+                income_df.loc[operate_years[0], "出租净收益现值(万元)"] = round(rental_pv_total, 4)
             # 重新计算最终总收入，和收入明细表的公式完全一致，无重复累加
             income_df["总收入(万元)"] = (income_df["配保房销售收入(万元)"]  + income_df["出租净收益现值(万元)"] + income_df["住宅租金收入(万元)"] + income_df["车位收入(万元)"] + income_df[f"{other_income_name}(万元)"] )
         # 提前计算损益表，用于核心指标的净利润
@@ -3352,7 +3362,10 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             st.dataframe(rental_cost_df_T, use_container_width=True)
     
         if (not use_snapshot_only) and project_type == "出售类(配保房/可售型人才房等)":
-            income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+            income_df["出租净收益现值(万元)"] = 0.0
+            rental_pv_total = rental_cost_df["出租净收益现值(万元)"].fillna(0).sum()
+            if operate_years:
+                income_df.loc[operate_years[0], "出租净收益现值(万元)"] = round(rental_pv_total, 4)
             income_df["总收入(万元)"] = (
                 income_df["配保房销售收入(万元)"]
                 + income_df["出租净收益现值(万元)"]
