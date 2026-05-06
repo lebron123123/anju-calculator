@@ -2769,7 +2769,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
             rental_cost_df_T = rental_cost_df.T
             rental_sum_rows = [
-                "商业出租收入(万元)","商业租金(元/㎡/月)", "房产税1(万元)", "房产税2(万元)",
+                "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)",
                 "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)",
                 "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)",
                 "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)", "销项税(万元)",
