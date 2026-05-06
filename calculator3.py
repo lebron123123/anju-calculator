@@ -140,6 +140,10 @@ def _safe_num(x, default=0.0):
 def find_similar_projects(core_input, history_df, top_n=3):
     """
     按项目子类型 + 面积 + 投资 + 售价/租金 + 结构比例 + 成本关键项做相似匹配
+    增强版：
+    1) 为不同维度设置权重
+    2) 返回 score / weight / confidence
+    3) 小样本下仍保持可解释
     """
     if history_df is None or history_df.empty:
         return pd.DataFrame()
@@ -163,46 +167,63 @@ def find_similar_projects(core_input, history_df, top_n=3):
     occ0 = _safe_num(core_input.get("住宅稳定期出租率", 0))
     comm_rent0 = _safe_num(core_input.get("商业起始租金", 0))
 
+    # 可调权重：越核心的特征权重越高
+    weights_cfg = {
+        "area": 2.0,
+        "invest": 2.0,
+        "sale_price": 1.5,
+        "rent_price": 1.5,
+        "land_cost": 1.2,
+        "sale_ratio": 1.5,
+        "comm_ratio": 1.2,
+        "occupancy": 1.0,
+        "comm_rent": 1.0,
+    }
+
     def calc_score(row):
         score = 0.0
         row_area = max(_safe_num(row.get("总建筑面积", 0)), 1)
 
         # 1) 基础规模
-        score += abs(_safe_num(row.get("总建筑面积")) - area0) / area0
-        score += abs(_safe_num(row.get("总投资")) - invest0) / invest0
+        score += weights_cfg["area"] * abs(_safe_num(row.get("总建筑面积")) - area0) / area0
+        score += weights_cfg["invest"] * abs(_safe_num(row.get("总投资")) - invest0) / invest0
 
         # 2) 收入单价
         if sale0 > 0:
-            score += abs(_safe_num(row.get("售价")) - sale0) / max(sale0, 1)
+            score += weights_cfg["sale_price"] * abs(_safe_num(row.get("售价")) - sale0) / max(sale0, 1)
         if rent0 > 0:
-            score += abs(_safe_num(row.get("租金")) - rent0) / max(rent0, 1)
+            score += weights_cfg["rent_price"] * abs(_safe_num(row.get("租金")) - rent0) / max(rent0, 1)
 
         # 3) 成本结构
         if land0 > 0:
-            score += abs(_safe_num(row.get("land_cost")) - land0) / max(land0, 1)
+            score += weights_cfg["land_cost"] * abs(_safe_num(row.get("land_cost")) - land0) / max(land0, 1)
 
         # 4) 面积结构比例
         row_sale_ratio = _safe_num(row.get("sale_area", 0)) / row_area
         row_comm_ratio = _safe_num(row.get("comm_area", 0)) / row_area
 
         if sale_ratio0 > 0:
-            score += abs(row_sale_ratio - sale_ratio0) / max(sale_ratio0, 0.01)
+            score += weights_cfg["sale_ratio"] * abs(row_sale_ratio - sale_ratio0) / max(sale_ratio0, 0.01)
         if comm_ratio0 > 0:
-            score += abs(row_comm_ratio - comm_ratio0) / max(comm_ratio0, 0.01)
+            score += weights_cfg["comm_ratio"] * abs(row_comm_ratio - comm_ratio0) / max(comm_ratio0, 0.01)
 
         # 5) 运营关键参数
         if occ0 > 0:
-            score += abs(_safe_num(row.get("occupancy_stable")) - occ0) / max(occ0, 0.01)
+            score += weights_cfg["occupancy"] * abs(_safe_num(row.get("occupancy_stable")) - occ0) / max(occ0, 0.01)
         if comm_rent0 > 0:
-            score += abs(_safe_num(row.get("comm_rent_start_price")) - comm_rent0) / max(comm_rent0, 1)
+            score += weights_cfg["comm_rent"] * abs(_safe_num(row.get("comm_rent_start_price")) - comm_rent0) / max(comm_rent0, 1)
 
         return score
 
     df["score"] = df.apply(calc_score, axis=1)
     df = df.sort_values("score").head(top_n).copy()
-    df["weight"] = 1 / (df["score"] + 0.001)
-    return df
 
+    # 分数越低权重越高
+    df["weight"] = 1 / (df["score"] + 0.001)
+
+    # 简单置信度：分数越低越高，限制在[0,1]
+    df["confidence"] = df["score"].apply(lambda s: max(0.0, min(1.0, 1 / (1 + s))))
+    return df
 
 def weighted_avg(similar_df, field, default_value):
     if similar_df is None or similar_df.empty or field not in similar_df.columns:
@@ -214,12 +235,35 @@ def weighted_avg(similar_df, field, default_value):
         return default_value
     return float(np.average(vals[valid], weights=weights[valid]))
 
+def weighted_ratio(similar_df, numerator_field, denominator_field, default_ratio=0.0):
+    """
+    计算相似项目中某比例字段的加权平均，如：
+    sale_area / 总建筑面积
+    comm_area / 总建筑面积
+    construction_cost / 总建筑面积
+    """
+    if similar_df is None or similar_df.empty:
+        return default_ratio
+    ratios = []
+    weights = []
+    for _, row in similar_df.iterrows():
+        num = _safe_num(row.get(numerator_field, 0))
+        den = _safe_num(row.get(denominator_field, 0))
+        w = _safe_num(row.get("weight", 0))
+        if den > 0 and w > 0:
+            ratios.append(num / den)
+            weights.append(w)
+    if not ratios:
+        return default_ratio
+    return float(np.average(ratios, weights=weights))
+    
 def ai_fill_indicators(core_input, history_df=None):
     """
     AI补参：
     1）先按项目子类型生成规则默认值
     2）再用相似历史项目做加权修正
     3）最后叠加用户补充的关键参数
+    4）当相似度较差时，自动降低历史样本影响，优先使用规则值
     """
     core = core_input
     total_area = _safe_num(core.get("总建筑面积", 50000))
@@ -229,7 +273,6 @@ def ai_fill_indicators(core_input, history_df=None):
     sale_price = _safe_num(core.get("售价", 0))
     rent_price = _safe_num(core.get("租金", 0))
 
-    # 新增的AI核心输入
     user_land_cost = _safe_num(core.get("土地成本", 0))
     user_sale_ratio = _safe_num(core.get("可售面积占比", 0))
     user_comm_ratio = _safe_num(core.get("商业面积占比", 0))
@@ -314,7 +357,7 @@ def ai_fill_indicators(core_input, history_df=None):
             }
         }
 
-    else:  # 出租类
+    else:
         rule_params = {
             "residential_area": total_area * 0.88,
             "rent_increase_span": 3,
@@ -354,35 +397,60 @@ def ai_fill_indicators(core_input, history_df=None):
     if history_df is not None and not history_df.empty:
         similar_df = find_similar_projects(core_input, history_df, top_n=3)
 
+    # 历史样本可信度控制
+    blend_factor = 0.0
     if similar_df is not None and not similar_df.empty:
-        explain_list.append("已参考相似历史项目：" + "、".join(similar_df["项目名称"].tolist()))
+        best_score = float(similar_df["score"].min())
+        similar_names = "、".join(similar_df["项目名称"].tolist())
+        explain_list.append(f"已参考相似历史项目：{similar_names}")
 
+        # 分数越小越信任历史样本
+        if best_score <= 1.5:
+            blend_factor = 0.75
+            explain_list.append("相似度较高，历史样本修正权重较高")
+        elif best_score <= 3.0:
+            blend_factor = 0.45
+            explain_list.append("相似度一般，历史样本修正权重适中")
+        else:
+            blend_factor = 0.20
+            explain_list.append("相似度偏弱，历史样本仅作弱修正，仍以行业规则为主")
+
+        # 绝对值类字段
         fields_to_adjust = [
-            "residential_area", "comm_area", "park_count",
+            "park_count",
             "occupancy_stable", "comm_occupancy_stable", "park_occupancy_stable",
-            "manage_coeff", "land_cost", "construction_cost", "infra_cost",
-            "sale_area", "comm_rent_start_price", "park_rent_start_price", "park_income_ratio"
+            "manage_coeff", "land_cost", "comm_rent_start_price",
+            "park_rent_start_price", "park_income_ratio"
         ]
 
         for f in fields_to_adjust:
             if f in rule_params:
-                rule_params[f] = weighted_avg(similar_df, f, rule_params[f])
+                hist_val = weighted_avg(similar_df, f, rule_params[f])
+                rule_params[f] = rule_params[f] * (1 - blend_factor) + hist_val * blend_factor
+
+        # 比例类 / 强缩放类字段：优先按比例估计
+        hist_comm_ratio = weighted_ratio(similar_df, "comm_area", "总建筑面积", rule_params["comm_area"] / max(total_area, 1))
+        hist_sale_ratio = weighted_ratio(similar_df, "sale_area", "总建筑面积", rule_params["sale_area"] / max(total_area, 1))
+        hist_resi_ratio = weighted_ratio(similar_df, "residential_area", "总建筑面积", rule_params["residential_area"] / max(total_area, 1))
+        hist_const_ratio = weighted_ratio(similar_df, "construction_cost", "总建筑面积", rule_params["construction_cost"] / max(total_area, 1))
+        hist_infra_ratio = weighted_ratio(similar_df, "infra_cost", "总建筑面积", rule_params["infra_cost"] / max(total_area, 1))
+
+        rule_params["comm_area"] = total_area * ((rule_params["comm_area"] / max(total_area, 1)) * (1 - blend_factor) + hist_comm_ratio * blend_factor)
+        rule_params["sale_area"] = total_area * ((rule_params["sale_area"] / max(total_area, 1)) * (1 - blend_factor) + hist_sale_ratio * blend_factor)
+        rule_params["residential_area"] = total_area * ((rule_params["residential_area"] / max(total_area, 1)) * (1 - blend_factor) + hist_resi_ratio * blend_factor)
+        rule_params["construction_cost"] = total_area * ((rule_params["construction_cost"] / max(total_area, 1)) * (1 - blend_factor) + hist_const_ratio * blend_factor)
+        rule_params["infra_cost"] = total_area * ((rule_params["infra_cost"] / max(total_area, 1)) * (1 - blend_factor) + hist_infra_ratio * blend_factor)
 
     # ---------- 3）叠加用户关键输入 ----------
     applied_tags = []
 
-    # 土地成本
     if user_land_cost > 0:
         rule_params["land_cost"] = user_land_cost
         applied_tags.append("土地成本")
 
-    # 商业面积占比
     applied_comm_ratio = min(max(user_comm_ratio, 0.0), 0.95)
-
-    # 可售面积占比
     applied_sale_ratio = min(max(user_sale_ratio, 0.0), 0.95)
 
-    # 若租售结合/出售同时给了两个比例，避免超过100%
     if sub_type in ["出售类", "租售结合类"] and applied_sale_ratio > 0 and applied_comm_ratio > 0:
         total_ratio = applied_sale_ratio + applied_comm_ratio
         if total_ratio > 0.95:
@@ -397,12 +465,10 @@ def ai_fill_indicators(core_input, history_df=None):
         rule_params["sale_area"] = total_area * applied_sale_ratio
         applied_tags.append("可售面积占比")
 
-    # 住宅稳定期出租率
     if sub_type in ["出租类", "租售结合类"] and user_occ_stable > 0:
         rule_params["occupancy_stable"] = min(max(user_occ_stable, 0.0), 1.0)
         applied_tags.append("住宅稳定期出租率")
 
-    # 商业起始租金
     if user_comm_rent > 0:
         rule_params["comm_rent_start_price"] = user_comm_rent
         applied_tags.append("商业起始租金")
@@ -416,7 +482,6 @@ def ai_fill_indicators(core_input, history_df=None):
     if sub_type == "出租类":
         rule_params["sale_area"] = 0
 
-    # 整数修正
     rule_params["park_count"] = int(round(rule_params["park_count"], 0))
 
     if applied_tags:
