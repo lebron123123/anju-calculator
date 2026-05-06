@@ -2888,7 +2888,11 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 # 8. 当年开发成本（销售部分）= 全周期合计基数 × 当年销售率
                 dev_cost_sale_year = total_dev_cost_sale_base * sale_rate_year
                 # 9. 当年开发成本（折旧摊销部分）= 全周期合计基数 × 当年销售率
-                dev_cost_dep_year = total_dev_cost_dep_base * sale_rate_year
+                #dev_cost_dep_year = total_dev_cost_dep_base * sale_rate_year
+                if year == operate_years[0]:
+                    dev_cost_dep_year = total_dev_cost_dep_base
+                else:
+                    dev_cost_dep_year = 0.0
     
                 # 当年地价款抵减额（匹配销售率）
                 land_deduct_year = land_deduct_total * sale_rate_year
