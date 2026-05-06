@@ -1524,7 +1524,7 @@ if is_ai_mode:
         operate_end = st.number_input("运营结束年", value=2057, step=1)
 
         loan_annual_rate = st.number_input("借款年利率（%）", min_value=0.0, max_value=20.0, value=3.0, step=0.1)
-        discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=8.0, step=0.1)
+        discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=3.5, step=0.1)
 
         # 默认值兜底
         land_cost_input = 0.0
