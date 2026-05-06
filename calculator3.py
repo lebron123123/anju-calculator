@@ -1753,6 +1753,8 @@ else:
 # 这些代码完全不用改，因为上面已经给所有变量赋值了，不管是AI模式还是普通模式，都有值
 
 run_manual_inputs = not (is_ai_mode and st.session_state.get("ai_mode_ready", False))
+rental_cost_df = pd.DataFrame()
+rental_cost_df_T = pd.DataFrame() #避免后面到处用'rental_cost_df_T' in locals()
 # ===================== 以下是你原来的所有输入代码，完全不动 =====================
 # ===================== 输入区（优化：手机上更易操作）=====================
 #st.header("📝 请输入项目数据")
@@ -2739,6 +2741,29 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             )
             # 【核心】顺便把现值赋给 income_df()
             income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
+            rental_cost_df_T = rental_cost_df.T
+            rental_sum_rows = [
+                "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)",
+                "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)",
+                "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)",
+                "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)", "销项税(万元)",
+                "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)",
+                "出租净收入(万元)", "出租净收益现值(万元)"
+            ]
+        
+            rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
+                lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
+            )
+        
+            total_manage = rental_cost_df.loc[:, "运营管理费用（商业）(万元)"].sum()
+            total_insurance = rental_cost_df.loc[:, "保险费用(万元)"].sum()
+            total_vacancy = rental_cost_df.loc[:, "空置物业服务费(万元)"].sum()
+            input_tax_total = (total_manage + total_insurance) * (0.06 / 1.06) + total_vacancy * (0.09 / 1.09) + project_input_tax
+            rental_cost_df_T.loc["进项税(万元)", "全周期合计(万元)"] = round(input_tax_total, 4)
+        
+            rental_cost_df_T = rental_cost_df_T[
+                ["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"]
+            ]
             #2.配保房销售逻辑
             for year in all_years:
                 sale_rate = sale_ramp_dict.get(year, 0.0)  # 只有你选的销售年份有销售率，其他年份0
@@ -3291,61 +3316,10 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         
         st.markdown("---")
     
-        # ===================== ✅ 出售类：插入出租营运成本表 =====================
-        # 仅出售类项目显示该表，非出售类完全不执行，避免报错
-        rental_cost_df = pd.DataFrame()
-        if project_type == "出售类(配保房/可售型人才房等)":
-            if use_snapshot_only and 'rental_cost_df_T' in locals() and not rental_cost_df_T.empty:
-                st.subheader("📊 出租情况表")
-                st.dataframe(rental_cost_df_T, use_container_width=True)
-            else:
-                # 调用函数，传参全用代码里真实存在的变量，100%匹配函数定义
-                rental_cost_df = calc_rental_operation_table(
-                    all_years=all_years,
-                    is_operate=is_operate,
-                    operate_year_list=operate_year_list,
-                    comm_area=comm_area,
-                    comm_rent_start_price=comm_rent_start_price,
-                    comm_rent_increase_span=comm_rent_increase_span,
-                    comm_rent_increase_rate=comm_rent_increase_rate,
-                    comm_occupancy_ramp_dict=comm_occupancy_ramp_dict,
-                    comm_stable_start=comm_stable_start,
-                    comm_stable_end=comm_stable_end,
-                    comm_occupancy_stable=comm_occupancy_stable,
-                    park_count=park_count,
-                    land_cost=land_cost,
-                    construction_cost=construction_cost,
-                    infra_cost=infra_cost,
-                    other_eng_cost=other_eng_cost,
-                    lease_months=lease_months if 'lease_months' in locals() else 12,
-                    land_use_area=land_use_area,
-                    project_input_tax=project_input_tax,
-                )
-                rental_cost_df_T = rental_cost_df.T
-
-                rental_sum_rows = [
-                    "商业出租收入(万元)", "房产税1(万元)", "房产税2(万元)", 
-                    "运营管理费用（商业）(万元)", "运营管理费用（停车场）(万元)", 
-                    "物业专项维修金(万元)", "维修费用(万元)", "空置物业服务费(万元)", 
-                    "保险费用(万元)", "土地使用税(万元)", "出租营运成本合计(万元)", "销项税(万元)",
-                    "增值税(一般计税)(万元)", "增值税附加(万元)", "印花税(万元)", "出租经营税金合计(万元)",
-                    "出租净收入(万元)", "出租净收益现值(万元)"
-                ]
-
-                rental_cost_df_T["全周期合计(万元)"] = rental_cost_df_T.apply(
-                    lambda row: round(row.sum(), 4) if row.name in rental_sum_rows else "/", axis=1
-                )
-
-                total_manage = rental_cost_df.loc[:, "运营管理费用（商业）(万元)"].sum()
-                total_insurance = rental_cost_df.loc[:, "保险费用(万元)"].sum()
-                total_vacancy = rental_cost_df.loc[:, "空置物业服务费(万元)"].sum()
-                input_tax_total = (total_manage + total_insurance) * (0.06 / 1.06) + total_vacancy * (0.09 / 1.09) + project_input_tax
-                rental_cost_df_T.loc["进项税(万元)", "全周期合计(万元)"] = round(input_tax_total, 4)
-
-                rental_cost_df_T = rental_cost_df_T[["全周期合计(万元)"] + [col for col in rental_cost_df_T.columns if col != "全周期合计(万元)"]]
-
-                st.subheader("📊 出租情况表")
-                st.dataframe(rental_cost_df_T, use_container_width=True)
+        # ===================== ✅ 出售类：插入出租营运成本表（统一复用前面已生成结果） =====================
+        if project_type == "出售类(配保房/可售型人才房等)" and not rental_cost_df_T.empty:
+            st.subheader("📊 出租情况表")
+            st.dataframe(rental_cost_df_T, use_container_width=True)
     
         if (not use_snapshot_only) and project_type == "出售类(配保房/可售型人才房等)":
             income_df["出租净收益现值(万元)"] = rental_cost_df["出租净收益现值(万元)"].fillna(0)
@@ -3458,7 +3432,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 "profit_df_T": profit_df_T.copy(),
                 "cf_df_T": cf_df_T.copy(),
                 "tax_df_T": tax_df_T.copy() if 'tax_df_T' in locals() else pd.DataFrame(),
-                "rental_cost_df_T": rental_cost_df_T.copy() if 'rental_cost_df_T' in locals() else pd.DataFrame(),
+                "rental_cost_df_T": rental_cost_df_T.copy() if not rental_cost_df_T.empty else pd.DataFrame(),
 
                 # 聊天直接恢复用
                 "ai_result_context": st.session_state.get("ai_result_context", {}).copy(),
@@ -3477,18 +3451,19 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         excel_buffer = io.BytesIO()
 
         with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+            # 出售类：按页面展示顺序导出
+            if project_type == "出售类(配保房/可售型人才房等)" and not rental_cost_df_T.empty:
+                rental_cost_df_T.to_excel(writer, sheet_name="出租情况表")
+        
             income_df_T.to_excel(writer, sheet_name="收入明细表")
             cost_df_T.to_excel(writer, sheet_name="总成本费用明细")
             loan_df_T.to_excel(writer, sheet_name="还本付息明细")
             profit_df_T.to_excel(writer, sheet_name="损益表明细")
             cf_df_T.to_excel(writer, sheet_name="全投资现金流量表")
-
-            if project_type == "出售类(配保房/可售型人才房等)" and 'rental_cost_df_T' in locals() and not rental_cost_df_T.empty:
-                rental_cost_df_T.to_excel(writer, sheet_name="出租情况表")
-
+        
             if project_type != "出售类(配保房/可售型人才房等)" and 'tax_df_T' in locals() and not tax_df_T.empty:
                 tax_df_T.to_excel(writer, sheet_name="税金及附加明细")
-
+        
             if is_ai_mode and st.session_state.get("ai_mode_ready", False):
                 assumption_df = build_ai_assumption_table(
                     core_input=st.session_state.get("ai_core_input", {}),
