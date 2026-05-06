@@ -2006,14 +2006,14 @@ if run_manual_inputs:
             land_use_area = col9.number_input("用地面积（㎡）", min_value=0, value=0, step=100)
             land_floor_price = col10.number_input("划拨土地楼面价（元/㎡）", min_value=0.0, value=0.0, step=10.0, help="配保房地价抵减计算用")
 
-    # 印花税率固定默认0‰，无需用户输入，需要时再用
-    stamp_tax_rate = 0 / 1000
-            # 第4行：新增工程进项税（单独一行）
-            #plot_ratio_area = col5.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
-            #st.markdown("")  # 换行
+            # 印花税率固定默认0‰，无需用户输入，需要时再用
+            stamp_tax_rate = 0 / 1000
+                    # 第4行：新增工程进项税（单独一行）
+                    #plot_ratio_area = col5.number_input("计容建筑面积（㎡）", min_value=1, value=1, step=1, help="用于进项税计算，最小值1避免除0错误")
+                    #st.markdown("")  # 换行
         
         # ---------------------- 新增：车位收入（逻辑同住宅，仅加特有参数）----------------------
-        st.markdown("---")
+            st.markdown("---")
         if (project_type != "出售类(配保房/可售型人才房等)") or st.session_state["show_park"]:
             st.subheader("🚗 车位收入")
             col_park1, col_park2, col_park3 = st.columns(3)
