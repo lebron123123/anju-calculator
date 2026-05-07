@@ -1169,7 +1169,7 @@ def get_loading_text(elapsed):
     idx = int(elapsed // 1.5) % len(texts)
     return f"{texts[idx]} 已等待 {elapsed:.1f} 秒"
 
-def call_external_llm_with_timer(messages, context_text, hard_timeout=20):
+def call_external_llm_with_timer(messages, context_text, hard_timeout=60):
     """
     带前端等待提示和计时的大模型调用
     超过 hard_timeout 秒自动回退本地规则回答，避免一直转圈
@@ -1243,23 +1243,39 @@ def render_ai_chat_panel():
 
     user_question = st.chat_input("请输入你的问题，例如：为什么这个项目IRR为负？")
     if user_question:
+        # 1. 先写入会话
         st.session_state["ai_chat_messages"].append({"role": "user", "content": user_question})
+
+        # 2. 当前轮次立刻把用户消息显示出来，增强交互感
+        with st.chat_message("user"):
+            st.write(user_question)
 
         context_dict = st.session_state.get("ai_result_context", {})
         context_text = build_ai_enhanced_context_text(context_dict)
 
-        # 先尝试外部大模型；如果没有，就回退到本地规则回答
-        llm_answer = call_external_llm_with_timer(
-            messages=st.session_state["ai_chat_messages"],
-            context_text=context_text
-        )
+        # 3. 先显示一个“正在分析”的assistant占位
+        with st.chat_message("assistant"):
+            thinking_box = st.empty()
+            thinking_box.info("🤖 正在结合当前测算结果分析，请稍候…")
 
-        if not llm_answer:
-            llm_answer = answer_ai_chat_local(user_question, context_dict)
+            # 先尝试外部大模型；如果没有，就回退到本地规则回答
+            llm_answer = call_external_llm_with_timer(
+                messages=st.session_state["ai_chat_messages"],
+                context_text=context_text,
+                hard_timeout=60
+            )
 
+            if not llm_answer:
+                llm_answer = answer_ai_chat_local(user_question, context_dict)
+
+            # 用最终结果替换占位提示
+            thinking_box.empty()
+            st.write(llm_answer)
+
+        # 4. 把assistant回复写入会话
         st.session_state["ai_chat_messages"].append({"role": "assistant", "content": llm_answer})
 
-        # 关键：标记已有结果，避免聊天导致页面回退
+        # 5. 标记已有结果，避免聊天导致页面回退
         st.session_state["ai_result_ready"] = True
         save_ai_result_snapshot({
             **get_ai_result_snapshot(),
