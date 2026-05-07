@@ -2867,10 +2867,8 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 # 3. 增值税销项税=(当年销售款-地价抵减总额×当年销售率)×9%/(1+9%)
                 output_vat_year = (sale_income_year + other_income_year - land_deduct_total * sale_rate_year) * (0.09 / 1.09) if sale_income_year > 0 else 0.0
                 # 4. 增值税进项税（修正公式笔误，一行搞定）
-                other_eng_alloc = other_eng_cost * area_ratio_comm if area_total != 0 else 0.0
-                input_vat_6 = (other_eng_alloc + total_sale_fee_all) * sale_rate_year * (0.06 / 1.06)
-                # 9%进项税部分
-                input_vat_9 = (sale_construction_cost + sale_infra_cost + construction_cost + infra_cost) * sale_rate_year * (0.09 / 1.09)
+                input_vat_6 = (other_eng_cost /area_ratio_comm + total_sale_fee_all) * sale_rate_year * (0.06 / 1.06)
+                input_vat_9 = (sale_construction_cost + sale_infra_cost+construction_cost + infra_cost) * sale_rate_year * (0.09 / 1.09)
                 input_vat_year = input_vat_6 + input_vat_9
                 # 5. 累计值计算
                 cum_output_vat += output_vat_year
