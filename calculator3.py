@@ -2116,7 +2116,7 @@ if run_manual_inputs:
                 col_repay_year = st.columns(len(repay_years))
                 for idx, year in enumerate(repay_years):
                     repay_plan_dict[year] = col_repay_year[idx].number_input(f"{year}年还款本金（万元）", min_value=0.0, value=0.0, step=100.0)
-    
+
     # 4. 税金及其附加参数（出售类不显示）
     if project_type != "出售类(配保房/可售型人才房等)":
         with st.expander("4. 税金及其附加参数", expanded=True):
