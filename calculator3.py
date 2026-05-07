@@ -2132,7 +2132,7 @@ if run_manual_inputs:
     with st.expander("5. 全投资现金流量表参数", expanded=True):
         st.subheader("📊 现金流量表核心参数")
         # 折现率输入（所有项目类型都显示）
-        discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=8.0, step=0.1)
+        discount_rate = st.number_input("折现率（%）", min_value=0.0, max_value=50.0, value=3.5, step=0.1)
         
         # 【仅非出售类显示建设投资计划，出售类完全隐藏】
         is_sale_mode = "sale_and_commercial" in current_config.get("ui_components", [])
