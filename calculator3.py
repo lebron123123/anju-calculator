@@ -1774,7 +1774,7 @@ if run_manual_inputs:
         else:
             house_type = "公租房"  # 非出租型项目，给固定默认值，不影响计算
         # 建设期年份：原有代码完全不动
-        build_years = st.multiselect("建设期年份", options=year_options, default=[2025, 2026])
+        build_years = st.multiselect("建设期年份", options=year_options, default=[2024, 2025])
     
         # ---------------------- 运营期年份区间选择----------------------
         st.subheader("运营期年份（区间选择）")
