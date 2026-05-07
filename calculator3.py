@@ -2888,9 +2888,13 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                     dev_cost_dep_year = total_dev_cost_dep_base
                 else:
                     dev_cost_dep_year = 0.0
-                # 10. 当年开发成本（折旧摊销部分）2 - 新逻辑：按运营期50年平均摊销
+                # 10. 当年开发成本（折旧摊销部分）2 - 从运营期开始最多摊销50年
                 if year in operate_years:
-                    dev_cost_dep2_year = total_dev_cost_dep_base / 50
+                    operate_year_no = operate_years.index(year) + 1  # 运营期第几年，从1开始
+                    if operate_year_no <= 50:
+                        dev_cost_dep2_year = total_dev_cost_dep_base / 50
+                    else:
+                        dev_cost_dep2_year = 0.0
                 else:
                     dev_cost_dep2_year = 0.0
     
