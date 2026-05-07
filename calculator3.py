@@ -2836,7 +2836,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             # 基础参数预计算（一行搞定，防除0）
             area_total = sale_area + comm_area
             area_ratio_sale = sale_area / area_total if area_total != 0 else 0.0
-            area_ratio_comm = comm_area / area_total if area_total != 0 else 0.0
+            area_ratio_comm = 1 - area_ratio_sale
             land_deduct_total = sale_area * land_floor_price / 10000  # 地价抵减总额（转万元）
             non_sale_dev_cost = land_cost + dev_cost  # 非配售开发成本=土地成本费+开发成本费
             build_fin_total = total_cost_df["财务费用(建设期)(万元)"].sum()  # 建设期财务费用总额
