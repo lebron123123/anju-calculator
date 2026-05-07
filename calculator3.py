@@ -2883,18 +2883,23 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 sale_tax_total_year = vat_year + vat_surcharge_year + stamp_year
                 # 8. 当年开发成本（销售部分）= 全周期合计基数 × 当年销售率
                 dev_cost_sale_year = total_dev_cost_sale_base * sale_rate_year
-                # 9. 当年开发成本（折旧摊销部分）= 全周期合计基数 × 当年销售率
-                #dev_cost_dep_year = total_dev_cost_dep_base * sale_rate_year
+                # 9. 当年开发成本（折旧摊销部分）- 原逻辑：首个运营年一次性计入
                 if year == operate_years[0]:
                     dev_cost_dep_year = total_dev_cost_dep_base
                 else:
                     dev_cost_dep_year = 0.0
+                # 10. 当年开发成本（折旧摊销部分）2 - 新逻辑：按运营期50年平均摊销
+                if year in operate_years:
+                    dev_cost_dep2_year = total_dev_cost_dep_base / 50
+                else:
+                    dev_cost_dep2_year = 0.0
     
                 # 当年地价款抵减额（匹配销售率）
                 land_deduct_year = land_deduct_total * sale_rate_year
                 # 填入表格（和原有财务费用、总成本列完全对齐）
                 sale_cost_df.loc[year, "累计开发成本（销售部分）(万元)"] = round(dev_cost_sale_year, 4)
                 sale_cost_df.loc[year, "累计开发成本（折旧摊销部分）(万元)"] = round(dev_cost_dep_year, 4)
+                sale_cost_df.loc[year, "累计开发成本（折旧摊销部分）2(万元)"] = round(dev_cost_dep2_year, 4)
                 sale_cost_df.loc[year, "销售费用(万元)"] = round(sale_fee_year, 4)
                 sale_cost_df.loc[year, "销售税金及其附加(万元)"] = round(sale_tax_total_year, 4)
                 # 新增税金核对行（复用循环内已计算的变量，无额外计算）
@@ -2966,7 +2971,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 rent_tax = rental_cost_df.loc[year, "出租经营税金合计(万元)"] if year in rental_cost_df.index else 0.0
                 rent_cost = rental_cost_df.loc[year, "出租营运成本合计(万元)"] if year in rental_cost_df.index else 0.0
                 build_fin_fee = total_cost_df.loc[year, "财务费用(建设期)(万元)"]
-                dev_cost_sale, dev_cost_dep = total_cost_df.loc[year, ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)"]]
+                dev_cost_sale, dev_cost_dep = total_cost_df.loc[year, ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）2(万元)"]]
     
                 dev_cost_total = dev_cost_base - total_cost_df["财务费用(建设期)(万元)"].sum() - total_cost_df["销售费用(万元)"].sum()
                 
@@ -3079,7 +3084,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         cost_df_T = total_cost_df.T
         if project_type == "出售类(配保房/可售型人才房等)":
             # 出售类：仅对数值行求和，严格匹配新的行
-            cost_sum_rows = ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)", "销售费用(万元)", "销售税金及其附加(万元)", "增值税(万元)","增值税销项税额(万元)","增值税进项税额(万元)","地价款抵减(万元)","增值税附加(万元)","财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
+            cost_sum_rows = ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）(万元)", "累计开发成本（折旧摊销部分）2(万元)","销售费用(万元)", "销售税金及其附加(万元)", "增值税(万元)","增值税销项税额(万元)","增值税进项税额(万元)","地价款抵减(万元)","增值税附加(万元)","财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
         else:
             # 出租型：完全保留原有逻辑，一丝不动
             cost_sum_rows = ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)", "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)", "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)", "财务费用(建设期)(万元)", "财务费用(运营期)(万元)", "税金及其附加总和(万元)", "总成本费用(不含建设期财务费用、不含税金)(万元)"]
