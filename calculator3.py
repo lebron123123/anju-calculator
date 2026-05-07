@@ -1818,7 +1818,7 @@ if run_manual_inputs:
             st.subheader("🏠 配保房销售")
             col_sale1, col_sale2 = st.columns(2)
             sale_area = col_sale1.number_input("销售面积（㎡）", min_value=0, max_value=9999999, value=56105, step=100)
-            sale_avg_price = col_sale2.number_input("售价（元/㎡）", min_value=0.0, max_value=999999.0, value=12880, step=100.0)
+            sale_avg_price = col_sale2.number_input("售价（元/㎡）", min_value=0.0, max_value=999999.0, value=12880.0, step=100.0)
             sale_ramp_years = st.multiselect("销售年份", operate_years, operate_years[:3])
             if sale_ramp_years:
                 cols = st.columns(len(sale_ramp_years))
