@@ -3016,19 +3016,32 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             last_cum_cf = current_cum
         cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
     
-        # 5. 净现值（出售类按期初/年末折现；其他类型保持年中折现）
+        # 5. 净现值（出售类从首个实际现金流年份开始按0、1、2...折现；其他类型保持年中折现）
         discount_rate_decimal = discount_rate / 100
         npv_list = []
+        
+        if project_type == "出售类(配保房/可售型人才房等)":
+            # 找到出售类首个“实际发生净现金流”的年份，作为0期
+            nonzero_cf_years = [y for y in all_years if abs(cf_df.loc[y, "净现金流量(万元)"]) > 1e-9]
+            first_cf_year = nonzero_cf_years[0] if nonzero_cf_years else all_years[0]
+            first_cf_idx = all_years.index(first_cf_year)
+        
         for idx, year in enumerate(all_years):
             if project_type == "出售类(配保房/可售型人才房等)":
-                # 出售类：第一年不折现，之后依次按0、1、2...期折现
-                discount_factor = (1 + discount_rate_decimal) ** idx
+                # 出售类：从首个实际现金流年份开始记0期
+                sale_period = idx - first_cf_idx
+                if sale_period < 0:
+                    discount_factor = 1.0
+                else:
+                    discount_factor = (1 + discount_rate_decimal) ** sale_period
             else:
                 # 其他类型：保持原年中折现口径
                 n = idx + 1
                 discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
+        
             current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
             npv_list.append(current_npv)
+        
         cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
     
         # 6. 累计净现值
@@ -3213,16 +3226,24 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 cum_cf_list.append(current_cum)
                 last_cum_cf = current_cum
             cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
-            # 重新算净现值、累计净现值（出售类按期初/年末折现；其他类型保持年中折现）
+            # 重新算净现值、累计净现值（出售类从首个实际现金流年份开始按0、1、2...折现；其他类型保持年中折现）
             discount_rate_decimal = discount_rate / 100
             npv_list = []
+            if project_type == "出售类(配保房/可售型人才房等)":
+                nonzero_cf_years = [y for y in all_years if abs(cf_df.loc[y, "净现金流量(万元)"]) > 1e-9]
+                first_cf_year = nonzero_cf_years[0] if nonzero_cf_years else all_years[0]
+                first_cf_idx = all_years.index(first_cf_year)
+            
             for idx, year in enumerate(all_years):
                 if project_type == "出售类(配保房/可售型人才房等)":
-                    discount_factor = (1 + discount_rate_decimal) ** idx
+                    sale_period = idx - first_cf_idx
+                    if sale_period < 0:
+                        discount_factor = 1.0
+                    else:
+                        discount_factor = (1 + discount_rate_decimal) ** sale_period
                 else:
                     n = idx + 1
                     discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
-            
                 current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
                 npv_list.append(current_npv)
             cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
