@@ -3016,12 +3016,17 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             last_cum_cf = current_cum
         cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
     
-        # 5. 净现值（严格按你给的公式计算）
+        # 5. 净现值（出售类按期初/年末折现；其他类型保持年中折现）
         discount_rate_decimal = discount_rate / 100
         npv_list = []
         for idx, year in enumerate(all_years):
-            n = idx + 1  # 从建设期开始的第n年，从1开始计数
-            discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
+            if project_type == "出售类(配保房/可售型人才房等)":
+                # 出售类：第一年不折现，之后依次按0、1、2...期折现
+                discount_factor = (1 + discount_rate_decimal) ** idx
+            else:
+                # 其他类型：保持原年中折现口径
+                n = idx + 1
+                discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
             current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
             npv_list.append(current_npv)
         cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
@@ -3208,12 +3213,16 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 cum_cf_list.append(current_cum)
                 last_cum_cf = current_cum
             cf_df["累计净现金流量(万元)"] = round(pd.Series(cum_cf_list, index=all_years), 4)
-            # 重新算净现值、累计净现值
+            # 重新算净现值、累计净现值（出售类按期初/年末折现；其他类型保持年中折现）
             discount_rate_decimal = discount_rate / 100
             npv_list = []
             for idx, year in enumerate(all_years):
-                n = idx + 1
-                discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
+                if project_type == "出售类(配保房/可售型人才房等)":
+                    discount_factor = (1 + discount_rate_decimal) ** idx
+                else:
+                    n = idx + 1
+                    discount_factor = (1 + discount_rate_decimal) ** (n - 0.5)
+            
                 current_npv = cf_df.loc[year, "净现金流量(万元)"] / discount_factor
                 npv_list.append(current_npv)
             cf_df["净现值(万元)"] = round(pd.Series(npv_list, index=all_years), 4)
