@@ -674,6 +674,14 @@ def answer_ai_chat_local(question, context_dict):
         return "当前测算逻辑是：先根据你输入的核心指标匹配同类历史项目，再结合行业规则自动补齐缺失参数，最后进入完整财务模型生成收入、成本、税金、损益和现金流表。"
 
     if "公式" in q or "怎么算" in q or "计算逻辑" in q or "依据什么" in q:
+        target_type = detect_formula_target_type(q)
+        if target_type:
+            formula_text = build_formula_knowledge_text(
+                project_type=context_dict.get("project_type", ""),
+                target_sub_type=target_type
+            )
+            return f"以下为系统内置的{target_type}核心测算公式：\n\n{formula_text}"
+    
         formula_text = context_dict.get("formula_knowledge", "")
         if formula_text:
             return "当前系统内置的核心测算公式如下：\n\n" + formula_text
