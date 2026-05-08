@@ -1446,17 +1446,12 @@ def is_key_metric_row(row_name: str) -> bool:
         "累计净现金流量",
         "利润总额",
         "净利润",
-        "应纳税所得额",
-        "所得税",
-        "税金及其附加总和",
         "经营成本",
         "现金流入",
         "现金流出合计",
         "本期本息偿还合计",
         "出租营运成本合计",
-        "出租经营税金合计",
-        "出租净收入",
-        "销售税金及其附加",
+        "商业出租收入",
     ]
     return any(k in str(row_name) for k in key_words)
 
@@ -3461,7 +3456,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         # ===================== ✅ 出售类：插入出租营运成本表（统一复用前面已生成结果） =====================
         if project_type == "出售类(配保房/可售型人才房等)" and not rental_cost_df_T.empty:
             st.subheader("📊 出租情况表")
-            st.dataframe(rental_cost_df_T, use_container_width=True)
+            st.dataframe(style_key_rows(rental_cost_df_T), use_container_width=True)
     
         if (not use_snapshot_only) and project_type == "出售类(配保房/可售型人才房等)":
             income_df["出租净收益现值(万元)"] = 0.0
@@ -3497,17 +3492,13 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
           # --- 总成本费用明细 ---
         st.subheader("💸 总成本费用明细")
         # 给总成本费用行的文字标红
-        cost_styled = cost_df_T.style.apply(
-            lambda x: ['color: red; font-weight: bold' if x.name == "总成本费用(不含建设期财务费用、不含税金)(万元)" else '' for _ in x],
-            axis=1
-        )
-        st.dataframe(cost_styled, use_container_width=True)
+        st.dataframe(style_key_rows(cost_df_T), use_container_width=True)
         
         st.markdown("---")
         
         # --- 新增：还本付息明细 ---
         st.subheader("🏦 还本付息明细")
-        st.dataframe(loan_df_T, use_container_width=True)
+        st.dataframe(style_key_rows(loan_df_T), use_container_width=True)
     
         st.markdown("---")
     
@@ -3517,7 +3508,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             tax_df_T = tax_df.T
             tax_df_T["全周期合计(万元)"] = tax_df_T.sum(axis=1).round(4)
             tax_df_T = tax_df_T[ ["全周期合计(万元)"] + [col for col in tax_df_T.columns if col != "全周期合计(万元)"] ]
-            st.dataframe(tax_df_T, use_container_width=True)
+            st.dataframe(style_key_rows(tax_df_T), use_container_width=True)
             st.markdown("---")
         
         # --- 新增：损益表明细 ---
@@ -3541,7 +3532,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         # 全周期合计计算    
         profit_df_T["全周期合计(万元)"] = profit_df_T.apply(lambda row: round(row.sum(), 4) if row.name in profit_sum_rows else "/", axis=1)
         profit_df_T = profit_df_T[ ["全周期合计(万元)"] + [col for col in profit_df_T.columns if col != "全周期合计(万元)"] ]
-        st.dataframe(profit_df_T, use_container_width=True)
+        st.dataframe(style_key_rows(profit_df_T), use_container_width=True)
     
         st.markdown("---")
     
@@ -3590,7 +3581,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 "ai_similar_project_names": list(st.session_state.get("ai_similar_project_names", [])),
             }
             save_ai_result_snapshot(snapshot_dict)
-        st.dataframe(cf_df_T, use_container_width=True)
+        st.dataframe(style_key_rows(cf_df_T), use_container_width=True)
         
         # 9. 一键下载Excel（下载所有已显示表）
         st.markdown("---")
