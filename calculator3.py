@@ -1456,8 +1456,6 @@ def is_key_metric_row(row_name: str) -> bool:
         "出租营运成本合计",
         "出租经营税金合计",
         "出租净收入",
-        "出租净收益现值",
-        "配保房销售收入",
         "销售税金及其附加",
     ]
     return any(k in str(row_name) for k in key_words)
