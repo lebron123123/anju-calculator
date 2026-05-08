@@ -2042,8 +2042,8 @@ if run_manual_inputs:
         if (project_type != "出售类(配保房/可售型人才房等)") or st.session_state["show_park"]:
             st.subheader("🚗 车位收入")
             col_park1, col_park2, col_park3 = st.columns(3)
-            park_count = col_park1.number_input("车位个数", min_value=0, value=500, step=1)
-            park_rent_start_price = col_park2.number_input("车位起始租金单价（元/个/月）", min_value=0.0, value=300.0, step=10.0)
+            park_count = col_park1.number_input("车位个数", min_value=0, value=420, step=1)
+            park_rent_start_price = col_park2.number_input("车位起始租金单价（元/个/月）", min_value=0.0, value=200.0, step=10.0)
             park_income_ratio = col_park3.number_input("车位实际收入系数", min_value=0.0, max_value=1.0, value=0.5, step=0.01, help="比如50%填0.5")
              # ---------------------- 车位出租率设置（爬坡期+稳定期，缩进完全匹配）----------------------
             if 'operate_years' in locals() and operate_years:
@@ -2094,7 +2094,7 @@ if run_manual_inputs:
         if not is_sale_mode:
             st.subheader("💰 经营成本核心参数")
             col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
-            manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=1.92, step=0.01, help="1.92×区域系数")
+            manage_coeff = col_cost1.number_input("管理系数", min_value=0.0, value=0.75, step=0.01, help="1.92×区域系数")
             total_build_area = col_cost2.number_input("总建筑面积（㎡）", min_value=0, value=50000, step=100)
             residential_decoration_cost = col_cost3.number_input("住宅精装修工程费（万元）", min_value=0.0, value=5000.0, step=100.0)
             total_investment = col_cost4.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
