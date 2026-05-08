@@ -1429,6 +1429,53 @@ def _top_n_dict(d, n=3):
     items = sorted(d.items(), key=lambda x: abs(x[1]), reverse=True)
     return items[:n]
 
+def is_key_metric_row(row_name: str) -> bool:
+    """
+    判断某一行是否属于关键指标行，需要整行标红
+    """
+    if not row_name:
+        return False
+
+    key_words = [
+        "总收入",
+        "总成本",
+        "总成本费用",
+        "净现值",
+        "累计净现值",
+        "净现金流量",
+        "累计净现金流量",
+        "利润总额",
+        "净利润",
+        "应纳税所得额",
+        "所得税",
+        "税金及其附加总和",
+        "经营成本",
+        "现金流入",
+        "现金流出合计",
+        "本期本息偿还合计",
+        "出租营运成本合计",
+        "出租经营税金合计",
+        "出租净收入",
+        "出租净收益现值",
+        "配保房销售收入",
+        "销售税金及其附加",
+    ]
+    return any(k in str(row_name) for k in key_words)
+
+def style_key_rows(df):
+    """
+    将DataFrame的索引转成普通列，并把关键指标整行标红
+    """
+    show_df = df.copy().reset_index()
+    show_df = show_df.rename(columns={show_df.columns[0]: "指标"})
+
+    def highlight_row(row):
+        if is_key_metric_row(row["指标"]):
+            return ["color: red; font-weight: bold;"] * len(row)
+        return [""] * len(row)
+
+    return show_df.style.apply(highlight_row, axis=1)
+
 # ===================== 【最小改动】项目类型配置字典（所有规则统一放这里，新增/改项目只动这里）=====================
 PROJECT_CONFIG = {
     # 类型1：出租型(协议出让/合作类等)
@@ -3444,7 +3491,8 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         st.subheader("📋 收入明细表")
         # 出售类自动隐藏指定行，非出售类正常显示
         if project_type == "出售类(配保房/可售型人才房等)": income_df_T = income_df_T.drop(["计算过程说明", "住宅租金单价(元/㎡/月)", "住宅出租率", "车位租金单价(元/个/月)", "车位出租率","商业出租收入(万元)"], errors="ignore")
-        st.dataframe(income_df_T, use_container_width=True)
+        #st.dataframe(income_df_T, use_container_width=True)
+        st.dataframe(style_key_rows(income_df_T), use_container_width=True)
         
         st.markdown("---")
         
