@@ -315,6 +315,52 @@ def ai_fill_indicators(core_input, history_df=None):
             }
         }
 
+    elif sub_type == "非居改保类":
+        rule_params = {
+            "residential_area": total_area * 0.90,
+            "rent_increase_span": 3,
+            "rent_increase_rate": 5.0,
+            "ramp_years": operate_years[:1],
+            "occupancy_ramp_dict": {int(operate_years[0]): 0.85} if operate_years else {},
+            "stable_start": (operate_years[1] if len(operate_years) > 1 else operate_years[0]),
+            "stable_end": operate_years[-1],
+            "occupancy_stable": 0.95,
+
+            "comm_area": 0,
+            "comm_rent_start_price": 0,
+            "comm_rent_increase_span": 3,
+            "comm_rent_increase_rate": 0,
+            "comm_occupancy_stable": 0,
+
+            "park_count": 0,
+            "park_rent_start_price": 0,
+            "park_income_ratio": 0,
+            "park_occupancy_stable": 0,
+
+            "other_income_name": "其他收入",
+            "other_income_total": 0,
+
+            "manage_coeff": 1.0,
+            "land_cost": 0,
+            "construction_cost": 0,
+            "infra_cost": 0,
+            "sale_area": 0,
+            "sale_ramp_dict": {},
+
+            # 非居改保专属参数
+            "nr_collect_price": 25.0,
+            "nr_decoration_unit_cost": 1500.0,
+            "nr_decoration_times": 2,
+            "nr_decoration_interval": 10,
+            "nr_redecoration_ratio": 0.30,
+            "nr_total_units": int(total_area / 60),
+            "nr_unit_operate_cost": 800.0,
+            "nr_startup_fee": 50.0,
+            "nr_loan_amount": total_invest * 0.7,
+            "nr_interest_base": total_invest * 0.5,
+            "nr_rate_discount": 0.8,
+        }
+        
     else:
         rule_params = {
             "residential_area": total_area * 0.88,
@@ -934,6 +980,8 @@ def build_general_project_chat_context(
         sub_type = "出售类"
     elif project_type == "出租型(协议出让/合作类等)":
         sub_type = "出租类"
+    elif project_type == "非居改保类":
+        sub_type = "非居改保类"
     else:
         sub_type = "租售结合类"
 
@@ -1494,6 +1542,15 @@ PROJECT_CONFIG = {
         "calc_rules": {},
         "show_metrics": []
     },
+    # 类型4：非居改保类
+    "非居改保类": {
+        "extra_inputs": [],
+        "ui_components": ["non_resi_reform"],  # 非居改保专属标记
+        "calc_rules": {
+            "repay_plan_mode": "custom",
+        },
+        "show_metrics": []
+    },
     # 👇 只加这一段
     "🤖 AI智能测算": {
         "extra_inputs": [],
@@ -1576,7 +1633,7 @@ if is_ai_mode:
 
     with st.expander("核心指标", expanded=True):
         # -------- 通用9项 --------
-        ai_sub_type = st.radio("项目子类型", ["出售类", "出租类", "租售结合类"], horizontal=True)
+        ai_sub_type = st.radio("项目子类型", ["出售类", "出租类", "租售结合类", "非居改保类"], horizontal=True)
         total_build_area = st.number_input("总建筑面积（㎡）", min_value=1, value=50000, step=100)
         total_investment = st.number_input("总投资（万元）", min_value=0.0, value=50000.0, step=1000.0)
 
@@ -1617,9 +1674,9 @@ if is_ai_mode:
             occupancy_stable_pct = st.number_input("住宅稳定期出租率（%）", min_value=0.0, max_value=100.0, value=90.0, step=1.0)
             comm_area_ratio_pct = st.number_input("商业面积占比（%）", min_value=0.0, max_value=100.0, value=6.0, step=1.0)
             comm_rent_start_price_input = st.number_input("商业起始租金（元/㎡/月）", min_value=0.0, value=28.0, step=1.0)
-
+       
         # -------- 租售结合类：6项，合计15项 --------
-        else:
+        elif ai_sub_type == "租售结合类":
             st.caption("当前共 15 项：通用9项 + 租售结合类关键6项")
             land_cost_input = st.number_input("土地成本（万元）", min_value=0.0, value=float(total_investment) * 0.25, step=100.0)
             sale_avg_price = st.number_input("可售售价（元/㎡）", min_value=0.0, value=10000.0, step=100.0)
@@ -1627,6 +1684,17 @@ if is_ai_mode:
             sale_area_ratio_pct = st.number_input("可售面积占比（%）", min_value=0.0, max_value=100.0, value=45.0, step=1.0)
             comm_area_ratio_pct = st.number_input("商业面积占比（%）", min_value=0.0, max_value=100.0, value=8.0, step=1.0)
             occupancy_stable_pct = st.number_input("住宅稳定期出租率（%）", min_value=0.0, max_value=100.0, value=90.0, step=1.0)
+
+        # -------- 非居改保类：7项，合计16项 --------
+        elif ai_sub_type == "非居改保类":
+            st.caption("当前共 16 项：通用9项 + 非居改保类关键7项")
+            resi_rent_start = st.number_input("住宅起始租金（元/㎡/月）", min_value=0.0, value=75.0, step=1.0)
+            occupancy_stable_pct = st.number_input("住宅稳定期出租率（%）", min_value=0.0, max_value=100.0, value=95.0, step=1.0)
+            nr_collect_price = st.number_input("收楼单价（元/㎡/月）", min_value=0.0, value=25.0, step=1.0)
+            nr_decoration_unit_cost = st.number_input("首次装修单方造价（元/㎡）", min_value=0.0, value=1500.0, step=50.0)
+            nr_total_units = st.number_input("总套数", min_value=1, value=500, step=10)
+            nr_unit_operate_cost = st.number_input("单套月运营成本（元/套/月）", min_value=0.0, value=800.0, step=50.0)
+            nr_loan_amount = st.number_input("总借款额（万元）", min_value=0.0, value=10000.0, step=100.0)
 
     if st.button("🤖 AI一键测算", type="primary", use_container_width=True):
         try:
@@ -1659,10 +1727,11 @@ if is_ai_mode:
                 subtype_to_project_type = {
                     "出售类": "出售类(配保房/可售型人才房等)",
                     "出租类": "出租型(协议出让/合作类等)",
-                    "租售结合类": "租售结合类"
+                    "租售结合类": "租售结合类",
+                    "非居改保类": "非居改保类"
                 }
 
-                show_resi = ai_sub_type in ["出租类", "租售结合类"]
+                show_resi = ai_sub_type in ["出租类", "租售结合类", "非居改保类"]
                 show_comm = True
                 show_park = True
 
@@ -1888,6 +1957,63 @@ if run_manual_inputs:
                     sale_ramp_dict[y] = cols[idx].number_input(f"{y}销售率", 0.0, 1.0, 0.3, 0.01)
             st.markdown("---")
        # 出售类专属：有/无收入双按钮（点击“无”全隐藏，点击“有”全显示）
+    # ===================== 非居改保类专属输入 =====================
+    if "non_resi_reform" in current_config.get("ui_components", []):
+        st.subheader("🏢 非居改保参数")
+        col_nr1, col_nr2 = st.columns(2)
+        residential_area = col_nr1.number_input("住宅面积（㎡）", value=20000, min_value=0, step=100)
+        rent_start_price = col_nr2.number_input("起始租金单价（元/㎡/月）", value=75.0, min_value=0.0, step=1.0)
+
+        col_nr3, col_nr4 = st.columns(2)
+        rent_increase_span = col_nr3.number_input("租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1)
+        rent_increase_rate = col_nr4.number_input("租金递增率（%）", min_value=0.0, max_value=50.0, value=5.0, step=0.1)
+
+        st.markdown("##### 出租率设置")
+        if 'operate_years' in locals() and operate_years:
+            ramp_years = st.multiselect("爬坡期年份", options=operate_years, default=operate_years[:1])
+            occupancy_ramp_dict = {}
+            if ramp_years:
+                col_ramp = st.columns(len(ramp_years))
+                for idx, year in enumerate(ramp_years):
+                    occupancy_ramp_dict[year] = col_ramp[idx].number_input(f"{year}年出租率", min_value=0.0, max_value=1.0, value=0.85, step=0.01)
+            col_s1, col_s2, col_s3 = st.columns(3)
+            stable_start = col_s1.number_input("稳定期起始年", min_value=operate_start, max_value=operate_end, value=min(operate_start + 1, operate_end))
+            stable_end = col_s2.number_input("稳定期结束年", min_value=stable_start, max_value=operate_end, value=operate_end)
+            occupancy_stable = col_s3.number_input("稳定期出租率", min_value=0.0, max_value=1.0, value=0.95, step=0.01)
+
+        st.markdown("---")
+        st.markdown("##### 成本参数")
+        col_c1, col_c2 = st.columns(2)
+        nr_collect_price = col_c1.number_input("收楼单价（元/㎡/月）", min_value=0.0, value=25.0, step=1.0)
+        nr_decoration_unit_cost = col_c2.number_input("首次装修单方造价（元/㎡）", min_value=0.0, value=1500.0, step=50.0)
+
+        col_c3, col_c4 = st.columns(2)
+        nr_decoration_interval = col_c3.number_input("装修间隔（年）", min_value=1, value=10, step=1)
+        nr_redecoration_ratio = col_c4.number_input("二次装修成本系数", min_value=0.0, max_value=1.0, value=0.30, step=0.05)
+
+        col_c5, col_c6 = st.columns(2)
+        nr_total_units = col_c5.number_input("总套数", min_value=1, value=500, step=10)
+        nr_unit_operate_cost = col_c6.number_input("单套月运营成本（元/套/月）", min_value=0.0, value=800.0, step=50.0)
+
+        nr_startup_fee = st.number_input("开办费（万元，仅首月计入）", min_value=0.0, value=50.0, step=10.0)
+
+        st.markdown("---")
+        st.markdown("##### 财务费用参数")
+        col_f1, col_f2 = st.columns(2)
+        nr_loan_amount = col_f1.number_input("总借款额（万元）", min_value=0.0, value=13892.0, step=100.0)
+        nr_interest_base = col_f2.number_input("计息本金（万元）", min_value=0.0, value=10600.0, step=100.0, help="实际用于计息的金额，可能≠总借款")
+
+        col_f3, col_f4 = st.columns(2)
+        nr_rate_discount = col_f3.number_input("利率折扣系数", min_value=0.0, max_value=1.0, value=0.80, step=0.05, help="如80%填0.8")
+        total_investment = col_f4.number_input("总投资（万元）", min_value=0.0, value=20000.0, step=1000.0)
+
+        # 非居改保不需要车位、商业、其他收入，直接赋0
+        park_count, park_rent_start_price, park_income_ratio = 0, 0.0, 0.0
+        park_occupancy_ramp_dict, park_stable_start, park_stable_end, park_occupancy_stable = {}, 0, 0, 0.0
+        comm_area, comm_rent_start_price = 0, 0.0
+        other_income_name, other_income_total = "其他收入", 0.0
+        manage_coeff = 1.0
+        total_build_area = residential_area
     if ("sale_and_commercial" in current_config.get("ui_components", [])) or ("rent_basic" in current_config.get("ui_components", [])):
         st.markdown("### 🎛️ 收入模块控制")
         # 住宅收入：有/无按钮
