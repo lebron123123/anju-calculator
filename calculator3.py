@@ -1685,9 +1685,26 @@ if is_ai_mode:
             comm_area_ratio_pct = st.number_input("商业面积占比（%）", min_value=0.0, max_value=100.0, value=8.0, step=1.0)
             occupancy_stable_pct = st.number_input("住宅稳定期出租率（%）", min_value=0.0, max_value=100.0, value=90.0, step=1.0)
 
-        # -------- 非居改保类：7项，合计16项 --------
+        # -------- 非居改保类：7项 + 年月精度 --------
         elif ai_sub_type == "非居改保类":
-            st.caption("当前共 16 项：通用9项 + 非居改保类关键7项")
+            st.caption("当前共 16+ 项：通用7项 + 非居改保类关键7项 + 年月精度")
+            
+            col_ai_b1, col_ai_b2 = st.columns(2)
+            build_start = col_ai_b1.number_input("建设起始年", value=2024, step=1, key="ai_nr_bs_y")
+            nr_ai_build_start_month = col_ai_b2.number_input("建设起始月", min_value=1, max_value=12, value=7, step=1, key="ai_nr_bs_m")
+            
+            col_ai_b3, col_ai_b4 = st.columns(2)
+            build_end = col_ai_b3.number_input("建设结束年", value=2026, step=1, key="ai_nr_be_y")
+            nr_ai_build_end_month = col_ai_b4.number_input("建设结束月", min_value=1, max_value=12, value=3, step=1, key="ai_nr_be_m")
+            
+            col_ai_o1, col_ai_o2 = st.columns(2)
+            operate_start = col_ai_o1.number_input("运营起始年", value=2026, step=1, key="ai_nr_os_y")
+            nr_ai_operate_start_month = col_ai_o2.number_input("运营起始月", min_value=1, max_value=12, value=4, step=1, key="ai_nr_os_m")
+            
+            col_ai_o3, col_ai_o4 = st.columns(2)
+            operate_end = col_ai_o3.number_input("运营结束年", value=2037, step=1, key="ai_nr_oe_y")
+            nr_ai_operate_end_month = col_ai_o4.number_input("运营结束月", min_value=1, max_value=12, value=3, step=1, key="ai_nr_oe_m")
+
             resi_rent_start = st.number_input("住宅起始租金（元/㎡/月）", min_value=0.0, value=75.0, step=1.0)
             occupancy_stable_pct = st.number_input("住宅稳定期出租率（%）", min_value=0.0, max_value=100.0, value=95.0, step=1.0)
             nr_collect_price = st.number_input("收楼单价（元/㎡/月）", min_value=0.0, value=25.0, step=1.0)
@@ -1701,8 +1718,29 @@ if is_ai_mode:
             with st.spinner("正在匹配历史项目并自动补参..."):
                 history_df = load_builtin_history_projects()
 
-                build_years_ai = list(range(int(build_start), int(build_end) + 1))
-                operate_years_ai = list(range(int(operate_start), int(operate_end) + 1))
+                # 非居改保AI模式：生成精确月数
+                if ai_sub_type == "非居改保类":
+                    def _gen_year_months(sy, sm, ey, em):
+                        yrs = list(range(sy, ey + 1))
+                        mm = {}
+                        for y in yrs:
+                            ms = sm if y == sy else 1
+                            me = em if y == ey else 12
+                            mm[y] = me - ms + 1
+                        return yrs, mm
+
+                    build_years_ai, nr_build_mm = _gen_year_months(
+                        int(build_start), int(nr_ai_build_start_month),
+                        int(build_end), int(nr_ai_build_end_month))
+                    operate_years_ai, nr_operate_mm = _gen_year_months(
+                        int(operate_start), int(nr_ai_operate_start_month),
+                        int(operate_end), int(nr_ai_operate_end_month))
+
+                    st.session_state["nr_operate_month_map"] = nr_operate_mm
+                    st.session_state["nr_build_month_map"] = nr_build_mm
+                else:
+                    build_years_ai = list(range(int(build_start), int(build_end) + 1))
+                    operate_years_ai = list(range(int(operate_start), int(operate_end) + 1))
 
                 core_input = {
                     "项目子类型": ai_sub_type,
@@ -1911,40 +1949,85 @@ if run_manual_inputs:
 
     # 1. 项目基本信息（完整正确版，确保build_years、operate_years全局可访问）
     with st.expander("1. 项目基本信息", expanded=True):
-        project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
-        # 【核心修改：仅出租型项目显示房源类型，缩进和上面的project_name完全一致】
-        if project_type == "出租型(协议出让/合作类等)":
-            house_type = st.radio("房源类型", options=["公租房", "保租房"], index=0, horizontal=True, help="用于匹配装修重置费计算规则")
+        # ===================== 非居改保类：精确到月的建设期/运营期 =====================
+        if "non_resi_reform" in current_config.get("ui_components", []):
+            st.subheader("建设期（精确到月）")
+            col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+            nr_build_start_year = col_b1.number_input("建设起始年", value=2024, step=1, key="nr_bs_y")
+            nr_build_start_month = col_b2.number_input("起始月", min_value=1, max_value=12, value=7, step=1, key="nr_bs_m")
+            nr_build_end_year = col_b3.number_input("建设结束年", value=2026, step=1, key="nr_be_y")
+            nr_build_end_month = col_b4.number_input("结束月", min_value=1, max_value=12, value=3, step=1, key="nr_be_m")
+
+            st.subheader("运营期（精确到月）")
+            col_o1, col_o2, col_o3, col_o4 = st.columns(4)
+            nr_operate_start_year = col_o1.number_input("运营起始年", value=2026, step=1, key="nr_os_y")
+            nr_operate_start_month = col_o2.number_input("起始月", min_value=1, max_value=12, value=4, step=1, key="nr_os_m")
+            nr_operate_end_year = col_o3.number_input("运营结束年", value=2037, step=1, key="nr_oe_y")
+            nr_operate_end_month = col_o4.number_input("结束月", min_value=1, max_value=12, value=3, step=1, key="nr_oe_m")
+
+            # 自动生成年份列表和每年实际月数
+            def generate_year_months(start_y, start_m, end_y, end_m):
+                """生成从start到end覆盖的每年及对应月数"""
+                years = list(range(start_y, end_y + 1))
+                month_map = {}
+                for y in years:
+                    m_start = start_m if y == start_y else 1
+                    m_end = end_m if y == end_y else 12
+                    month_map[y] = m_end - m_start + 1
+                return years, month_map
+
+            build_years, nr_build_month_map = generate_year_months(
+                nr_build_start_year, nr_build_start_month, nr_build_end_year, nr_build_end_month)
+            operate_years_raw, nr_operate_month_map = generate_year_months(
+                nr_operate_start_year, nr_operate_start_month, nr_operate_end_year, nr_operate_end_month)
+            operate_years = operate_years_raw
+
+            # 存入session供后续测算用
+            st.session_state["nr_operate_month_map"] = nr_operate_month_map
+            st.session_state["nr_build_month_map"] = nr_build_month_map
+
+            operate_start = nr_operate_start_year
+            operate_end = nr_operate_end_year
+
+            st.info(f"✅ 建设期：{nr_build_start_year}年{nr_build_start_month}月 ~ {nr_build_end_year}年{nr_build_end_month}月")
+            st.info(f"✅ 运营期：{nr_operate_start_year}年{nr_operate_start_month}月 ~ {nr_operate_end_year}年{nr_operate_end_month}月，共覆盖 {sum(nr_operate_month_map.values())} 个月")
+
         else:
-            house_type = "公租房"  # 非出租型项目，给固定默认值，不影响计算
-        # 建设期年份：原有代码完全不动
-        build_years = st.multiselect("建设期年份", options=year_options, default=[2024, 2025])
-    
-        # ---------------------- 运营期年份区间选择----------------------
-        st.subheader("运营期年份（区间选择）")
-        # 初始化session_state（仅第一次运行设置默认值/session_state是网页小本本）
-        if "operate_start" not in st.session_state: st.session_state["operate_start"] = 2027
-        if "operate_end" not in st.session_state: st.session_state["operate_end"] = 2029
-    
-        # 回调函数：起始年变化时自动修正结束年，防错
-        def sync_operate_end():
-            if st.session_state["operate_end"] < st.session_state["operate_start"]:
-                st.session_state["operate_end"] = st.session_state["operate_start"]
-    
-        # 输入框一行展示
-        col1, col2 = st.columns(2)
-        col1.number_input("运营期起始年", min_value=START_YEAR, max_value=END_YEAR, step=1, key="operate_start", on_change=sync_operate_end)
-        col2.number_input("运营期结束年", min_value=st.session_state["operate_start"], max_value=END_YEAR, step=1, key="operate_end")
-    
-        # 【关键】这里的缩进和上面的代码同级，确保operate_years在with块内被定义，外面能访问到
-        operate_start = st.session_state["operate_start"]
-        operate_end = st.session_state["operate_end"]
-        operate_years = list(range(operate_start, operate_end + 1))
-    
-        # 提示和校验，缩进同级
-        st.info(f"✅ 已自动生成运营期年份：{operate_years}")
-        if build_years and operate_start < max(build_years):
-            st.warning(f"⚠️ 运营期起始年({operate_start})早于建设期最后一年({max(build_years)})，请检查！")
+            # 其他类型保持原有的建设期/运营期年份输入，完全不动
+            project_name = st.text_input("项目名称", value="安居XX项目测算（测试）")
+            # 【核心修改：仅出租型项目显示房源类型，缩进和上面的project_name完全一致】
+            if project_type == "出租型(协议出让/合作类等)":
+                house_type = st.radio("房源类型", options=["公租房", "保租房"], index=0, horizontal=True, help="用于匹配装修重置费计算规则")
+            else:
+                house_type = "公租房"  # 非出租型项目，给固定默认值，不影响计算
+            # 建设期年份：原有代码完全不动
+            build_years = st.multiselect("建设期年份", options=year_options, default=[2024, 2025])
+        
+            # ---------------------- 运营期年份区间选择----------------------
+            st.subheader("运营期年份（区间选择）")
+            # 初始化session_state（仅第一次运行设置默认值/session_state是网页小本本）
+            if "operate_start" not in st.session_state: st.session_state["operate_start"] = 2027
+            if "operate_end" not in st.session_state: st.session_state["operate_end"] = 2029
+        
+            # 回调函数：起始年变化时自动修正结束年，防错
+            def sync_operate_end():
+                if st.session_state["operate_end"] < st.session_state["operate_start"]:
+                    st.session_state["operate_end"] = st.session_state["operate_start"]
+        
+            # 输入框一行展示
+            col1, col2 = st.columns(2)
+            col1.number_input("运营期起始年", min_value=START_YEAR, max_value=END_YEAR, step=1, key="operate_start", on_change=sync_operate_end)
+            col2.number_input("运营期结束年", min_value=st.session_state["operate_start"], max_value=END_YEAR, step=1, key="operate_end")
+        
+            # 【关键】这里的缩进和上面的代码同级，确保operate_years在with块内被定义，外面能访问到
+            operate_start = st.session_state["operate_start"]
+            operate_end = st.session_state["operate_end"]
+            operate_years = list(range(operate_start, operate_end + 1))
+        
+            # 提示和校验，缩进同级
+            st.info(f"✅ 已自动生成运营期年份：{operate_years}")
+            if build_years and operate_start < max(build_years):
+                st.warning(f"⚠️ 运营期起始年({operate_start})早于建设期最后一年({max(build_years)})，请检查！")
 
     # 2. 收入计算参数
     with st.expander("2. 收入计算参数", expanded=True):
@@ -2802,7 +2885,8 @@ def calc_non_resi_reform(all_years, month_dict, is_operate, operate_year_list,
     # ========== 0. 基础准备 ==========
     rate = loan_annual_rate / 100
     discount_r = discount_rate_pct / 100
-    total_operate_months = len(operate_year_list) * 12
+    # 精确总运营月数：从month_dict中取每年实际月数
+    total_operate_months = sum(month_dict.get(y, 12) for y in operate_year_list)
     build_year_set = set(build_years)
     operate_year_set = set(operate_year_list)
 
@@ -3179,6 +3263,17 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         operate_start_year = operate_years[0]  # 运营期起始年，用于还款判断
         # ========== 【新增1行，仅此改动】定义operate_year_list，修复未定义报错 ==========
         operate_year_list = [y for y in all_years if is_operate[y]]
+        # ========== 非居改保类：覆盖month_dict为精确月数 ==========
+        if project_type == "非居改保类":
+            nr_operate_month_map = st.session_state.get("nr_operate_month_map", {})
+            nr_build_month_map = st.session_state.get("nr_build_month_map", {})
+            for y in all_years:
+                if y in nr_operate_month_map:
+                    month_dict[y] = nr_operate_month_map[y]
+                elif y in nr_build_month_map:
+                    month_dict[y] = 0  # 建设期仍为0
+                else:
+                    month_dict[y] = 0
     
         show_park = st.session_state.get("show_park", True)
         if not show_park: #防止不选车位后报错
