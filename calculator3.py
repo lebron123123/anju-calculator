@@ -1951,6 +1951,7 @@ if run_manual_inputs:
     with st.expander("1. 项目基本信息", expanded=True):
         # ===================== 非居改保类：精确到月的建设期/运营期 =====================
         if "non_resi_reform" in current_config.get("ui_components", []):
+            project_name = st.text_input("项目名称", value="非居改保项目测算（测试）")
             st.subheader("建设期（精确到月）")
             col_b1, col_b2, col_b3, col_b4 = st.columns(4)
             nr_build_start_year = col_b1.number_input("建设起始年", value=2024, step=1, key="nr_bs_y")
