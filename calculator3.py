@@ -2819,6 +2819,7 @@ def calc_loan_repayment(all_years, operate_start_year, loan_plan_dict, annual_ra
 
     # 提取每年的财务费用（当年付息额，用于总成本计算）
     financial_cost_dict = loan_df["本期付息(万元)"].to_dict()
+    
     return loan_df, financial_cost_dict
 
 # ===================== 税金及其附加测算函数（直接调用收入表数据，100%对齐无误差）=====================
@@ -3332,6 +3333,25 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             )
             # 非居改保直接拿到了所有表，financial_cost_dict从loan_df提取
             financial_cost_dict = loan_df["本期付息(万元)"].to_dict()
+            st.subheader("🔍 DEBUG：运营期各年收入拆解")
+            debug_rows = []
+            for y in operate_year_list:
+                m = month_dict.get(y, 0)
+                occ = resi_occupancy.get(y, 0)
+                rp = resi_rent_price.get(y, 0)
+                ri = income_df.loc[y, "住宅租金收入(万元)"]
+                expected = residential_area * rp * occ * m / 10000
+                debug_rows.append({
+                    "年份": y,
+                    "月数": m,
+                    "出租率": occ,
+                    "租金单价": round(rp, 4),
+                    "面积": residential_area,
+                    "收入(实际)": round(ri, 4),
+                    "收入(验算)": round(expected, 4),
+                    "月均收入": round(ri / m, 4) if m > 0 else 0,
+                })
+            st.dataframe(pd.DataFrame(debug_rows), use_container_width=True)
 
         else:
             # 2. 收入测算（原有逻辑完全不变）
