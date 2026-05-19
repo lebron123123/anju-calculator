@@ -3211,6 +3211,168 @@ def calc_profit(all_years, income_df, total_cost_df, tax_df, is_sale_project=Fal
     
     return profit_df
 
+# ===================== DEBUG 全指标拆解面板（所有项目类型通用） =====================
+def render_debug_panel(project_type, all_years, operate_year_list, month_dict, is_operate,
+                       income_df, total_cost_df, loan_df, profit_df, cf_df, tax_df,
+                       resi_occupancy=None, resi_rent_price=None,
+                       park_occupancy=None, park_rent_price=None,
+                       residential_area=0, park_count=0, park_income_ratio=0,
+                       rent_start_price=0, manage_coeff=0, total_build_area=0, total_investment=0,
+                       rental_cost_df=None, sale_area=0, sale_avg_price=0, sale_ramp_dict=None,
+                       comm_area=0, comm_rent_start_price=0,
+                       nr_collect_price=0, nr_total_units=0, nr_unit_operate_cost=0):
+    """在 expander 里展示全指标逐年拆解，方便核查"""
+
+    with st.expander("🔍 DEBUG：运营期逐年指标拆解（点击展开）", expanded=False):
+        resi_occupancy = resi_occupancy or {}
+        resi_rent_price = resi_rent_price or {}
+        park_occupancy = park_occupancy or {}
+        park_rent_price = park_rent_price or {}
+        sale_ramp_dict = sale_ramp_dict or {}
+        is_non_resi = (project_type == "非居改保类")
+        is_sale = (project_type == "出售类(配保房/可售型人才房等)")
+        is_rental = (project_type == "出租型(协议出让/合作类等)")
+
+        # ---- 1. 收入拆解 ----
+        st.markdown("#### 📋 收入拆解")
+        inc_rows = []
+        for y in operate_year_list:
+            m = month_dict.get(y, 0)
+            occ = resi_occupancy.get(y, 0)
+            rp = resi_rent_price.get(y, 0)
+            resi_inc = income_df.loc[y, "住宅租金收入(万元)"] if "住宅租金收入(万元)" in income_df.columns else 0
+            row = {"年份": y, "月数": m, "住宅出租率": round(occ, 4), "住宅租金单价": round(rp, 4),
+                   "住宅面积": residential_area, "住宅收入": round(float(resi_inc), 4)}
+
+            if not is_non_resi and not is_sale:
+                # 出租类/租售结合：加车位
+                p_occ = park_occupancy.get(y, 0)
+                p_rp = park_rent_price.get(y, 0)
+                park_inc = income_df.loc[y, "车位收入(万元)"] if "车位收入(万元)" in income_df.columns else 0
+                row.update({"车位出租率": round(p_occ, 4), "车位单价": round(p_rp, 2),
+                            "车位数": park_count, "车位系数": park_income_ratio,
+                            "车位收入": round(float(park_inc), 4)})
+
+            if is_sale:
+                # 出售类：加销售收入
+                sr = sale_ramp_dict.get(y, 0)
+                sale_inc = income_df.loc[y, "配保房销售收入(万元)"] if "配保房销售收入(万元)" in income_df.columns else 0
+                row.update({"销售率": round(sr, 4), "销售面积": sale_area,
+                            "售价": sale_avg_price, "销售收入": round(float(sale_inc), 4)})
+
+            total_inc = income_df.loc[y, "总收入(万元)"] if "总收入(万元)" in income_df.columns else 0
+            row["总收入"] = round(float(total_inc), 4)
+            row["月均收入"] = round(float(total_inc) / m, 4) if m > 0 else 0
+            inc_rows.append(row)
+        st.dataframe(pd.DataFrame(inc_rows), use_container_width=True)
+
+        # ---- 2. 成本拆解 ----
+        st.markdown("#### 💸 成本拆解")
+        cost_rows = []
+        for y in operate_year_list:
+            m = month_dict.get(y, 0)
+            row = {"年份": y, "月数": m}
+
+            if is_non_resi:
+                for col in ["收楼成本(万元)", "工程费用(万元)", "运营费用(万元)", "财务费用(万元)", "总成本费用(万元)"]:
+                    if col in total_cost_df.columns:
+                        row[col.replace("(万元)", "")] = round(float(total_cost_df.loc[y, col]), 4)
+            elif is_sale:
+                for col in ["累计开发成本（销售部分）(万元)", "累计开发成本（折旧摊销部分）2(万元)",
+                            "销售费用(万元)", "销售税金及其附加(万元)",
+                            "财务费用(建设期)(万元)", "财务费用(运营期)(万元)",
+                            "总成本费用(不含建设期财务费用、不含税金)(万元)"]:
+                    if col in total_cost_df.columns:
+                        row[col.replace("(万元)", "")] = round(float(total_cost_df.loc[y, col]), 4)
+            else:
+                for col in ["管理费用(住房)(万元)", "管理费用(停车位)(万元)", "保险费(万元)",
+                            "维修费用(万元)", "日常物业维修基金(万元)", "空置期物业管理费(万元)",
+                            "装修重置费(万元)", "折旧摊销(万元)", "经营成本(万元)",
+                            "财务费用(运营期)(万元)",
+                            "总成本费用(不含建设期财务费用、不含税金)(万元)"]:
+                    if col in total_cost_df.columns:
+                        row[col.replace("(万元)", "")] = round(float(total_cost_df.loc[y, col]), 4)
+            cost_rows.append(row)
+        st.dataframe(pd.DataFrame(cost_rows), use_container_width=True)
+
+        # ---- 3. 还本付息拆解 ----
+        st.markdown("#### 🏦 还本付息拆解")
+        loan_rows = []
+        for y in operate_year_list:
+            row = {"年份": y}
+            for col in ["期初借款本金(万元)", "本期借款(万元)", "本期计息(万元)",
+                        "本期还本(万元)", "本期付息(万元)", "期末借款累计(万元)"]:
+                if col in loan_df.columns:
+                    row[col.replace("(万元)", "")] = round(float(loan_df.loc[y, col]), 4)
+            loan_rows.append(row)
+        st.dataframe(pd.DataFrame(loan_rows), use_container_width=True)
+
+        # ---- 4. 税金拆解 ----
+        if tax_df is not None and not tax_df.empty:
+            st.markdown("#### 📝 税金拆解")
+            tax_rows = []
+            for y in operate_year_list:
+                if not is_operate.get(y, False):
+                    continue
+                row = {"年份": y}
+                for col in tax_df.columns:
+                    row[col.replace("(万元)", "")] = round(float(tax_df.loc[y, col]), 4)
+                tax_rows.append(row)
+            st.dataframe(pd.DataFrame(tax_rows), use_container_width=True)
+
+        # ---- 5. 损益拆解 ----
+        st.markdown("#### 📈 损益拆解")
+        profit_rows = []
+        for y in operate_year_list:
+            row = {"年份": y}
+            for col in ["总收入(万元)", "总成本费用(万元)", "利润总额(万元)",
+                        "弥补亏损(万元)", "应纳税所得额(万元)", "所得税(万元)", "净利润(万元)"]:
+                if col in profit_df.columns:
+                    row[col.replace("(万元)", "")] = round(float(profit_df.loc[y, col]), 4)
+            profit_rows.append(row)
+        st.dataframe(pd.DataFrame(profit_rows), use_container_width=True)
+
+        # ---- 6. 现金流拆解 ----
+        st.markdown("#### 💵 现金流拆解")
+        cf_rows = []
+        for y in all_years:
+            row = {"年份": y}
+            for col in ["现金流入(万元)", "现金流出合计(万元)", "净现金流量(万元)",
+                        "累计净现金流量(万元)", "净现值(万元)", "累计净现值(万元)"]:
+                if col in cf_df.columns:
+                    row[col.replace("(万元)", "")] = round(float(cf_df.loc[y, col]), 4)
+            cf_rows.append(row)
+        st.dataframe(pd.DataFrame(cf_rows), use_container_width=True)
+
+        # ---- 7. 出售类专属：出租情况表拆解 ----
+        if is_sale and rental_cost_df is not None and not rental_cost_df.empty:
+            st.markdown("#### 🏪 出租情况拆解")
+            rent_rows = []
+            for y in operate_year_list:
+                row = {"年份": y}
+                for col in ["商业出租率", "商业租金(元/㎡/月)", "商业出租收入(万元)",
+                            "出租营运成本合计(万元)", "出租经营税金合计(万元)",
+                            "出租净收入(万元)", "出租净收益现值(万元)"]:
+                    if col in rental_cost_df.columns:
+                        row[col] = round(float(rental_cost_df.loc[y, col]), 4)
+                rent_rows.append(row)
+            st.dataframe(pd.DataFrame(rent_rows), use_container_width=True)
+
+        # ---- 8. 非居改保专属：成本分项拆解 ----
+        if is_non_resi:
+            st.markdown("#### 🏢 非居改保专属拆解")
+            nr_rows = []
+            for y in operate_year_list:
+                m = month_dict.get(y, 0)
+                occ = resi_occupancy.get(y, 0)
+                row = {
+                    "年份": y, "月数": m, "出租率": round(occ, 4),
+                    "收楼成本验算": round(residential_area * nr_collect_price * occ * m / 10000, 4),
+                    "运营费验算": round(nr_unit_operate_cost * nr_total_units * m / 10000, 4),
+                }
+                nr_rows.append(row)
+            st.dataframe(pd.DataFrame(nr_rows), use_container_width=True)
+
 # ===================== 结果展示区 =====================
 # 仅AI模式允许使用历史快照；普通模式必须点击按钮才测算
 if calc_button or has_result_snapshot_for_current_page(current_page_key):
@@ -3333,25 +3495,6 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             )
             # 非居改保直接拿到了所有表，financial_cost_dict从loan_df提取
             financial_cost_dict = loan_df["本期付息(万元)"].to_dict()
-            st.subheader("🔍 DEBUG：运营期各年收入拆解")
-            debug_rows = []
-            for y in operate_year_list:
-                m = month_dict.get(y, 0)
-                occ = resi_occupancy.get(y, 0)
-                rp = resi_rent_price.get(y, 0)
-                ri = income_df.loc[y, "住宅租金收入(万元)"]
-                expected = residential_area * rp * occ * m / 10000
-                debug_rows.append({
-                    "年份": y,
-                    "月数": m,
-                    "出租率": occ,
-                    "租金单价": round(rp, 4),
-                    "面积": residential_area,
-                    "收入(实际)": round(ri, 4),
-                    "收入(验算)": round(expected, 4),
-                    "月均收入": round(ri / m, 4) if m > 0 else 0,
-                })
-            st.dataframe(pd.DataFrame(debug_rows), use_container_width=True)
 
         else:
             # 2. 收入测算（原有逻辑完全不变）
@@ -4010,6 +4153,41 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
         # 8. 页面结果展示
         st.header("📊 测算结果")
         st.markdown("---")
+        # ========== DEBUG 面板（所有项目类型通用，默认折叠） ==========
+        if not use_snapshot_only:
+            render_debug_panel(
+                project_type=project_type,
+                all_years=all_years,
+                operate_year_list=operate_year_list,
+                month_dict=month_dict,
+                is_operate=is_operate,
+                income_df=income_df,
+                total_cost_df=total_cost_df,
+                loan_df=loan_df,
+                profit_df=profit_df,
+                cf_df=cf_df,
+                tax_df=tax_df if 'tax_df' in locals() else None,
+                resi_occupancy=resi_occupancy if 'resi_occupancy' in locals() else None,
+                resi_rent_price=resi_rent_price if 'resi_rent_price' in locals() else None,
+                park_occupancy=park_occupancy if 'park_occupancy' in locals() else None,
+                park_rent_price=park_rent_price if 'park_rent_price' in locals() else None,
+                residential_area=residential_area,
+                park_count=park_count,
+                park_income_ratio=park_income_ratio,
+                rent_start_price=rent_start_price,
+                manage_coeff=manage_coeff,
+                total_build_area=total_build_area,
+                total_investment=total_investment,
+                rental_cost_df=rental_cost_df if 'rental_cost_df' in locals() and not rental_cost_df.empty else None,
+                sale_area=sale_area,
+                sale_avg_price=sale_avg_price,
+                sale_ramp_dict=sale_ramp_dict,
+                comm_area=comm_area,
+                comm_rent_start_price=comm_rent_start_price,
+                nr_collect_price=nr_collect_price if 'nr_collect_price' in locals() else 0,
+                nr_total_units=nr_total_units if 'nr_total_units' in locals() else 0,
+                nr_unit_operate_cost=nr_unit_operate_cost if 'nr_unit_operate_cost' in locals() else 0,
+            )
         
         # --- 核心指标汇总 ---
         st.subheader("🎯 最终财务结果汇总")
