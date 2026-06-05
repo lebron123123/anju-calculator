@@ -3499,7 +3499,11 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             _nr_loan_amount = nr_loan_amount if 'nr_loan_amount' in locals() else ai_p.get("nr_loan_amount", 10000.0)
             _nr_interest_base = nr_interest_base if 'nr_interest_base' in locals() else ai_p.get("nr_interest_base", 8000.0)
             _nr_rate_discount = nr_rate_discount if 'nr_rate_discount' in locals() else ai_p.get("nr_rate_discount", 0.8)
-
+            # ---------- 新增：确保变量存在 ----------
+            if 'operating_cost_increase_span' not in locals():
+                operating_cost_increase_span = 3
+            if 'operating_cost_increase_rate' not in locals():
+                operating_cost_increase_rate = 0.0
             income_df, total_cost_df, tax_df, profit_df, cf_df, loan_df, resi_occupancy, resi_rent_price = calc_non_resi_reform(
                 all_years=all_years,
                 month_dict=month_dict,
