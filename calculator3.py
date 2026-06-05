@@ -1711,9 +1711,6 @@ if is_ai_mode:
             nr_decoration_unit_cost = st.number_input("首次装修单方造价（元/㎡）", min_value=0.0, value=1500.0, step=50.0)
             nr_total_units = st.number_input("总套数", min_value=1, value=500, step=10)
             nr_unit_operate_cost = st.number_input("单套月运营成本（元/套/月）", min_value=0.0, value=800.0, step=50.0)
-            # ----- 新增：运营成本增长参数 -----
-            operating_cost_increase_span = st.number_input("运营成本增长跨度（年）", min_value=1, max_value=50, value=3, step=1)
-            operating_cost_increase_rate = st.number_input("成本递增率（%）", min_value=0.0, max_value=50.0, value=0.0, step=0.1)
             nr_loan_amount = st.number_input("总借款额（万元）", min_value=0.0, value=10000.0, step=100.0)
 
     if st.button("🤖 AI一键测算", type="primary", use_container_width=True):
@@ -2878,7 +2875,7 @@ def calc_non_resi_reform(all_years, month_dict, is_operate, operate_year_list,
                           residential_area, rent_start_price, rent_increase_span, rent_increase_rate,
                           occupancy_ramp_dict, stable_start, stable_end, occupancy_stable,
                           nr_collect_price, nr_decoration_unit_cost, nr_decoration_interval, nr_redecoration_ratio,
-                          nr_total_units, nr_unit_operate_cost,operating_cost_increase_span, operating_cost_increase_rate, nr_startup_fee,
+                          nr_total_units, nr_unit_operate_cost, nr_startup_fee,
                           nr_loan_amount, nr_interest_base, nr_rate_discount, loan_annual_rate,
                           loan_plan_dict, repay_plan_dict, discount_rate_pct,
                           build_years):
@@ -2961,46 +2958,14 @@ def calc_non_resi_reform(all_years, month_dict, is_operate, operate_year_list,
             cost_df.loc[year, "税后工程费用(万元)"] = round(eng / 1.09, 4)
 
     # 2c. 运营费用
-    # ========== 先计算每年适用的单位运营成本（元/套/月） ==========
-    # 找出所有运营月数=12的“完整年”年份，用来计算递增次数
-    full_years = [y for y in operate_year_list if month_dict.get(y, 0) == 12]
-    base_cost = nr_unit_operate_cost
-    
-    cost_per_unit_dict = {}
-    for idx, year in enumerate(operate_year_list):
-        months = month_dict.get(year, 0)
-        # 不满一年 -> 不触发增长，沿用上一年成本（第一年用base）
-        if months < 12:
-            if idx == 0:
-                cost_per_unit_dict[year] = base_cost
-            else:
-                cost_per_unit_dict[year] = cost_per_unit_dict[operate_year_list[idx-1]]
-            continue
-    
-        # 满一年：但当年可能不在full_years中（由于month_dict异常），兜底
-        if year not in full_years:
-            cost_per_unit_dict[year] = cost_per_unit_dict.get(operate_year_list[idx-1], base_cost)
-            continue
-    
-        # 完整年，计算递增次数
-        full_idx = full_years.index(year)   # 第几个完整年（从0开始）
-        if operating_cost_increase_span > 0:
-            increase_times = full_idx // operating_cost_increase_span
-        else:
-            increase_times = 0
-        new_cost = base_cost * ((1 + operating_cost_increase_rate / 100) ** increase_times)
-        cost_per_unit_dict[year] = round(new_cost, 2)
-    
-    # ========== 按年度计算运营费用 ==========
     for idx_y, year in enumerate(all_years):
         if not is_operate[year]:
             cost_df.loc[year, "运营费用(万元)"] = 0.0
             cost_df.loc[year, "税后运营费用(万元)"] = 0.0
         else:
             months = month_dict[year]
-            unit_cost = cost_per_unit_dict[year]
-            base_operate = unit_cost * nr_total_units * months / 10000
-            # 首年加开办费（仅首月）
+            base_operate = nr_unit_operate_cost * nr_total_units * months / 10000
+            # 首年加开办费
             if year == operate_year_list[0]:
                 base_operate += nr_startup_fee
             cost_df.loc[year, "运营费用(万元)"] = round(base_operate, 4)
@@ -3498,11 +3463,7 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
             _nr_loan_amount = nr_loan_amount if 'nr_loan_amount' in locals() else ai_p.get("nr_loan_amount", 10000.0)
             _nr_interest_base = nr_interest_base if 'nr_interest_base' in locals() else ai_p.get("nr_interest_base", 8000.0)
             _nr_rate_discount = nr_rate_discount if 'nr_rate_discount' in locals() else ai_p.get("nr_rate_discount", 0.8)
-            # ---------- 新增：确保变量存在 ----------
-            if 'operating_cost_increase_span' not in locals():
-                operating_cost_increase_span = 3
-            if 'operating_cost_increase_rate' not in locals():
-                operating_cost_increase_rate = 0.0
+
             income_df, total_cost_df, tax_df, profit_df, cf_df, loan_df, resi_occupancy, resi_rent_price = calc_non_resi_reform(
                 all_years=all_years,
                 month_dict=month_dict,
@@ -3522,8 +3483,6 @@ if calc_button or has_result_snapshot_for_current_page(current_page_key):
                 nr_redecoration_ratio=_nr_redecoration_ratio,
                 nr_total_units=_nr_total_units,
                 nr_unit_operate_cost=_nr_unit_operate_cost,
-                operating_cost_increase_span=operating_cost_increase_span,
-                operating_cost_increase_rate=operating_cost_increase_rate,
                 nr_startup_fee=_nr_startup_fee,
                 nr_loan_amount=_nr_loan_amount,
                 nr_interest_base=_nr_interest_base,
