@@ -2394,7 +2394,18 @@ if run_manual_inputs:
             for idx, year in enumerate(loan_years):
                 loan_plan_dict[year] = col_loan_year[idx].number_input(f"{year}年借款额（万元）", min_value=0.0, value=0.0, step=100.0)
         # =====================出售型增加还款计划======================
-        repay_plan_dict = {}
+        # 非居改保：还款计划（紧接借款计划）
+        if "non_resi_reform" in current_config.get("ui_components", []):
+            st.markdown("#### 银行还款计划")
+            repay_years_nr = st.multiselect("请选择有还款的年份", options=loan_available_years, default=[])
+            repay_plan_dict = {}
+            if repay_years_nr:
+                col_repay_nr = st.columns(len(repay_years_nr))
+                for idx, year in enumerate(repay_years_nr):
+                    repay_plan_dict[year] = col_repay_nr[idx].number_input(f"{year}年还款本金（万元）", min_value=0.0, value=0.0, step=100.0)
+        # =====================出售型增加还款计划======================
+        else:
+            repay_plan_dict = {}
         current_config = PROJECT_CONFIG[project_type]
         if "custom_repay_plan" in current_config.get("ui_components", []):
             st.markdown("#### 银行还款计划")
