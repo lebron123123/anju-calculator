@@ -1711,6 +1711,10 @@ if is_ai_mode:
             nr_decoration_unit_cost = st.number_input("首次装修单方造价（元/㎡）", min_value=0.0, value=1500.0, step=50.0)
             nr_total_units = st.number_input("总套数", min_value=1, value=500, step=10)
             nr_unit_operate_cost = st.number_input("单套月运营成本（元/套/月）", min_value=0.0, value=800.0, step=50.0)
+            # ----- 新增：运营成本增长参数 -----
+            col_op1, col_op2 = st.columns(2)
+            operating_cost_increase_span = col_op1.number_input("运营成本增长跨度（年）", min_value=1, max_value=50, value=3, step=1)
+            operating_cost_increase_rate = col_op2.number_input("成本递增率（%）", min_value=0.0, max_value=50.0, value=0.0, step=0.1)
             nr_loan_amount = st.number_input("总借款额（万元）", min_value=0.0, value=10000.0, step=100.0)
 
     if st.button("🤖 AI一键测算", type="primary", use_container_width=True):
