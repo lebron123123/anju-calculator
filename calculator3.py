@@ -2064,6 +2064,9 @@ if run_manual_inputs:
         col_nr3, col_nr4 = st.columns(2)
         rent_increase_span = col_nr3.number_input("租金递增跨度（年）", min_value=1, max_value=50, value=3, step=1)
         rent_increase_rate = col_nr4.number_input("租金递增率（%）", min_value=0.0, max_value=50.0, value=5.0, step=0.1)
+        col_nr5, col_nr6 = st.columns(2)
+        cost_increase_span = col_nr5.number_input("运营成本增长跨度（年）", min_value=1, max_value=50, value=1, step=1)
+        cost_increase_rate = col_nr6.number_input("成本递增率（%）", min_value=0.0, max_value=50.0, value=0.0, step=0.1)
 
         st.markdown("##### 出租率设置")
         if 'operate_years' in locals() and operate_years:
@@ -2878,7 +2881,7 @@ def calc_non_resi_reform(all_years, month_dict, is_operate, operate_year_list,
                           nr_total_units, nr_unit_operate_cost, nr_startup_fee,
                           nr_loan_amount, nr_interest_base, nr_rate_discount, loan_annual_rate,
                           loan_plan_dict, repay_plan_dict, discount_rate_pct,
-                          build_years):
+                          build_years,cost_increase_span=1, cost_increase_rate=0.0):
     """
     非居改保类一体化测算，返回：
     income_df, total_cost_df, tax_df, profit_df, cf_df, loan_df
@@ -2958,14 +2961,19 @@ def calc_non_resi_reform(all_years, month_dict, is_operate, operate_year_list,
             cost_df.loc[year, "税后工程费用(万元)"] = round(eng / 1.09, 4)
 
     # 2c. 运营费用
+    first_op_year = operate_year_list[0] if operate_year_list else None
+    first_op_is_partial = first_op_year is not None and month_dict.get(first_op_year, 12) < 12
     for idx_y, year in enumerate(all_years):
         if not is_operate[year]:
             cost_df.loc[year, "运营费用(万元)"] = 0.0
             cost_df.loc[year, "税后运营费用(万元)"] = 0.0
         else:
             months = month_dict[year]
-            base_operate = nr_unit_operate_cost * nr_total_units * months / 10000
-            # 首年加开办费
+            op_idx = operate_year_list.index(year)
+            full_year_idx = (op_idx - 1) if first_op_is_partial else op_idx
+            increase_times = max(0, full_year_idx) // cost_increase_span if full_year_idx >= 0 else 0
+            cost_multiplier = (1 + cost_increase_rate / 100) ** increase_times
+            base_operate = nr_unit_operate_cost * cost_multiplier * nr_total_units * months / 10000
             if year == operate_year_list[0]:
                 base_operate += nr_startup_fee
             cost_df.loc[year, "运营费用(万元)"] = round(base_operate, 4)
