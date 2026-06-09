@@ -3053,32 +3053,28 @@ def calc_non_resi_reform(all_years, month_dict, is_operate, operate_year_list,
     tax_df = pd.DataFrame(index=all_years)
 
     # 进项税合计（全周期一次性计算）
-    total_operate_cost_sum = cost_df.loc[operate_year_list, "运营费用(万元)"].sum() if operate_year_list else 0
-    total_fin_cost_sum = cost_df.loc[operate_year_list, "财务费用(万元)"].sum() if operate_year_list else 0
-    total_eng_input = total_eng_cost * 0.09  # 工程成本×9%
-    total_input_tax = (total_operate_cost_sum + total_fin_cost_sum) * 0.06 + total_eng_input
-    remaining_input = total_input_tax
-
     for year in all_years:
-        if not is_operate[year]:
-            tax_df.loc[year, ["销项税(万元)", "进项税(万元)", "增值税(万元)",
-                              "增值税附加(万元)", "印花税(万元)", "税金及其附加总和(万元)"]] = 0.0
-        else:
-            rent_income = income_df.loc[year, "住宅租金收入(万元)"]
-            output_tax = rent_income / 1.09 * 0.09
-            input_before = remaining_input
-            vat = max(output_tax - input_before, 0.0)
-            remaining_input = max(input_before - output_tax, 0.0)
-            vat_surcharge = vat * 0.12
-            stamp = rent_income * 0.0003  # 0.03%
-            total_tax = vat + vat_surcharge + stamp
-
-            tax_df.loc[year, "销项税(万元)"] = round(output_tax, 4)
-            tax_df.loc[year, "进项税(万元)"] = round(input_before, 4)
-            tax_df.loc[year, "增值税(万元)"] = round(vat, 4)
-            tax_df.loc[year, "增值税附加(万元)"] = round(vat_surcharge, 4)
-            tax_df.loc[year, "印花税(万元)"] = round(stamp, 4)
-            tax_df.loc[year, "税金及其附加总和(万元)"] = round(total_tax, 4)
+            if not is_operate[year]:
+                tax_df.loc[year, ["销项税(万元)", "进项税(万元)", "增值税(万元)",
+                                  "增值税附加(万元)", "印花税(万元)", "税金及其附加总和(万元)"]] = 0.0
+            else:
+                rent_income = income_df.loc[year, "住宅租金收入(万元)"]
+                output_tax = rent_income / 1.09 * 0.09
+                yr_eng = cost_df.loc[year, "工程费用(万元)"]
+                yr_operate = cost_df.loc[year, "运营费用(万元)"]
+                yr_fin = cost_df.loc[year, "财务费用(万元)"]
+                input_before = yr_eng * 0.09 / 1.09 + (yr_operate + yr_fin) * 0.06 / 1.06
+                vat = max(output_tax - input_before, 0.0)
+                vat_surcharge = vat * 0.12
+                stamp = rent_income * 0.0003  # 0.03%
+                total_tax = vat + vat_surcharge + stamp
+    
+                tax_df.loc[year, "销项税(万元)"] = round(output_tax, 4)
+                tax_df.loc[year, "进项税(万元)"] = round(input_before, 4)
+                tax_df.loc[year, "增值税(万元)"] = round(vat, 4)
+                tax_df.loc[year, "增值税附加(万元)"] = round(vat_surcharge, 4)
+                tax_df.loc[year, "印花税(万元)"] = round(stamp, 4)
+                tax_df.loc[year, "税金及其附加总和(万元)"] = round(total_tax, 4)
 
     # ========== 4. 损益表 ==========
     profit_df = pd.DataFrame(index=all_years)
