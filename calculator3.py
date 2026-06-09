@@ -3065,7 +3065,7 @@ def calc_non_resi_reform(all_years, month_dict, is_operate, operate_year_list,
                               "增值税附加(万元)", "印花税(万元)", "税金及其附加总和(万元)"]] = 0.0
         else:
             rent_income = income_df.loc[year, "住宅租金收入(万元)"]
-            output_tax = rent_income * 0.09
+            output_tax = rent_income / 1.09 * 0.09
             input_before = remaining_input
             vat = max(output_tax - input_before, 0.0)
             remaining_input = max(input_before - output_tax, 0.0)
