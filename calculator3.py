@@ -3066,7 +3066,7 @@ def calc_non_resi_reform(all_years, month_dict, is_operate, operate_year_list,
                 input_before = yr_eng * 0.09 / 1.09 + (yr_operate + yr_fin) * 0.06 / 1.06
                 vat = max(output_tax - input_before, 0.0)
                 vat_surcharge = vat * 0.12
-                stamp = rent_income * 0.0003  # 0.03%
+                stamp = nr_decoration_unit_cost * residential_area * 0.0003  # 首次装修成本×0.03%
                 total_tax = vat + vat_surcharge + stamp
     
                 tax_df.loc[year, "销项税(万元)"] = round(output_tax, 4)
